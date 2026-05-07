@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JARVIS — Dashboard</title>
+  <style>
+    :root {
+      --bg: #0d0d0d;
+      --surface: #161616;
+      --border: #2a2a2a;
+      --accent: #00e5ff;
+      --green: #00e676;
+      --yellow: #ffd740;
+      --red: #ff5252;
+      --text: #e0e0e0;
+      --muted: #888;
+      --font: 'Segoe UI', system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh; }
+
+    /* ── Layout ── */
+    header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 12px 24px; display: flex; align-items: center; gap: 24px; }
+    header h1 { font-size: 1.3rem; letter-spacing: 3px; color: var(--accent); }
+    .status-pill { padding: 4px 12px; border-radius: 20px; font-size: .78rem; font-weight: 600; letter-spacing: 1px; }
+    .pill-green  { background: #003d1f; color: var(--green); border: 1px solid var(--green); }
+    .pill-yellow { background: #3d2e00; color: var(--yellow); border: 1px solid var(--yellow); }
+    .pill-red    { background: #3d0000; color: var(--red);    border: 1px solid var(--red);    }
+
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+    .card h2 { font-size: .85rem; text-transform: uppercase; letter-spacing: 2px; color: var(--muted); margin-bottom: 12px; }
+    .full-width { grid-column: 1 / -1; }
+
+    /* ── Status row ── */
+    #status-row { display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
+    .stat { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .stat-val { font-size: 1.5rem; font-weight: 700; color: var(--accent); }
+    .stat-lbl { font-size: .72rem; color: var(--muted); }
+
+    /* ── Autonomy toggle ── */
+    #autonomy-toggle { margin-left: auto; display: flex; gap: 8px; }
+    button { background: var(--border); color: var(--text); border: none; border-radius: 6px; padding: 8px 16px; cursor: pointer; font-size: .85rem; transition: background .2s; }
+    button:hover { background: #3a3a3a; }
+    button.active { background: #003d1f; color: var(--green); }
+    button.danger  { background: #3d0000; color: var(--red); }
+
+    /* ── Action feed ── */
+    #action-feed { max-height: 360px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+    .action-item { background: #111; border-radius: 6px; padding: 8px 12px; font-size: .8rem; border-left: 3px solid var(--border); }
+    .action-item.ok       { border-color: var(--green); }
+    .action-item.error    { border-color: var(--red); }
+    .action-item.skipped  { border-color: var(--muted); }
+    .action-item .ts      { color: var(--muted); font-size: .7rem; }
+    .action-item .rule    { color: var(--accent); font-size: .7rem; }
+    .action-item .goal    { margin-top: 2px; }
+
+    /* ── Jobs ── */
+    #jobs-list { display: flex; flex-direction: column; gap: 8px; }
+    .job-item { background: #111; border-radius: 6px; padding: 10px 14px; font-size: .82rem; }
+    .job-item .job-id   { color: var(--muted); font-size: .7rem; }
+    .job-item .job-goal { font-weight: 600; margin: 4px 0; }
+    .job-progress { height: 4px; background: var(--border); border-radius: 2px; margin-top: 8px; }
+    .job-progress-bar { height: 100%; background: var(--accent); border-radius: 2px; transition: width .5s; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: .68rem; font-weight: 600; }
+    .badge-done { background: #003d1f; color: var(--green); }
+    .badge-running { background: #003d3d; color: var(--accent); }
+    .badge-error   { background: #3d0000; color: var(--red); }
+
+    /* ── Profile ── */
+    #profile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+    .profile-item label { display: block; font-size: .72rem; color: var(--muted); margin-bottom: 4px; }
+    .profile-item select, .profile-item input[type=range] { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; font-size: .82rem; }
+
+    /* ── Failures table ── */
+    #failures-list { display: flex; flex-direction: column; gap: 6px; max-height: 280px; overflow-y: auto; }
+    .fail-item { background: #111; border-radius: 6px; padding: 8px 12px; font-size: .8rem; border-left: 3px solid var(--red); }
+    .fail-item.resolved { border-color: var(--muted); opacity: .6; }
+    .fail-item .fail-meta { color: var(--muted); font-size: .7rem; display: flex; gap: 12px; margin-bottom: 3px; }
+    .fail-item .fail-goal { margin-bottom: 3px; }
+    .fail-item .fail-err  { color: var(--red); font-size: .72rem; }
+
+    /* ── Footer ── */
+    footer { text-align: center; padding: 10px; color: var(--muted); font-size: .72rem; border-top: 1px solid var(--border); }
+
+    /* ── Health dot ── */
+    .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+    .dot-green  { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .dot-yellow { background: var(--yellow); }
+    .dot-red    { background: var(--red); }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>⚡ JARVIS</h1>
+  <span id="sys-status" class="status-pill pill-yellow">CONNECTING…</span>
+  <span id="llm-label" style="font-size:.8rem; color:var(--muted)">LLM: —</span>
+  <span id="uptime-label" style="font-size:.8rem; color:var(--muted)">Uptime: —</span>
+  <div id="autonomy-toggle" style="margin-left:auto">
+    <button id="btn-start"  onclick="autonomyCmd('start')">▶ Iniciar</button>
+    <button id="btn-pause"  onclick="autonomyCmd('pause')">⏸ Pausar</button>
+    <button id="btn-resume" onclick="autonomyCmd('resume')">▶ Retomar</button>
+    <button id="btn-stop"   onclick="autonomyCmd('stop')" class="danger">■ Parar</button>
+  </div>
+</header>
+
+<div class="grid">
+  <!-- Status row -->
+  <div class="card full-width">
+    <h2>Status Geral</h2>
+    <div id="status-row">
+      <div class="stat"><div class="stat-val" id="s-events">—</div><div class="stat-lbl">Eventos hoje</div></div>
+      <div class="stat"><div class="stat-val" id="s-actions">—</div><div class="stat-lbl">Ações tomadas</div></div>
+      <div class="stat"><div class="stat-val" id="s-jobs">—</div><div class="stat-lbl">Jobs ativos</div></div>
+      <div class="stat"><div class="stat-val" id="s-cpu">—</div><div class="stat-lbl">CPU %</div></div>
+      <div class="stat"><div class="stat-val" id="s-ram">—</div><div class="stat-lbl">RAM %</div></div>
+      <div class="stat"><div class="stat-val" id="s-autonomy">—</div><div class="stat-lbl">Autonomia</div></div>
+    </div>
+  </div>
+
+  <!-- Autonomy feed -->
+  <div class="card">
+    <h2>Atividade Autônoma <span id="action-count" style="color:var(--accent)"></span></h2>
+    <div id="action-feed"></div>
+  </div>
+
+  <!-- Jobs -->
+  <div class="card">
+    <h2>Jobs AutoDev</h2>
+    <div id="jobs-list"><div style="color:var(--muted); font-size:.82rem">Nenhum job ativo</div></div>
+  </div>
+
+  <!-- Failures -->
+  <div class="card full-width">
+    <h2>Falhas Recentes <span id="fail-count" style="color:var(--red)"></span></h2>
+    <div id="failures-list"><div style="color:var(--muted); font-size:.82rem">Carregando…</div></div>
+  </div>
+
+  <!-- Behavior Profile -->
+  <div class="card full-width">
+    <h2>Behavior Profile</h2>
+    <div id="profile-grid">
+      <div class="profile-item">
+        <label>Risk Tolerance</label>
+        <select id="p-risk" onchange="patchProfile({risk_tolerance:this.value})">
+          <option value="low">low</option>
+          <option value="medium" selected>medium</option>
+          <option value="high">high</option>
+        </select>
+      </div>
+      <div class="profile-item">
+        <label>Verbosity</label>
+        <select id="p-verb" onchange="patchProfile({verbosity:this.value})">
+          <option value="minimal">minimal</option>
+          <option value="normal" selected>normal</option>
+          <option value="detailed">detailed</option>
+        </select>
+      </div>
+      <div class="profile-item">
+        <label>Tests</label>
+        <select id="p-test" onchange="patchProfile({test_preference:this.value})">
+          <option value="always">always</option>
+          <option value="when_asked" selected>when_asked</option>
+          <option value="never">never</option>
+        </select>
+      </div>
+      <div class="profile-item" style="display:flex; align-items:center; gap:8px">
+        <button onclick="resetProfile()" class="danger" style="width:100%">⟳ Reset Profile</button>
+      </div>
+    </div>
+    <div id="p-routing" style="margin-top:12px; font-size:.78rem; color:var(--muted)"></div>
+  </div>
+</div>
+
+<footer>JARVIS — Sistema de IA Autônoma | <span id="last-update"></span></footer>
+
+<!-- Confirmation modal -->
+<div id="confirm-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.8); z-index:99; display:none; align-items:center; justify-content:center;">
+  <div style="background:var(--surface); border:1px solid var(--accent); border-radius:12px; padding:32px; max-width:480px; width:90%">
+    <h3 style="color:var(--accent); margin-bottom:12px">Confirmação necessária</h3>
+    <p id="confirm-goal" style="margin-bottom:20px"></p>
+    <div style="display:flex; gap:12px">
+      <button onclick="sendConfirm(true)"  style="flex:1; background:#003d1f; color:var(--green)">✓ Confirmar</button>
+      <button onclick="sendConfirm(false)" style="flex:1" class="danger">✗ Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const BASE = `${location.protocol}//${location.hostname}:${location.port || 8000}`;
+const WS_BASE = BASE.replace('http','ws');
+
+let ws = null;
+let pendingConfirmId = null;
+const actionFeed = [];
+const MAX_FEED = 20;
+
+function connect() {
+  ws = new WebSocket(`${WS_BASE}/dashboard/stream`);
+  ws.onopen = () => {
+    document.getElementById('sys-status').className = 'status-pill pill-green';
+    document.getElementById('sys-status').textContent = 'ONLINE';
+  };
+  ws.onclose = () => {
+    document.getElementById('sys-status').className = 'status-pill pill-red';
+    document.getElementById('sys-status').textContent = 'OFFLINE';
+    setTimeout(connect, 3000);
+  };
+  ws.onmessage = e => {
+    try { render(JSON.parse(e.data)); } catch(ex) {}
+  };
+}
+
+function render(d) {
+  // Header
+  const up = d.uptime_seconds || 0;
+  document.getElementById('uptime-label').textContent =
+    `Uptime: ${Math.floor(up/3600)}h ${Math.floor((up%3600)/60)}m`;
+  document.getElementById('last-update').textContent = new Date().toLocaleTimeString('pt-BR');
+
+  // Metrics
+  if (d.metrics) {
+    document.getElementById('s-cpu').textContent = (d.metrics.cpu_percent||0).toFixed(0)+'%';
+    document.getElementById('s-ram').textContent = (d.metrics.ram_percent||0).toFixed(0)+'%';
+  }
+
+  // Autonomy
+  const a = d.autonomy || {};
+  document.getElementById('s-events').textContent  = a.events_today  ?? '—';
+  document.getElementById('s-actions').textContent = a.actions_taken ?? '—';
+  document.getElementById('s-autonomy').textContent = (a.state||'—').toUpperCase();
+
+  // Last action feed
+  const last = a.last_action;
+  if (last && (!actionFeed.length || actionFeed[0].ts !== last.ts)) {
+    actionFeed.unshift(last);
+    if (actionFeed.length > MAX_FEED) actionFeed.pop();
+    renderFeed();
+  }
+  document.getElementById('action-count').textContent = `(${actionFeed.length})`;
+
+  // Jobs
+  const jobs = d.active_jobs || [];
+  document.getElementById('s-jobs').textContent = jobs.length;
+  renderJobs(jobs);
+
+  // Profile
+  const p = d.profile || {};
+  if (p.risk_tolerance) document.getElementById('p-risk').value = p.risk_tolerance;
+  if (p.verbosity)      document.getElementById('p-verb').value = p.verbosity;
+  if (p.test_preference) document.getElementById('p-test').value = p.test_preference;
+  if (p.llm_routing) {
+    const rt = Object.entries(p.llm_routing).map(([k,v])=>`${k}→${v}`).join(' | ');
+    document.getElementById('p-routing').textContent = 'LLM routing: ' + rt;
+  }
+}
+
+function renderFeed() {
+  const el = document.getElementById('action-feed');
+  el.innerHTML = actionFeed.map(a => {
+    const dt = new Date(a.ts * 1000).toLocaleTimeString('pt-BR');
+    const cls = a.status === 'success' ? 'ok' : a.status === 'skipped' ? 'skipped' : 'error';
+    return `<div class="action-item ${cls}">
+      <span class="ts">${dt}</span> <span class="rule">[${a.rule_id||'—'}]</span>
+      <div class="goal">${a.goal||''}</div>
+      <div style="color:var(--muted);font-size:.7rem">→ ${a.status}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderJobs(jobs) {
+  const el = document.getElementById('jobs-list');
+  if (!jobs.length) {
+    el.innerHTML = '<div style="color:var(--muted); font-size:.82rem">Nenhum job ativo</div>';
+    return;
+  }
+  el.innerHTML = jobs.map(j => {
+    const cls = j.status === 'done' ? 'badge-done' : j.status === 'error' ? 'badge-error' : 'badge-running';
+    return `<div class="job-item">
+      <span class="job-id">${j.job_id}</span>
+      <span class="badge ${cls}" style="float:right">${j.status}</span>
+      <div class="job-goal">${j.goal}</div>
+      <div style="font-size:.72rem; color:var(--muted)">${j.files_completed} arquivo(s)</div>
+    </div>`;
+  }).join('');
+}
+
+// ── Failures panel ────────────────────────────────────────────────────
+
+async function loadFailures() {
+  try {
+    const r = await fetch(`${BASE}/memory/failures?limit=15`);
+    const d = await r.json();
+    renderFailures(d.failures || []);
+  } catch(e) {
+    document.getElementById('failures-list').innerHTML =
+      '<div style="color:var(--muted);font-size:.82rem">Indisponível</div>';
+  }
+}
+
+function renderFailures(failures) {
+  const el = document.getElementById('failures-list');
+  document.getElementById('fail-count').textContent =
+    failures.length ? `(${failures.filter(f => !f.resolved).length} aberta(s))` : '';
+  if (!failures.length) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:.82rem">Sem falhas registradas</div>';
+    return;
+  }
+  el.innerHTML = failures.map(f => {
+    const dt = f.created_at ? new Date(f.created_at).toLocaleString('pt-BR') : '—';
+    const cls = f.resolved ? 'fail-item resolved' : 'fail-item';
+    const goal = (f.goal_snippet || '').slice(0, 120);
+    const err  = (f.error_snippet || '').slice(0, 100);
+    return `<div class="${cls}">
+      <div class="fail-meta">
+        <span>${f.step_type || '—'}</span>
+        <span>🔁 ${f.attempts}x</span>
+        <span>${dt}</span>
+        ${f.resolved ? '<span style="color:var(--green)">\u2713 resolvido</span>' : ''}
+      </div>
+      <div class="fail-goal">${goal}</div>
+      ${err ? `<div class="fail-err">↳ ${err}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// Poll failures every 30 s
+loadFailures();
+setInterval(loadFailures, 30000);
+
+// ── Autonomy / Profile ───────────────────────────────────────────
+
+async function autonomyCmd(cmd) {
+  try {
+    const r = await fetch(`${BASE}/autonomy/${cmd}`, {method:'POST'});
+    const d = await r.json();
+    console.log('Autonomy', cmd, d);
+  } catch(e) { console.error(e); }
+}
+
+async function patchProfile(patch) {
+  try {
+    await fetch(`${BASE}/behavior/profile`, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(patch),
+    });
+  } catch(e) { console.error(e); }
+}
+
+async function resetProfile() {
+  if (!confirm('Resetar o Behavior Profile para os valores padrão?')) return;
+  await fetch(`${BASE}/behavior/profile/reset`, {method:'POST'});
+}
+
+function sendConfirm(approved) {
+  if (!pendingConfirmId) return;
+  fetch(`${BASE}/autonomy/confirm/${pendingConfirmId}`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({approved}),
+  });
+  document.getElementById('confirm-modal').style.display = 'none';
+  pendingConfirmId = null;
+}
+
+// Handle confirmation requests from server
+if (typeof EventSource !== 'undefined') {
+  // Fallback: poll /autonomy/status for confirmation events
+  // In production, these would come via the WS stream
+}
+
+connect();
+</script>
+</body>
+</html>

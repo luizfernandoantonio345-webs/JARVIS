@@ -1,0 +1,132 @@
+/* App.css — JARVIS cockpit two-column layout */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: #0d0d14;
+  overflow: hidden;
+}
+
+.app-shell {
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app-shell > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── Dot animations ─────────────────────────────────────────────────── */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.4; transform: scale(0.7); }
+}
+
+@keyframes pulse-red {
+  0%, 100% { box-shadow: inset 0 0 80px rgba(255,0,50,0.35); }
+  50%       { box-shadow: inset 0 0 120px rgba(255,0,50,0.55); }
+}
+
+/* ── Cockpit grid ──────────────────────────────────────────────────── */
+
+.app-cockpit {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+.cockpit-panel {
+  position: relative;
+  flex-shrink: 0;
+  transition: width 0.2s ease;
+  overflow: hidden;
+  border-right: 1px solid #1a1d30;
+}
+
+.cockpit-panel--open   { width: 280px; }
+.cockpit-panel--closed { width: 28px; background: #0d0d14; }
+
+.cockpit-chat {
+  flex: 0 0 min(42vw, 800px);
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.cockpit-core {
+  flex: 1;
+  min-width: 320px;
+  overflow: hidden;
+}
+
+/* ── Panel toggle button ────────────────────────────────────────────── */
+
+.panel-toggle {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 20;
+  background: #111118;
+  border: 1px solid #1e2240;
+  border-radius: 4px 0 0 4px;
+  color: #4a6080;
+  cursor: pointer;
+  width: 22px;
+  height: 40px;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.cockpit-panel--closed .panel-toggle {
+  left: 0;
+  right: auto;
+  border-radius: 0 4px 4px 0;
+}
+
+.panel-toggle:hover { color: #00d4ff; border-color: #00d4ff55; }
+
+@media (max-width: 980px) {
+  html, body, #root {
+    overflow: auto;
+  }
+
+  .app-cockpit {
+    flex-direction: column;
+    min-height: 100dvh;
+    height: auto;
+    overflow: auto;
+  }
+
+  .app-shell {
+    flex-direction: column;
+    height: auto;
+    min-height: 100dvh;
+    overflow: auto;
+  }
+
+  .cockpit-panel {
+    display: none;
+  }
+
+  .cockpit-core {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .cockpit-chat {
+    flex: none;
+    width: 100%;
+  }
+}

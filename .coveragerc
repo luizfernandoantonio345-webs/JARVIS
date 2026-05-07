@@ -1,0 +1,16 @@
+[run]
+source = backend
+omit =
+    */tests/*
+    */__pycache__/*
+    */migrations/*
+    backend/training/*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    if TYPE_CHECKING:
+    raise NotImplementedError
+    pass
+    \.\.\.
+show_missing = True

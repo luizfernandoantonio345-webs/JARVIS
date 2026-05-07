@@ -1,0 +1,14 @@
+[
+  {
+    "ts": 1778038374.9945185,
+    "confidence": 1.0,
+    "reason": "voice_match",
+    "audio_hash": "893ba296c9c48198"
+  },
+  {
+    "ts": 1778038375.031526,
+    "confidence": 0.15634031490450048,
+    "reason": "voice_mismatch",
+    "audio_hash": "484708cd4cec2f6e"
+  }
+]

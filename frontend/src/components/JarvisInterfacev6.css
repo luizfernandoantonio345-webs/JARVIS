@@ -1,0 +1,128 @@
+/* JarvisInterfacev6.css - Converted from Tailwind for JARVIS v6 holographic widgets */
+
+.jarvis-v6-widget {
+  position: absolute;
+  z-index: 10;
+  width: 380px;
+  padding: 1rem;
+  border: 1px solid rgba(6, 229, 255, 0.2);
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(12px);
+  font-family: 'SF Mono', Monaco, 'Roboto Mono', monospace;
+  font-size: 11px;
+  color: #a3bffa;
+  box-shadow: 0 0 8px rgba(6, 229, 255, 0.15);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.jarvis-v6-widget-header {
+  font-size: 10px;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(6, 229, 255, 0.1);
+  padding-bottom: 0.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.jarvis-v6-widget-pulse {
+  width: 6px;
+  height: 6px;
+  background: #06e5ff;
+  animation: pulse 1.5s ease-in-out infinite;
+  border-radius: 50%;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.1); }
+}
+
+.jarvis-v6-widget-content {
+  line-height: 1.4;
+  opacity: 0.9;
+  overflow-x: auto;
+  max-height: 300px;
+}
+
+.jarvis-v6-widget-content pre {
+  font-size: 10px;
+  color: #9ca3af;
+  overflow: hidden;
+  white-space: pre;
+  margin: 0;
+}
+
+.jarvis-v6-widget-btn {
+  margin-top: 0.5rem;
+  font-size: 9px;
+  border: 1px solid rgba(6, 229, 255, 0.5);
+  padding: 0.25rem 0.5rem;
+  background: transparent;
+  color: #a3bffa;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.jarvis-v6-widget-btn:hover {
+  background: rgba(6, 229, 255, 0.2);
+}
+
+.jarvis-v6-central-label {
+  pointer-events: none;
+  text-align: center;
+  z-index: 1;
+}
+
+.jarvis-v6-title {
+  font-size: 2.5rem;
+  font-weight: bold;
+  letter-spacing: 0.2em;
+  margin-bottom: 0;
+  font-family: 'SF Mono', Monaco, monospace;
+  color: #06e5ff;
+  text-shadow: 0 0 15px rgba(6, 229, 255, 0.8);
+  filter: drop-shadow(0 0 15px rgba(6, 229, 255, 0.8));
+}
+
+.jarvis-v6-subtitle {
+  font-size: 10px;
+  letter-spacing: 0.5em;
+  color: #67e8f9;
+  opacity: 0.6;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+/* Positions */
+.top-left { top: 1.25rem; left: 1.25rem; }
+.top-right { top: 1.25rem; right: 1.25rem; }
+.bottom-left { bottom: 1.25rem; left: 1.25rem; }
+.bottom-right { bottom: 1.25rem; right: 1.25rem; }
+
+/* Status indicators */
+.status-speaking { color: #10b981 !important; animation: pulse 0.8s infinite; }
+.status-green { color: #10b981; }
+.status-yellow { color: #f59e0b; }
+.status-red { color: #ef4444; }
+.status-cyan { color: #06e5ff; }
+
+/* Scrollbar */
+.jarvis-v6-widget-content::-webkit-scrollbar {
+  width: 4px;
+}
+
+.jarvis-v6-widget-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.jarvis-v6-widget-content::-webkit-scrollbar-thumb {
+  background: rgba(6, 229, 255, 0.3);
+  border-radius: 2px;
+}
+

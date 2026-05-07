@@ -1,0 +1,36 @@
+[
+  {
+    "name": "daily_review",
+    "goal": "revise os jobs do dia e gere um resumo com os resultados e próximos passos",
+    "cron": "0 18 * * *"
+  },
+  {
+    "name": "daily_briefing",
+    "goal": "gere o daily briefing: revise jobs pendentes, erros e sugira o foco do dia",
+    "cron": "0 9 * * *"
+  },
+  {
+    "name": "weekly_profile_evolution",
+    "goal": "analise as últimas 50 ações e atualize o behavior profile com padrões observados",
+    "cron": "0 10 * * 1"
+  },
+  {
+    "name": "weekly_vacuum",
+    "goal": "faça vacuum e limpeza do banco de dados de memória, mantendo apenas os últimos 30 dias",
+    "cron": "0 3 * * 0"
+  },
+  {
+    "name": "night_mode_start",
+    "goal": "entra em modo silencioso, processa jobs pendentes de baixo risco, roda testes automatizados e faz manutenção do banco",
+    "cron": "0 23 * * *",
+    "handler": "autonomy.night_scheduler._fire_night_work",
+    "note": "managed by NightScheduler (asyncio) — this entry is for documentation only"
+  },
+  {
+    "name": "morning_briefing_night",
+    "goal": "prepara o briefing da manhã com o relatório do trabalho noturno",
+    "cron": "0 7 * * *",
+    "handler": "autonomy.night_scheduler._fire_morning_briefing",
+    "note": "managed by NightScheduler (asyncio) — this entry is for documentation only"
+  }
+]

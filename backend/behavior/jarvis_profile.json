@@ -1,0 +1,44 @@
+{
+  "owner": {
+    "name": "detectado automaticamente",
+    "timezone": "America/Sao_Paulo",
+    "work_hours": {
+      "start": "09:00",
+      "end": "23:00"
+    },
+    "languages": [
+      "Python",
+      "TypeScript"
+    ],
+    "frameworks": [
+      "FastAPI",
+      "React"
+    ],
+    "current_projects": [
+      "JARVIS"
+    ],
+    "git_username": "detectado do .gitconfig"
+  },
+  "preferences": {
+    "response_style": "conciso",
+    "code_style": "type_hints_always",
+    "commit_style": "conventional",
+    "review_strictness": "high",
+    "voice_speed": "normal",
+    "daily_briefing": true,
+    "daily_briefing_time": "09:00"
+  },
+  "patterns": {
+    "most_used_commands": [],
+    "peak_hours": [],
+    "common_errors": [],
+    "preferred_solutions": []
+  },
+  "history": {
+    "total_sessions": 0,
+    "total_commands": 0,
+    "bugs_fixed": 0,
+    "files_created": 0,
+    "last_session": null
+  }
+}
