@@ -1,11 +1,15 @@
 """
-event_detector — FASE 11A
+event_detector — FASE 11A (OPTIMIZED WITH WATCHDOG)
 
 Four parallel async watchers that detect events from the environment:
-  - FileSystemWatcher : file create/modify/delete in watched dirs
+  - FileSystemWatcher : file create/modify/delete in watched dirs (using watchdog for efficiency)
   - LogWatcher        : ERROR/CRITICAL patterns + stuck jobs in jarvis.log
   - ScheduleWatcher   : cron-like tasks from schedule.json
   - IdleWatcher       : system idle detection based on last activity
+
+OPTIMIZATION: Uses watchdog (inotify/FSEvents) instead of polling with rglob().
+              This eliminates constant filesystem traversal and latency.
+              Event deduplication prevents duplicate events within debounce window.
 """
 
 from __future__ import annotations
@@ -15,16 +19,32 @@ import json
 import logging
 import os
 import re
+import threading
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import AsyncGenerator, Literal
 
+try:
+    from watchdog.observers import Observer
+    from watchdog.events import FileSystemEventHandler, FileModifiedEvent, FileCreatedEvent, FileDeletedEvent
+    HAS_WATCHDOG = True
+except ImportError:
+    HAS_WATCHDOG = False
+    # Dummy classes for when watchdog not available
+    class FileSystemEventHandler:
+        pass
+    FileModifiedEvent = None
+    FileCreatedEvent = None
+    FileDeletedEvent = None
+    Observer = None
+    log_warn = print  # Fallback during import
+
 log = logging.getLogger(__name__)
 
 # ── Constants ──────────────────────────────────────────────────────────────────
-_DEBOUNCE_MS          = 500        # ignore fs events within 500ms of each other
+_DEBOUNCE_MS          = 500        # ignore duplicate fs events within 500ms
 _LOG_POLL_INTERVAL    = 5.0        # seconds between log tail reads
 _SCHEDULE_POLL_INTERVAL = 60.0     # seconds between schedule checks
 _IDLE_CHECK_INTERVAL  = 30.0       # seconds between idle checks
@@ -75,18 +95,18 @@ class IdleEvent:
 AnyEvent = FileEvent | LogEvent | ScheduleEvent | IdleEvent
 
 
-# ── FileSystemWatcher ──────────────────────────────────────────────────────────
+# ── FileSystemWatcher (with watchdog for efficiency) ─────────────────────────
 
-class FileSystemWatcher:
-    """Polls watched directories for file system changes."""
+class _WatchdogEventHandler(FileSystemEventHandler):
+    """Watchdog handler that converts fs events to async queue."""
 
-    def __init__(self, watch_dirs: list[str], queue: asyncio.Queue) -> None:
-        self._dirs = [Path(d) for d in watch_dirs if Path(d).exists()]
+    def __init__(self, queue: asyncio.Queue, loop: asyncio.AbstractEventLoop) -> None:
         self._queue = queue
-        self._snapshots: dict[str, float] = {}
-        self._last_event: dict[str, float] = {}
+        self._loop = loop
+        self._debounce_cache: dict[str, float] = {}  # path → last event timestamp
 
-    def _should_ignore(self, p: Path) -> bool:
+    def _should_ignore(self, path: str) -> bool:
+        p = Path(path)
         parts = set(p.parts)
         if parts & _IGNORE_DIRS:
             return True
@@ -94,21 +114,115 @@ class FileSystemWatcher:
             return True
         return False
 
-    def _snapshot(self) -> dict[str, float]:
-        result: dict[str, float] = {}
-        for d in self._dirs:
-            try:
-                for p in d.rglob("*"):
-                    if p.is_file() and not self._should_ignore(p):
-                        result[str(p)] = p.stat().st_mtime
-            except Exception as exc:
-                log.debug("[autonomy.event_detector] suppressed exception", exc_info=exc)
-                pass
-        return result
+    def _should_queue(self, path: str) -> bool:
+        """Check if event should be queued (apply debouncing)."""
+        now = time.time()
+        last = self._debounce_cache.get(path, 0.0)
+        if (now - last) * 1000 < _DEBOUNCE_MS:
+            return False
+        self._debounce_cache[path] = now
+        return True
+
+    def on_modified(self, event: FileModifiedEvent) -> None:
+        if event.is_directory or self._should_ignore(event.src_path):
+            return
+        if not self._should_queue(event.src_path):
+            return
+        try:
+            self._loop.call_soon_threadsafe(
+                asyncio.create_task,
+                self._queue_event("modified", event.src_path)
+            )
+        except Exception as exc:
+            log.debug(f"_WatchdogEventHandler.on_modified error: {exc}")
+
+    def on_created(self, event: FileCreatedEvent) -> None:
+        if event.is_directory or self._should_ignore(event.src_path):
+            return
+        if not self._should_queue(event.src_path):
+            return
+        try:
+            self._loop.call_soon_threadsafe(
+                asyncio.create_task,
+                self._queue_event("created", event.src_path)
+            )
+        except Exception as exc:
+            log.debug(f"_WatchdogEventHandler.on_created error: {exc}")
+
+    def on_deleted(self, event: FileDeletedEvent) -> None:
+        if event.is_directory or self._should_ignore(event.src_path):
+            return
+        if not self._should_queue(event.src_path):
+            return
+        try:
+            self._loop.call_soon_threadsafe(
+                asyncio.create_task,
+                self._queue_event("deleted", event.src_path)
+            )
+        except Exception as exc:
+            log.debug(f"_WatchdogEventHandler.on_deleted error: {exc}")
+
+    async def _queue_event(self, change_type: str, path: str) -> None:
+        """Queue file event to async queue."""
+        try:
+            await self._queue.put(FileEvent(path=path, change_type=change_type))
+        except Exception as exc:
+            log.warning(f"_WatchdogEventHandler._queue_event error: {exc}")
+
+
+class FileSystemWatcher:
+    """Watches directories for file changes using watchdog (efficient native events)."""
+
+    def __init__(self, watch_dirs: list[str], queue: asyncio.Queue) -> None:
+        self._dirs = [Path(d) for d in watch_dirs if Path(d).exists()]
+        self._queue = queue
+        self._observer: Observer | None = None
+        self._handler: _WatchdogEventHandler | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
+
+    def _init_watchdog(self) -> bool:
+        """Initialize watchdog observer. Fallback to polling if unavailable."""
+        if not HAS_WATCHDOG:
+            log.warning("watchdog not installed, falling back to polling (slower)")
+            return False
+        
+        try:
+            self._loop = asyncio.get_running_loop()
+            self._observer = Observer()
+            self._handler = _WatchdogEventHandler(self._queue, self._loop)
+            
+            for d in self._dirs:
+                self._observer.schedule(self._handler, str(d), recursive=True)
+            
+            self._observer.start()
+            log.info(f"FileSystemWatcher: watching {len(self._dirs)} dirs with watchdog")
+            return True
+        except Exception as exc:
+            log.error(f"Failed to initialize watchdog: {exc}, falling back to polling")
+            return False
 
     async def run(self) -> None:
-        self._snapshots = self._snapshot()
-        log.debug("FileSystemWatcher: watching %d dirs", len(self._dirs))
+        # Try to use watchdog; fallback to polling if unavailable
+        if not self._init_watchdog():
+            await self._run_polling()
+        else:
+            # Watchdog is running; just keep the coroutine alive
+            try:
+                while True:
+                    await asyncio.sleep(10.0)
+            except asyncio.CancelledError:
+                if self._observer:
+                    self._observer.stop()
+                    self._observer.join(timeout=5.0)
+                raise
+
+    async def _run_polling(self) -> None:
+        """Fallback: poll filesystem for changes (legacy behavior)."""
+        snapshots: dict[str, float] = {}
+        last_event: dict[str, float] = {}
+        
+        log.info(f"FileSystemWatcher: polling {len(self._dirs)} dirs (watchdog unavailable)")
+        
         while True:
             await asyncio.sleep(2.0)
             try:
@@ -117,29 +231,50 @@ class FileSystemWatcher:
 
                 # Detect created + modified
                 for path, mtime in current.items():
-                    last_evt = self._last_event.get(path, 0.0)
+                    last_evt = last_event.get(path, 0.0)
                     if (now - last_evt) * 1000 < _DEBOUNCE_MS:
                         continue
-                    if path not in self._snapshots:
+                    if path not in snapshots:
                         await self._queue.put(FileEvent(path=path, change_type="created"))
-                        self._last_event[path] = now
-                    elif mtime != self._snapshots[path]:
+                        last_event[path] = now
+                    elif mtime != snapshots[path]:
                         await self._queue.put(FileEvent(path=path, change_type="modified"))
-                        self._last_event[path] = now
+                        last_event[path] = now
 
                 # Detect deleted
-                for path in self._snapshots:
+                for path in snapshots:
                     if path not in current:
-                        last_evt = self._last_event.get(path, 0.0)
+                        last_evt = last_event.get(path, 0.0)
                         if (now - last_evt) * 1000 >= _DEBOUNCE_MS:
                             await self._queue.put(FileEvent(path=path, change_type="deleted"))
-                            self._last_event[path] = now
+                            last_event[path] = now
 
-                self._snapshots = current
+                snapshots = current
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
-                log.warning("FileSystemWatcher error: %s", exc)
+                log.warning(f"FileSystemWatcher polling error: {exc}")
+
+    def _snapshot(self) -> dict[str, float]:
+        """Snapshot current filesystem state (for polling fallback)."""
+        result: dict[str, float] = {}
+        for d in self._dirs:
+            try:
+                for p in d.rglob("*"):
+                    if p.is_file() and not self._should_ignore(p):
+                        result[str(p)] = p.stat().st_mtime
+            except Exception as exc:
+                log.debug(f"snapshot error: {exc}")
+        return result
+
+    def _should_ignore(self, p: Path) -> bool:
+        """Check if path should be ignored."""
+        parts = set(p.parts)
+        if parts & _IGNORE_DIRS:
+            return True
+        if p.suffix in _IGNORE_EXTS:
+            return True
+        return False
 
 
 # ── LogWatcher ────────────────────────────────────────────────────────────────

@@ -1,0 +1,88 @@
+# ════════════════════════════════════════════════════════════════════════════
+# JARVIS Voice Engine — Python Package Requirements
+# ════════════════════════════════════════════════════════════════════════════
+# 
+# Install with: pip install -r requirements_voice.txt
+#
+# Components:
+#  - Wake Word   : openwakeword (offline, open-source)
+#  - STT         : faster-whisper (local, fast, CPU-friendly)
+#  - TTS         : edge-tts (neural voices, free) + pyttsx3 (fallback)
+#  - VAD         : silero-vad (speech endpoint detection)
+#  - Audio I/O   : sounddevice + soundfile (cross-platform)
+# ════════════════════════════════════════════════════════════════════════════
+
+# ────────────────────────────────────────────────────────────────────────────
+# CORE VOICE ENGINE
+# ────────────────────────────────────────────────────────────────────────────
+
+# Wake word detection (offline, open-source, TFLite-based)
+openwakeword>=0.4.0
+
+# Speech-to-Text (faster than Whisper, CPU-optimized)
+faster-whisper>=1.0.0
+
+# Text-to-Speech (primary: neural voices)
+edge-tts>=6.1.0
+
+# Fallback TTS (offline, local voices)
+pyttsx3>=2.90
+
+# Voice Activity Detection (detects end of speech)
+silero-vad>=5.1
+
+# ────────────────────────────────────────────────────────────────────────────
+# AUDIO I/O
+# ────────────────────────────────────────────────────────────────────────────
+
+# Cross-platform audio device and stream handling
+sounddevice>=0.4.5
+
+# Read/write audio files (WAV, FLAC, OGG, etc.)
+soundfile>=0.12.1
+
+# Numerical operations for audio processing
+numpy>=1.24.0
+
+# ────────────────────────────────────────────────────────────────────────────
+# OPTIONAL: ADVANCED AUDIO PROCESSING
+# ────────────────────────────────────────────────────────────────────────────
+
+# Audio resampling (required for faster-whisper compatibility)
+resampy>=0.4.2
+
+# Audio processing library (for advanced DSP if needed)
+librosa>=0.10.0
+
+# ────────────────────────────────────────────────────────────────────────────
+# ML BACKENDS (use only ONE)
+# ────────────────────────────────────────────────────────────────────────────
+
+# CPU-based inference (recommended for most machines)
+onnxruntime>=1.15.0
+
+# Alternative: GPU support (CUDA for NVIDIA GPUs)
+# onnxruntime-gpu>=1.15.0
+# torch>=2.0.0  # For some models
+
+# Alternative: TensorFlow (if using TF models)
+# tensorflow>=2.12.0
+
+# ────────────────────────────────────────────────────────────────────────────
+# SYSTEM DEPENDENCIES (platform-specific, install separately)
+# ────────────────────────────────────────────────────────────────────────────
+#
+# Windows:
+#   - No additional system dependencies required
+#   - pip install pipwin && pipwin install pyaudio (optional)
+#
+# Linux (Ubuntu/Debian):
+#   - sudo apt update
+#   - sudo apt install portaudio19-dev python3-dev
+#   - If using CUDA: sudo apt install nvidia-cuda-toolkit
+#
+# macOS:
+#   - brew install portaudio
+#   - If using M1/M2 (ARM): brew install python
+#
+# ════════════════════════════════════════════════════════════════════════════

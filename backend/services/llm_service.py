@@ -29,20 +29,23 @@ from enum import Enum
 from functools import lru_cache
 
 import httpx
-import ollama
 
 from core.jarvis_persona import inject_system_persona
+from backend.ai.client import get_ai_client
 
 log = logging.getLogger(__name__)
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 
-LOCAL_MODEL        = os.getenv("LOCAL_MODEL",    "qwen2:0.5b")
-OPENAI_MODEL       = os.getenv("OPENAI_MODEL",   "gpt-4o-mini")
-CLAUDE_MODEL       = os.getenv("CLAUDE_MODEL",   "claude-3-haiku-20240307")
+from backend.config import get_config
 
-_OPENAI_KEY        = os.getenv("OPENAI_API_KEY")
-_ANTHROPIC_KEY     = os.getenv("ANTHROPIC_API_KEY")
+_config = get_config()
+LOCAL_MODEL        = _config.model
+OPENAI_MODEL       = _config.openai_model
+CLAUDE_MODEL       = _config.claude_model
+
+_OPENAI_KEY        = _config.openai_api_key
+_ANTHROPIC_KEY     = _config.anthropic_api_key
 
 COMPLEX_THRESHOLD  = float(os.getenv("COMPLEX_THRESHOLD", "0.45"))
 API_TIMEOUT        = int(os.getenv("LLM_API_TIMEOUT", "45"))
@@ -149,8 +152,7 @@ def classify_complexity(messages: list[dict]) -> ComplexityLevel:
 # ── Provider calls ─────────────────────────────────────────────────────────────
 
 def _call_ollama(messages: list[dict]) -> str:
-    result = ollama.chat(model=LOCAL_MODEL, messages=messages)
-    return result["message"]["content"]
+    return get_ai_client().call(messages)
 
 
 def _call_openai(messages: list[dict]) -> str:
@@ -324,6 +326,155 @@ def call_llm(
     result = _call_ollama(messages)
     _store_semantic_interaction(original_messages, result)
     return result
+
+
+def call_llm_turbo(messages: list[dict]) -> str:
+    return call_llm(messages)
+
+
+def _store_semantic_interaction(messages: list[dict], response: str) -> None:
+    try:
+        from memory_v2.memory_manager import store_memory_sync
+        user_text = "\n".join(
+            m.get("content", "") for m in messages if m.get("role") == "user"
+        ).strip()
+        if user_text:
+            store_memory_sync(
+                f"User: {user_text}\nAssistant: {response[:800]}",
+                {"type": "interaction"},
+            )
+    except Exception:
+        pass
+
+
+# ── Model info ─────────────────────────────────────────────────────────────────
+
+def get_model_info() -> dict:
+    """Return which providers are available and the active local model."""
+    health = get_ai_client().health_check()
+    return {
+        "provider": "ollama",
+        "model": get_ai_client().model,
+        "url": get_ai_client().ollama_url,
+        "status": "ok" if health["ok"] else "error",
+        "models": health.get("models", []),
+        "claude_available": bool(_ANTHROPIC_KEY),
+        "openai_available": bool(_OPENAI_KEY),
+        "claude_model": CLAUDE_MODEL if _ANTHROPIC_KEY else None,
+        "openai_model": OPENAI_MODEL if _OPENAI_KEY else None,
+        "complex_threshold": COMPLEX_THRESHOLD,
+    }
+
+
+# ── Streaming ──────────────────────────────────────────────────────────────────
+
+def _stream_ollama(messages: list[dict]):
+    """Yield tokens from local Ollama model, one string at a time."""
+    yield from get_ai_client().stream(messages)
+
+
+def _stream_openai(messages: list[dict]):
+    """Yield tokens from OpenAI streaming API."""
+    with httpx.stream(
+        "POST",
+        OPENAI_API_URL,
+        headers={"Authorization": f"Bearer {_OPENAI_KEY}"},
+        json={"model": OPENAI_MODEL, "messages": messages, "temperature": 0.7, "stream": True},
+        timeout=API_TIMEOUT,
+    ) as resp:
+        resp.raise_for_status()
+        for line in resp.iter_lines():
+            if not line or line == "data: [DONE]":
+                continue
+            if line.startswith("data: "):
+                import json as _json
+                try:
+                    data = _json.loads(line[6:])
+                    delta = data["choices"][0]["delta"].get("content", "")
+                    if delta:
+                        yield delta
+                except Exception as exc:
+                    log.debug("[services.llm_service] suppressed exception", exc_info=exc)
+                    continue
+
+
+def _stream_claude(messages: list[dict]):
+    """Yield tokens from Anthropic Claude streaming API."""
+    import json as _json
+    system_parts = [m["content"] for m in messages if m["role"] == "system"]
+    user_messages = [m for m in messages if m["role"] != "system"]
+    payload: dict = {
+        "model":      CLAUDE_MODEL,
+        "max_tokens": 4096,
+        "stream":     True,
+        "messages":   user_messages,
+    }
+    if system_parts:
+        payload["system"] = "\n\n".join(system_parts)
+
+    with httpx.stream(
+        "POST",
+        ANTHROPIC_API_URL,
+        headers={
+            "x-api-key":         _ANTHROPIC_KEY or "",
+            "anthropic-version": "2023-06-01",
+            "content-type":      "application/json",
+        },
+        json=payload,
+        timeout=API_TIMEOUT,
+    ) as resp:
+        resp.raise_for_status()
+        for line in resp.iter_lines():
+            if not line or not line.startswith("data: "):
+                continue
+            try:
+                data = _json.loads(line[6:])
+                if data.get("type") == "content_block_delta":
+                    delta = data.get("delta", {}).get("text", "")
+                    if delta:
+                        yield delta
+            except Exception as exc:
+                log.debug("[services.llm_service] suppressed exception", exc_info=exc)
+                continue
+
+
+def call_llm_stream(
+    messages: list[dict],
+    force_local: bool = False,
+    force_api: bool = False,
+):
+    """
+    Streaming variant of call_llm. Yields text tokens one at a time.
+
+    Routing logic mirrors call_llm. Falls back to local on API failure.
+    If API streaming fails mid-stream, an error token is yielded and the
+    generator stops; the caller must handle partial output.
+    """
+    messages = inject_system_persona(messages)
+
+    if force_local:
+        yield from _stream_ollama(messages)
+        return
+
+    complexity = classify_complexity(messages)
+    use_api = force_api or (complexity == ComplexityLevel.COMPLEX)
+
+    if use_api:
+        if _ANTHROPIC_KEY:
+            try:
+                yield from _stream_claude(messages)
+                return
+            except Exception as exc:
+                log.warning("Claude stream failed: %s — trying OpenAI", exc)
+
+        if _OPENAI_KEY:
+            try:
+                yield from _stream_openai(messages)
+                return
+            except Exception as exc:
+                log.warning("OpenAI stream failed: %s — falling back to local", exc)
+
+    yield from _stream_ollama(messages)
 
 
 def _store_semantic_interaction(messages: list[dict], response: str) -> None:

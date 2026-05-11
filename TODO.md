@@ -1,13 +1,9 @@
-# TODO
+# TODO — Neural Core Chat and Docs (execução guiada)
 
-- [x] Ler repo e identificar pontos de integração de voz
-- [x] Criar response_engine (backend/core/response_engine.py)
-- [x] Interceptar respostas no pipeline de voz (backend/voice_v2/controller.py) antes do TTS
-- [x] Adicionar voice_loop com guard de TTS e wake word (backend/voice_v2/voice_loop.py)
-- [ ] Integrar voice_loop com captura real de microfone / streaming (wake word contínuo funcional)
-- [ ] Adicionar guarda de “para” para encerrar loop (quando a captura real estiver ligada)
-- [x] Validar cenários reais no fluxo daily-use via frontend (SpeechRecognition → WS /ws/jarvis)
-- [x] Wake word contínuo funcional via WS (wake: "jarvis" → "Sim?")
-- [x] Comando "parar" finaliza a sessão always-on (fecha WS e desliga sempre-on no cliente)
-
-
+- [x] 1) Auditar estado atual dos arquivos-chave (`backend/main.py`, `backend/routes/jarvis.py`, `frontend/jarvis_neural_core.html`, `backend/voice_v2/output.py`, `frontend/jarvis-dashboard.html`)
+- [x] 2) Evoluir `backend/routes/jarvis.py` para contrato multimodal expandido em `POST /jarvis/ask` com metadados de anexos e TTS opcional
+- [ ] 3) Implementar fluxo de geração/download de documento no backend e retorno como artefato no chat
+- [ ] 4) Refatorar `frontend/jarvis_neural_core.html` para renderizar artefatos (resumo, tipo, páginas, preview e ações)
+- [ ] 5) Integrar ações de voz (ler resumo/ler completo) e comandos de interface (“abrir chat”, “analisar documento”, “gerar documento”)
+- [ ] 6) Fundir/aposentar `frontend/jarvis-dashboard.html` para manter Neural Core como frontend oficial único
+- [ ] 7) Validar fluxo fim a fim: texto simples, PDF, DOCX/imagem, TTS e download de documento gerado

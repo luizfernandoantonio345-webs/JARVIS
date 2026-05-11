@@ -237,7 +237,7 @@ async def voice_loop_background(
 
 
     log.info("voice_loop_realtime started (session=%s)", session_id)
-    set_state(VoiceLoopState.LISTENING)
+    await set_state(VoiceLoopState.LISTENING)
 
     while True:
         if stop_event is not None and stop_event.is_set():

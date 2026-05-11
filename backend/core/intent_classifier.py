@@ -29,6 +29,17 @@ from memory_v2.schemas import RetrievedMemory
 
 SimpleTier = Literal["simple", "cached", "complex"]
 
+COMPUTER_INTENTS = {
+    "open_app": ["abre", "abrir", "lanca", "inicia", "open", "launch"],
+    "browser": ["chrome", "firefox", "edge", "navegador", "browser", "site", "pesquisa"],
+    "screen": ["tela", "screen", "screenshot", "o que tem", "veja", "olha"],
+    "settings": ["volume", "brilho", "desligar", "reiniciar", "bloquear", "dark mode"],
+    "computer_control": ["clica", "digita", "pressiona", "scroll", "mouse"],
+    "file_processor": ["arquivo", "pdf", "excel", "word", "imagem", "audio", "video"],
+    "dev_agent": ["cria projeto", "desenvolve", "programa", "codigo", "script"],
+    "desktop": ["desktop", "wallpaper", "organiza", "area de trabalho"],
+}
+
 
 class IntentClassifier:
     def __init__(self):
@@ -49,6 +60,13 @@ class IntentClassifier:
             latency = (time.monotonic() - t0) * 1000
             record_llm_latency(latency, "classifier", "simple", cached=True)
             record_cache_hit("rule_fastpath")
+            return "simple"
+
+        # Computer intents are deterministic enough for turbo path.
+        if self.detect_computer_intent(query):
+            latency = (time.monotonic() - t0) * 1000
+            record_llm_latency(latency, "classifier", "computer_simple", cached=True)
+            record_cache_hit("computer_keywords")
             return "simple"
 
         # Tier 2: Exact cache hit (existing LRU)
@@ -77,6 +95,13 @@ class IntentClassifier:
         return (len(q) < 25 or
                 any(p in q for p in self.simple_patterns) or
                 q in {"ok", "sim", "não", "clear", "stop", "cancel"})
+
+    def detect_computer_intent(self, query: str) -> str | None:
+        q = query.strip().lower()
+        for intent_name, keywords in COMPUTER_INTENTS.items():
+            if any(keyword in q for keyword in keywords):
+                return intent_name
+        return None
 
     def get_simple_response(self, query: str, session_id: str = "default") -> Optional[str]:
         """
@@ -109,38 +134,60 @@ class IntentClassifier:
         intent = fast_path_intent(query) or cache_get(query)
         if intent:
             # Execute simple action? Stub for now: confirm/log
-            from services.message_bus import MessageBus
-            MessageBus.get_instance().broadcast({
-                "event": "turbo_simple",
-                "query": query,
-                "intent": intent.model_dump(),
-                "tier": tier
-            })
+            try:
+                from services.message_bus import MessageBus
+                MessageBus.get_instance().broadcast({
+                    "event": "turbo_simple",
+                    "query": query,
+                    "intent": intent.model_dump(),
+                    "tier": tier
+                })
+            except Exception:
+                # MessageBus pode não estar disponível - não falha o fluxo
+                pass
             return f"Pronto. {intent.goal[:50]}."
 
         # Semantic similar: adapt top similar memory
         similar = self.memory.query_similar(query, top_k=1)
         if similar:
-            from services.llm_service import call_llm_turbo  # TODO: local qwen stub
-            prompt = f"""
-Adapt this previous similar response for new query:
+            try:
+                # Tentar usar call_llm se disponível, senão fallback simples
+                from services.llm_service import call_llm
+                prompt = f"""Adapt this previous similar response for new query:
 
-Previous: {similar[0].text}
+Previous: {similar[0].text[:200]}
 
 New query: {query}
 
-Keep response concise (<100 words).
-"""
-            # Stub local/turbo LLM - fallback to cache
-            return similar[0].text[:100] + "..."
+Keep response concise (<100 words)."""
+                try:
+                    msgs = [{"role": "user", "content": prompt}]
+                    response = call_llm(msgs)
+                    if response:
+                        return response
+                except Exception:
+                    pass
+            except Exception:
+                pass
+            # Fallback: return truncated similar
+            return similar[0].text[:120] + "..."
 
         return None
 
     def stats(self) -> dict:
+        """
+        Return stats about classifier and caching.
+        Safe from AttributeErrors.
+        """
+        try:
+            memory_size = len(self.memory._fallback_rows) if hasattr(self.memory, '_fallback_rows') else '?'
+        except Exception:
+            memory_size = '?'
+        
         return {
             "cache": cache_stats(),
             "simple_patterns": len(self.simple_patterns),
-            "memory_size": len(self.memory._fallback_rows) if hasattr(self.memory, '_fallback_rows') else 'chromadb'
+            "memory_size": memory_size
         }
 
 

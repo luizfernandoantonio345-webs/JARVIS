@@ -173,9 +173,8 @@ _conn = _get_conn()
 # ── Embedding ──────────────────────────────────────────────────────────────────
 
 def _embed_ollama(text: str) -> list[float]:
-    import ollama
-    result = ollama.embeddings(model=LOCAL_EMBED_MODEL, prompt=text)
-    return result["embedding"]
+    from backend.ai.client import get_ai_client
+    return get_ai_client().embed(text)
 
 
 def _embed_fallback(text: str) -> list[float]:
@@ -190,7 +189,11 @@ def _embed_fallback(text: str) -> list[float]:
 
 def _embed(text: str) -> list[float]:
     try:
-        return _embed_ollama(text)
+        vec = _embed_ollama(text)
+        if not vec:
+            log.warning("Embedding returned empty list — using fallback")
+            return _embed_fallback(text)
+        return vec
     except Exception as exc:
         log.warning("Ollama embedding failed (%s) — using fallback", exc)
         return _embed_fallback(text)

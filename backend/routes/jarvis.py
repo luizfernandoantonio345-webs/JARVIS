@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Optional
+import tempfile
+from pathlib import Path
+from typing import Any, Optional
 
 from fastapi import APIRouter, File, Form, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from documents.analyzer import DocumentAnalyzer
@@ -16,6 +19,23 @@ from memory.context_augmentor import ContextAugmentor
 from memory.semantic_engine import SemanticMemory
 
 router = APIRouter()
+_generated_docs: dict[str, Path] = {}
+
+
+class AttachmentArtifact(BaseModel):
+    file_name: str
+    file_type: str
+    page_count: int = 1
+    summary: str = ""
+    preview_text: str = ""
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class GeneratedDocumentArtifact(BaseModel):
+    file_name: str
+    download_url: str
+    mime_type: str = "text/plain"
+    size: int = 0
 
 
 class JarvisResponse(BaseModel):
@@ -27,6 +47,9 @@ class JarvisResponse(BaseModel):
     expert_role: str = "general assistant"
     memory_augmented: bool = False
     sources: list[str] = Field(default_factory=list)
+    attachments: list[AttachmentArtifact] = Field(default_factory=list)
+    tts_audio_url: str = ""
+    tts_mode: str = ""
 
 
 class DynamicExpert:
@@ -77,6 +100,7 @@ async def jarvis_pipeline(
         sources = knowledge.sources
 
     doc_context = ""
+    attachment_artifacts: list[AttachmentArtifact] = []
     if attachments:
         processor = DocumentProcessor()
         analyzer = DocumentAnalyzer()
@@ -86,6 +110,16 @@ async def jarvis_pipeline(
             doc = await processor.process(attachment)
             doc_analysis = await analyzer.analyze(doc, user_input, base_prompt, domain_req.detected_domain)
             parts.append(doc_analysis.analysis)
+            attachment_artifacts.append(
+                AttachmentArtifact(
+                    file_name=doc.file_name,
+                    file_type=doc.file_type,
+                    page_count=doc.page_count,
+                    summary=doc_analysis.analysis[:500],
+                    preview_text=(doc.extracted_text or "")[:700],
+                    metadata=doc.metadata or {},
+                )
+            )
         doc_context = "\n\n".join(parts)
 
     system_prompt = expert.get_system_prompt(domain_req.task_type, user_input)
@@ -120,6 +154,7 @@ async def jarvis_pipeline(
         expert_role=domain_req.detected_role,
         memory_augmented=True,
         sources=sources,
+        attachments=attachment_artifacts,
     )
 
 
@@ -128,6 +163,68 @@ async def ask(
     text: str = Form(...),
     audio: Optional[UploadFile] = File(None),
     attachments: Optional[list[UploadFile]] = File(None),
+    tts: bool = Form(False),
+    tts_summary_only: bool = Form(True),
 ):
     audio_bytes = await audio.read() if audio else None
-    return await jarvis_pipeline(text, audio_bytes, attachments or [])
+    result = await jarvis_pipeline(text, audio_bytes, attachments or [])
+
+    if tts:
+        try:
+            from voice_v2.output import speak_silent
+
+            tts_text = result.response
+            if tts_summary_only:
+                tts_text = result.response[:700]
+            tts_file = await speak_silent(tts_text)
+            if tts_file:
+                result.tts_audio_url = f"/jarvis/tts?path={tts_file}"
+                result.tts_mode = "summary" if tts_summary_only else "full"
+        except Exception:
+            pass
+
+    return result
+
+
+@router.get("/tts")
+async def get_tts(path: str):
+    tts_path = Path(path)
+    if not tts_path.exists():
+        return {"status": "error", "message": "Arquivo de audio nao encontrado"}
+    return FileResponse(tts_path, media_type="audio/wav", filename=tts_path.name)
+
+
+@router.post("/generate-document", response_model=GeneratedDocumentArtifact)
+async def generate_document(
+    content: str = Form(...),
+    title: str = Form("jarvis_documento"),
+    extension: str = Form("txt"),
+):
+    safe_ext = (extension or "txt").lower().replace(".", "")
+    if safe_ext not in {"txt", "md", "json"}:
+        safe_ext = "txt"
+
+    temp_dir = Path(tempfile.gettempdir()) / "jarvis_generated_docs"
+    temp_dir.mkdir(parents=True, exist_ok=True)
+
+    file_name = f"{title.strip().replace(' ', '_') or 'jarvis_documento'}.{safe_ext}"
+    file_path = temp_dir / file_name
+    file_path.write_text(content, encoding="utf-8")
+
+    doc_id = f"{file_path.name}-{int(file_path.stat().st_mtime)}"
+    _generated_docs[doc_id] = file_path
+
+    return GeneratedDocumentArtifact(
+        file_name=file_name,
+        download_url=f"/jarvis/generated-document/{doc_id}",
+        mime_type="text/markdown" if safe_ext == "md" else ("application/json" if safe_ext == "json" else "text/plain"),
+        size=file_path.stat().st_size,
+    )
+
+
+@router.get("/generated-document/{doc_id}")
+async def download_generated_document(doc_id: str):
+    file_path = _generated_docs.get(doc_id)
+    if not file_path or not file_path.exists():
+        return {"status": "error", "message": "Documento nao encontrado"}
+    return FileResponse(file_path, media_type="application/octet-stream", filename=file_path.name)

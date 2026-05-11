@@ -45,6 +45,12 @@ def chat(request: ChatRequest):
     return ChatResponse(response=response, session_id=request.session_id)
 
 
+@router.post("/process", response_model=ChatResponse)
+def chat_process_alias(request: ChatRequest):
+    """Alias para compatibilidade retroativa com clientes que usam /chat/process"""
+    return chat(request)
+
+
 @router.post("/stream")
 def chat_stream(request: ChatRequest):
     """

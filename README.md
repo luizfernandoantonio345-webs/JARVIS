@@ -1,10 +1,68 @@
-# JARVIS — Sistema de IA Autônoma
+# 🤖 JARVIS v5.2 — Sistema de IA Autônoma & Voice-Centric
 
-**Versão:** 1.0.0 | **Stack:** Python 3.11+, FastAPI, SQLite, asyncio, Pydantic v2
+**Versão:** 5.2 | **Status:** ✅ MVP Funcional | **Stack:** Python 3.11+, FastAPI, SQLite, asyncio, Pydantic v2
+
+> **Sistema de IA autônomo com controle por voz, orquestração multiagente e autonomia operacional.**
 
 ---
 
-## Arquitetura
+## 🚀 Início Rápido
+
+### 1. Iniciar o servidor
+```bash
+cd c:\Users\cibernetico\JARVIS
+python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000
+```
+
+**Resultado esperado:**
+```
+INFO:JARVIS_CORE:Inicializando JARVIS...
+INFO:JARVIS_CORE:✓ Health router carregado
+INFO:JARVIS_CORE:✓ Chat router carregado
+...
+INFO:JARVIS_CORE:[WAKE] Wake word 'JARVIS' ativa e escutando
+INFO:     Uvicorn running on http://0.0.0.0:8000
+```
+
+### 2. Verificar saúde do servidor
+```bash
+# PowerShell
+Invoke-RestMethod -Uri 'http://127.0.0.1:8000/health' -Method Get
+
+# Resultado:
+# status           : ok
+# service          : JARVIS API
+# uptime           : 00:00:45
+```
+
+### 3. Testar chat
+```bash
+$json = '{"message":"responda OK","session_id":"test"}'
+Invoke-RestMethod -Uri 'http://127.0.0.1:8000/chat/process' -Method Post `
+  -Body $json -ContentType 'application/json'
+```
+
+---
+
+## 🎯 Capacidades Principais
+
+| Capacidade | Status | Descrição |
+|-----------|--------|-----------|
+| 🎤 Voice Input | ✅ | STT via Faster Whisper (português/inglês) |
+| 🔊 Voice Output | ✅ | TTS via Edge TTS (vozes brasileiras) |
+| 💭 Intent Classification | ✅ | Classificação inteligente de domínio |
+| 🤝 Multi-Agent | ✅ | Orquestrador de agentes (Architect, Dev, Reviewer, Security) |
+| ⚙️ AutoDev | ✅ | Geração automática de código com validação |
+| 🎯 Autonomy | ✅ | Loop autônomo com detecção de eventos |
+| 🖥️ Computer Control | ✅ | Mouse, teclado, screenshots (whitelist) |
+| 🌐 Browser Control | ✅ | Navegação automática (validação de URLs) |
+| 📝 File Operations | ✅ | Leitura/escrita segura com restrições |
+| 🔍 Web Search | ✅ | Busca integrada |
+| 💾 Memory | ✅ | 3-tier memory (cache, semantic, wiki) |
+
+---
+
+## 📁 Estrutura de Diretórios
 
 ```
 jarvis/backend/

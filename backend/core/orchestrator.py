@@ -40,7 +40,7 @@ class OrchestratorResult:
 
     __slots__ = ("session_id", "input_text", "intent", "risk", "executed",
                  "output", "errors", "elapsed_ms", "suggestions", "stage_timings",
-                 "cache_hit")
+                 "cache_hit", "source")
 
     def __init__(
         self,
@@ -55,6 +55,7 @@ class OrchestratorResult:
         suggestions: list[str],
         stage_timings: dict[str, float] | None = None,
         cache_hit: bool = False,
+        source: str = "api",
     ) -> None:
         self.session_id = session_id
         self.input_text = input_text
@@ -67,6 +68,7 @@ class OrchestratorResult:
         self.suggestions = suggestions
         self.stage_timings = stage_timings or {}
         self.cache_hit = cache_hit
+        self.source = source
 
     def to_dict(self) -> dict[str, Any]:
         from core.system_mode import format_response  # noqa: PLC0415
@@ -80,6 +82,7 @@ class OrchestratorResult:
             "suggestions": self.suggestions,
             "stage_timings": self.stage_timings,
             "cache_hit": self.cache_hit,
+            "source": self.source,
         }
         return format_response(output=self.output, metadata=meta)
 
@@ -334,7 +337,11 @@ class CoreOrchestrator:
             action=intent.action,
             success=result.success,
         )
-        output = result.message or result.data.get("output", "") if result.success else result.message
+        # FIX: explicit if/else avoids ambiguous ternary precedence
+        if result.success:
+            output = result.message or result.data.get("output", "")
+        else:
+            output = result.message
         return output, result.success
 
     async def _log_behavior(

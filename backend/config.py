@@ -13,8 +13,19 @@ Usage:
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 from typing import Literal
+
+# Load .env from project root
+_root_dir = Path(__file__).parent.parent  # backend/.. = project root
+_env_file = _root_dir / ".env"
+if _env_file.exists():
+    from dotenv import load_dotenv
+    load_dotenv(_env_file)
+    # Verify it loaded
+    if os.getenv("JARVIS_OLLAMA_URL"):
+        pass  # .env loaded successfully
 
 try:
     from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -40,7 +51,10 @@ class JarvisConfig(BaseSettings):
 
     # ── LLM ──────────────────────────────────────────────────────────────────
     ollama_url:         str  = Field(default="http://localhost:11434", description="Ollama server URL")
-    local_model:        str  = Field(default="qwen2:0.5b",            description="Default Ollama model")
+    model:              str  = Field(default="qwen2:0.5b",            description="Default Ollama model")
+    embedding_model:    str  = Field(default="nomic-embed-text",      description="Embedding model")
+    timeout:            int  = Field(default=60,                      description="Request timeout")
+    max_retries:        int  = Field(default=3,                       description="Max retries for API calls")
     claude_model:       str  = Field(default="claude-3-haiku-20240307", description="Anthropic Claude model")
     openai_model:       str  = Field(default="gpt-4o-mini",           description="OpenAI model")
     anthropic_api_key:  str  = Field(default="",                      description="Anthropic API key")
@@ -75,6 +89,14 @@ class JarvisConfig(BaseSettings):
     wake_word:         str   = Field(default="jarvis", description="Wake word for always-on listening")
     voice_language:    str   = Field(default="pt-BR",  description="Voice recognition language")
     voice_tts_engine:  str   = Field(default="pyttsx3", description="TTS engine: pyttsx3 | gTTS | elevenlabs")
+    tts_voice:         str   = Field(default="pt-BR-AntonioNeural", description="TTS voice identifier")
+    stm_model:         str   = Field(default="small",  description="Speech-to-text model size")
+    user_title:        str   = Field(default="Senhor", description="User title (Sr./Sra. etc)")
+
+    # ── Logging & Debug ────────────────────────────────────────────────────────
+    debug:             bool  = Field(default=False,    description="Enable debug mode")
+    log_level:         str   = Field(default="INFO",   description="Logging level")
+    safe_mode:         bool  = Field(default=True,     description="Enable safe mode")
 
     # ── Safety ────────────────────────────────────────────────────────────────
     risk_tolerance:              Literal["low", "medium", "high"] = Field(
@@ -91,14 +113,13 @@ class JarvisConfig(BaseSettings):
     host:     str = Field(default="0.0.0.0", description="Server bind address")
     port:     int = Field(default=8000,      description="Server port")
     workers:  int = Field(default=1,         description="Uvicorn workers (1 for dev, 4+ for prod)")
-    debug:    bool = Field(default=False,    description="Enable debug mode")
 
     if _USE_PYDANTIC_SETTINGS:
         model_config = SettingsConfigDict(
-            env_file=".env",
             env_prefix="JARVIS_",
             case_sensitive=False,
             extra="ignore",
+            populate_by_name=True,
         )
 
 
@@ -110,5 +131,9 @@ _config: JarvisConfig | None = None
 def get_config() -> JarvisConfig:
     global _config
     if _config is None:
-        _config = JarvisConfig()
+        _config = JarvisConfig(
+            ollama_url=os.getenv("JARVIS_OLLAMA_URL") or "http://localhost:11434",
+            model=os.getenv("JARVIS_MODEL") or "qwen2:0.5b",
+            embedding_model=os.getenv("JARVIS_EMBEDDING_MODEL") or "nomic-embed-text",
+        )
     return _config

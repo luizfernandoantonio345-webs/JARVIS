@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JARVIS — Neural Core v6.0</title>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --c:#00e5ff;--cg:#d4a820;--cr:#ff2a4a;--cgreen:#4eff91;
+  --f:'Courier New',monospace;
+  --w-bg:rgba(0,4,12,0.92);
+  --w-border:rgba(0,229,255,0.1);
+}
+html,body{width:100%;height:100%;background:#000;overflow:hidden;font-family:var(--f);user-select:none;cursor:crosshair}
+#scene{position:relative;width:100vw;height:100vh;overflow:hidden}
+
+/* ── CANVAS LAYERS ── */
+#c-stars{position:absolute;inset:0;z-index:0;pointer-events:none}
+#c-rings{position:absolute;inset:0;z-index:1;pointer-events:none}
+#c-orb{position:absolute;inset:0;z-index:2;pointer-events:none}
+#c-fx{position:absolute;inset:0;z-index:3;pointer-events:none}
+
+/* ── OVERLAYS ── */
+#hexgrid{position:absolute;inset:0;z-index:4;pointer-events:none;opacity:0.022;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='104'%3E%3Cpolygon points='30,2 58,17 58,47 30,62 2,47 2,17' fill='none' stroke='%2300e5ff' stroke-width='0.6'/%3E%3Cpolygon points='30,54 58,69 58,99 30,114 2,99 2,69' fill='none' stroke='%2300e5ff' stroke-width='0.6'/%3E%3C/svg%3E"}
+#scan{position:absolute;inset:0;z-index:50;pointer-events:none;background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.08) 3px,rgba(0,0,0,0.08) 4px);opacity:0.55;animation:scanmove 14s linear infinite}
+@keyframes scanmove{0%{background-position:0 0}100%{background-position:0 104px}}
+#vig{position:absolute;inset:0;z-index:5;pointer-events:none;background:radial-gradient(ellipse 65% 65% at 50% 50%,transparent 30%,rgba(0,0,0,0.92) 100%)}
+#chrab{position:absolute;inset:0;z-index:6;pointer-events:none;mix-blend-mode:screen;background:radial-gradient(ellipse 35% 35% at 50% 50%,transparent 55%,rgba(0,0,60,0.015) 80%,transparent 100%);animation:chranim 15s ease-in-out infinite}
+@keyframes chranim{0%,100%{opacity:0.3}50%{opacity:1}}
+
+/* ── CORNER BRACKETS ── */
+.corner{position:absolute;z-index:15;pointer-events:none}
+#co-tl{top:0;left:0}
+#co-tr{top:0;right:0;transform:scaleX(-1)}
+#co-bl{bottom:0;left:0;transform:scaleY(-1)}
+#co-br{bottom:0;right:0;transform:scale(-1,-1)}
+
+/* ── DATA STREAMS ── */
+.dstream{position:absolute;top:0;bottom:0;z-index:8;width:clamp(10px,1vw,14px);overflow:hidden;pointer-events:none;opacity:0.3}
+#ds-l{left:clamp(2px,0.3vw,4px)}
+#ds-r{right:clamp(2px,0.3vw,4px)}
+.dsc{font-size:clamp(5px,0.52vw,6.5px);color:rgba(0,229,255,0.25);line-height:1.4;display:block;text-align:center;animation:dsf linear infinite}
+@keyframes dsf{0%{opacity:0;transform:translateY(-12px)}8%{opacity:1}92%{opacity:1}100%{opacity:0;transform:translateY(12px)}}
+
+/* ── CENTER LABEL ── */
+#lbl{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;z-index:20;pointer-events:none;white-space:nowrap}
+#jt{font-size:clamp(28px,4vw,54px);font-weight:900;letter-spacing:clamp(12px,2vw,22px);color:#fff;font-family:var(--f);line-height:1;text-shadow:0 0 8px rgba(0,229,255,1),0 0 25px rgba(0,229,255,0.85),0 0 60px rgba(0,229,255,0.45),0 0 120px rgba(0,229,255,0.2);animation:jtflicker 13s ease-in-out infinite}
+@keyframes jtflicker{0%,88%,100%{opacity:1}89%{opacity:0.7;text-shadow:0 0 3px rgba(0,229,255,0.5)}89.5%{opacity:1}93%{opacity:0.85}93.5%{opacity:1}}
+
+/* ── VOICE BARS ── */
+#sbar{display:flex;align-items:center;justify-content:center;gap:2.5px;margin-top:14px;height:22px;opacity:0;transition:opacity 0.55s}
+#sbar.on{opacity:1}
+.sb{width:2.5px;border-radius:2px;background:linear-gradient(to top,#00e5ff,#4eff91);animation:sba ease-in-out infinite alternate}
+.sb:nth-child(1){height:3px;animation-duration:.38s}
+.sb:nth-child(2){height:11px;animation-duration:.42s;animation-delay:.05s}
+.sb:nth-child(3){height:19px;animation-duration:.35s;animation-delay:.10s}
+.sb:nth-child(4){height:14px;animation-duration:.44s;animation-delay:.15s}
+.sb:nth-child(5){height:22px;animation-duration:.38s;animation-delay:.20s}
+.sb:nth-child(6){height:15px;animation-duration:.40s;animation-delay:.15s}
+.sb:nth-child(7){height:19px;animation-duration:.36s;animation-delay:.10s}
+.sb:nth-child(8){height:10px;animation-duration:.43s;animation-delay:.05s}
+.sb:nth-child(9){height:3px;animation-duration:.38s}
+@keyframes sba{from{transform:scaleY(0.08);opacity:0.15}to{transform:scaleY(1);opacity:1}}
+
+/* ── LISTENING RING ── */
+#lring{position:absolute;top:50%;left:50%;width:clamp(120px,12vw,160px);height:clamp(120px,12vw,160px);border-radius:50%;border:1px solid rgba(0,229,255,0);transform:translate(-50%,-50%) scale(0.85);z-index:18;pointer-events:none;transition:all 0.7s cubic-bezier(.4,0,.2,1);box-shadow:0 0 0 0 rgba(0,229,255,0)}
+#lring.on{border-color:rgba(0,229,255,0.18);transform:translate(-50%,-50%) scale(1);box-shadow:0 0 30px rgba(0,229,255,0.05),inset 0 0 30px rgba(0,229,255,0.03)}
+
+/* ── WIDGETS ── */
+.w{position:absolute;z-index:15;background:var(--w-bg);border:1px solid var(--w-border);opacity:0;pointer-events:none;transition:opacity 0.7s cubic-bezier(.4,0,.2,1),transform 0.7s cubic-bezier(.4,0,.2,1);overflow:hidden}
+.w::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,229,255,0.5),transparent)}
+.w::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(135deg,rgba(0,229,255,0.012) 0%,transparent 55%)}
+.w.ltl{transform:translateX(-22px) translateY(-5px)}
+.w.ltr{transform:translateX(22px) translateY(-5px)}
+.w.lbl{transform:translateX(-22px) translateY(5px)}
+.w.lbr{transform:translateX(22px) translateY(5px)}
+.w.show{opacity:1;pointer-events:all;transform:translateX(0) translateY(0)!important}
+
+.wh{display:flex;justify-content:space-between;align-items:center;padding:7px 12px;border-bottom:1px solid rgba(0,229,255,0.055);background:rgba(0,229,255,0.018)}
+.wt{font-size:clamp(5px,0.55vw,7px);letter-spacing:2.5px;color:rgba(0,229,255,0.32);text-transform:uppercase;flex:1}
+.wc{display:flex;gap:4px;align-items:center;flex-shrink:0}
+.wbtn{width:13px;height:13px;border:1px solid rgba(0,229,255,0.1);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:rgba(0,229,255,0.22);font-size:6px;transition:all 0.2s;font-family:var(--f)}
+.wbtn:hover{border-color:rgba(0,229,255,0.5);color:rgba(0,229,255,0.9);background:rgba(0,229,255,0.05);box-shadow:0 0 8px rgba(0,229,255,0.12)}
+.wdot{width:4px;height:4px;border-radius:50%;background:#00e5ff;margin-left:4px;animation:bdot 1.9s ease-in-out infinite;box-shadow:0 0 6px #00e5ff}
+@keyframes bdot{0%,100%{opacity:1}50%{opacity:0.05}}
+.wb{padding:8px 12px;font-size:clamp(6px,0.62vw,7.5px);color:rgba(130,200,215,0.72);line-height:1.8;overflow:hidden;position:relative;z-index:1}
+
+#w0{top:clamp(6px,1.4vh,18px);left:clamp(6px,0.7vw,12px);width:clamp(210px,17.5vw,280px)}
+#w1{top:clamp(6px,1.4vh,18px);right:clamp(6px,0.7vw,12px);width:clamp(210px,17.5vw,280px)}
+#w2{bottom:clamp(36px,5.5vh,54px);left:clamp(6px,0.7vw,12px);width:clamp(210px,17.5vw,280px)}
+#w3{bottom:clamp(36px,5.5vh,54px);right:clamp(6px,0.7vw,12px);width:clamp(210px,17.5vw,280px)}
+
+/* ── SIDE RAILS ── */
+.rail{position:absolute;z-index:16;display:flex;flex-direction:column;gap:3px;opacity:0;transition:opacity 0.7s}
+.rail.show{opacity:1}
+#r0{top:clamp(6px,1.4vh,18px);left:calc(clamp(6px,0.7vw,12px) + clamp(210px,17.5vw,280px) + 3px)}
+#r1{top:clamp(6px,1.4vh,18px);right:calc(clamp(6px,0.7vw,12px) + clamp(210px,17.5vw,280px) + 3px)}
+#r2{bottom:clamp(36px,5.5vh,54px);left:calc(clamp(6px,0.7vw,12px) + clamp(210px,17.5vw,280px) + 3px)}
+#r3{bottom:clamp(36px,5.5vh,54px);right:calc(clamp(6px,0.7vw,12px) + clamp(210px,17.5vw,280px) + 3px)}
+.rico{width:14px;height:14px;border:1px solid rgba(0,229,255,0.09);display:flex;align-items:center;justify-content:center;color:rgba(0,229,255,0.2);font-size:7px;cursor:pointer;transition:all 0.22s}
+.rico:hover{border-color:rgba(0,229,255,0.45);color:rgba(0,229,255,0.7);box-shadow:0 0 6px rgba(0,229,255,0.1)}
+
+/* ── CODE WIDGET ── */
+pre.code{font-size:clamp(5.5px,0.6vw,7.5px);line-height:1.75;color:rgba(65,125,155,0.82);white-space:pre;overflow:hidden;transition:opacity 0.32s;background:transparent;font-family:var(--f)}
+.kw{color:rgba(0,195,255,0.88)}
+.fn{color:rgba(100,215,100,0.82)}
+.cm{color:rgba(52,68,88,0.78)}
+.st{color:rgba(255,175,75,0.78)}
+.ln{display:inline-block;width:16px;text-align:right;margin-right:6px;color:rgba(0,229,255,0.1);border-right:1px solid rgba(0,229,255,0.05);padding-right:5px;font-size:5.5px}
+.cfoot{font-size:5.5px;color:rgba(0,229,255,0.12);display:flex;justify-content:space-between;border-top:1px solid rgba(0,229,255,0.04);padding-top:4px;margin-top:3px;letter-spacing:1px}
+
+/* ── MAP WIDGET ── */
+.mwrap{position:relative;width:100%;height:80px;border:1px solid rgba(0,229,255,0.06);background:rgba(0,6,16,0.8);overflow:hidden;margin-bottom:7px}
+.mgline{position:absolute;background:rgba(0,229,255,0.028)}
+.mdot{position:absolute;width:4px;height:4px;border-radius:50%;background:#00e5ff;box-shadow:0 0 5px #00e5ff;transform:translate(-50%,-50%)}
+.mdot::after{content:'';position:absolute;top:-5px;left:-5px;width:14px;height:14px;border-radius:50%;border:1px solid rgba(0,229,255,0.28);animation:mping 2.5s ease-out infinite}
+@keyframes mping{0%{transform:scale(1);opacity:0.9}100%{transform:scale(3);opacity:0}}
+.anom{font-size:clamp(5.5px,0.58vw,7px);color:rgba(115,188,200,0.6);line-height:1.45;padding-left:9px;position:relative;margin-bottom:3px}
+.anom::before{content:'—';position:absolute;left:0;color:rgba(0,229,255,0.22)}
+.adot{display:inline-block;width:4px;height:4px;border-radius:50%;background:#ff2a4a;box-shadow:0 0 5px #ff2a4a;animation:adotpulse 1s ease-in-out infinite;margin-right:3px;vertical-align:middle}
+@keyframes adotpulse{0%,100%{transform:scale(1)}50%{transform:scale(1.9)}}
+
+/* ── DATA FLOW WIDGET ── */
+.mrow{display:flex;align-items:center;gap:5px;margin:3px 0}
+.mrlabel{width:26px;font-size:clamp(5.5px,0.58vw,7px);color:rgba(0,229,255,0.4);flex-shrink:0}
+.mrbar{flex:1;height:2px;background:rgba(0,229,255,0.05);border-radius:1px;overflow:hidden}
+.mrfill{height:100%;border-radius:1px;transition:width 1.5s ease}
+.mrfill.cpu{background:rgba(0,229,255,0.78);box-shadow:0 0 5px rgba(0,229,255,0.5)}
+.mrfill.ram{background:rgba(255,200,80,0.68);box-shadow:0 0 5px rgba(255,200,80,0.4)}
+.mrfill.net{background:rgba(78,255,145,0.65);box-shadow:0 0 5px rgba(78,255,145,0.35)}
+.mrval{width:27px;text-align:right;font-size:clamp(5.5px,0.58vw,7px);color:rgba(170,220,228,0.65);flex-shrink:0}
+.chlbl{font-size:5.5px;color:rgba(0,229,255,0.2);margin-bottom:1px;letter-spacing:1px}
+canvas.mc{width:100%;display:block;margin:2px 0 5px}
+
+/* ── PROTOCOLS WIDGET ── */
+.pi{display:flex;justify-content:space-between;align-items:center;padding:3.5px 0;border-bottom:1px solid rgba(0,229,255,0.035);font-size:clamp(5.5px,0.6vw,7.5px);color:rgba(120,192,205,0.58)}
+.pbadge{font-size:5.5px;letter-spacing:1.5px;padding:1.5px 5px;border:1px solid;flex-shrink:0}
+.pbadge.run{color:#4eff91;border-color:rgba(78,255,145,0.22);box-shadow:0 0 6px rgba(78,255,145,0.1)}
+.pbadge.stn{color:#ffd166;border-color:rgba(255,209,102,0.22)}
+.pbadge.wrn{color:#ff6b6b;border-color:rgba(255,107,107,0.22)}
+.pfooter{display:flex;justify-content:space-between;margin-top:5px;font-size:5.5px;color:rgba(0,229,255,0.13);letter-spacing:1px}
+
+/* ── STATUS BAR ── */
+#stbar{position:absolute;bottom:0;left:0;right:0;z-index:30;display:flex;justify-content:center;align-items:center;padding:7px 0;border-top:1px solid rgba(0,229,255,0.07);background:rgba(0,0,0,0.95);font-size:clamp(5px,0.58vw,7px);color:rgba(0,229,255,0.28);letter-spacing:2.5px;text-transform:uppercase;transition:border-top-color 0.5s}
+#stbar .seg{padding:0 clamp(10px,2.8vw,40px);border-right:1px solid rgba(0,229,255,0.07)}
+#stbar .seg:last-child{border-right:none}
+#stlive{color:rgba(0,229,255,0.88)}
+
+/* ── COMMAND INPUT ── */
+#cmdinput{position:absolute;bottom:clamp(52px,7.5vh,74px);left:50%;transform:translateX(-50%);z-index:35;display:flex;align-items:center;gap:8px;background:rgba(0,4,14,0.95);border:1px solid rgba(0,229,255,0.22);padding:6px 14px;width:clamp(280px,32vw,440px);opacity:0;pointer-events:none;transition:opacity 0.4s;box-shadow:0 0 20px rgba(0,229,255,0.06)}
+#cmdinput.show{opacity:1;pointer-events:all}
+#cmdprompt{color:rgba(0,229,255,0.5);font-size:clamp(7px,0.72vw,9px);letter-spacing:2px;flex-shrink:0}
+#cmdtext{background:transparent;border:none;outline:none;color:#00e5ff;font-family:var(--f);font-size:clamp(7px,0.72vw,9px);letter-spacing:1px;flex:1;caret-color:#00e5ff}
+#cmdcursor{width:7px;height:1px;background:#00e5ff;animation:bc 0.9s step-end infinite;flex-shrink:0;align-self:center}
+@keyframes bc{0%,100%{opacity:1}50%{opacity:0}}
+
+/* ── BOTTOM ROW ── */
+#botrow{position:absolute;bottom:clamp(28px,4vh,44px);left:50%;transform:translateX(-50%);z-index:22;pointer-events:none;display:flex;gap:clamp(18px,8vw,100px);font-size:clamp(5px,0.58vw,7px);color:rgba(0,229,255,0.15);letter-spacing:2px;text-transform:uppercase;white-space:nowrap}
+
+/* ── HINT ── */
+#hint{position:absolute;top:clamp(8px,1.4vh,16px);left:50%;transform:translateX(-50%);z-index:25;font-size:clamp(5px,0.55vw,6.5px);letter-spacing:2.5px;color:rgba(0,229,255,0.16);text-transform:uppercase;pointer-events:none;white-space:nowrap;animation:hpulse 5s ease-in-out infinite}
+@keyframes hpulse{0%,100%{opacity:0.5}50%{opacity:1}}
+
+/* ── SPARKLE ── */
+#spark{position:absolute;bottom:clamp(20px,3vh,34px);right:clamp(10px,1.1vw,16px);z-index:28;pointer-events:none}
+.spksvg{animation:spkrot 14s linear infinite}
+@keyframes spkrot{from{transform:rotate(0)scale(1)}50%{transform:rotate(180deg)scale(1.15)}to{transform:rotate(360deg)scale(1)}}
+
+/* ── ALERT MODE ── */
+body.alert #stbar{border-top-color:rgba(255,42,74,0.45)}
+body.alert #stlive{color:rgba(255,42,74,0.92)}
+body.alert .wdot{background:#ff2a4a;box-shadow:0 0 5px #ff2a4a}
+body.alert #jt{text-shadow:0 0 8px rgba(255,42,74,0.9),0 0 25px rgba(255,42,74,0.6),0 0 60px rgba(255,42,74,0.3)}
+
+/* ── MOBILE ── */
+@media(max-width:640px){
+  #w0,#w1,#r0,#r1{display:none}
+  #w2{left:6px;right:6px;width:auto;bottom:44px}
+  #w3{display:none}#r2,#r3{display:none}
+  .dstream{display:none}.corner svg{width:48px;height:48px}
+  #cmdinput{width:92vw}
+}
+::-webkit-scrollbar{width:2px}::-webkit-scrollbar-thumb{background:rgba(0,229,255,0.12)}
+</style>
+</head>
+<body>
+<div id="scene">
+<canvas id="c-stars"></canvas>
+<canvas id="c-rings"></canvas>
+<canvas id="c-orb"></canvas>
+<canvas id="c-fx"></canvas>
+<div id="hexgrid"></div>
+<div id="vig"></div>
+<div id="scan"></div>
+<div id="chrab"></div>
+
+<!-- CORNERS -->
+<div class="corner" id="co-tl"><svg width="85" height="85" viewBox="0 0 85 85"><path d="M2 52 L2 2 L52 2" fill="none" stroke="rgba(0,229,255,0.16)" stroke-width="0.8"/><path d="M2 2 L20 2" fill="none" stroke="rgba(0,229,255,0.65)" stroke-width="1.8"/><path d="M2 2 L2 20" fill="none" stroke="rgba(0,229,255,0.65)" stroke-width="1.8"/><circle cx="2" cy="2" r="2.8" fill="rgba(0,229,255,0.7)"/><line x1="9" y1="2" x2="9" y2="7" stroke="rgba(0,229,255,0.22)" stroke-width="0.5"/><line x1="16" y1="2" x2="16" y2="9" stroke="rgba(0,229,255,0.16)" stroke-width="0.5"/><line x1="24" y1="2" x2="24" y2="6" stroke="rgba(0,229,255,0.1)" stroke-width="0.5"/></svg></div>
+<div class="corner" id="co-tr"><svg width="85" height="85" viewBox="0 0 85 85"><path d="M2 52 L2 2 L52 2" fill="none" stroke="rgba(0,229,255,0.16)" stroke-width="0.8"/><path d="M2 2 L20 2" fill="none" stroke="rgba(0,229,255,0.65)" stroke-width="1.8"/><path d="M2 2 L2 20" fill="none" stroke="rgba(0,229,255,0.65)" stroke-width="1.8"/><circle cx="2" cy="2" r="2.8" fill="rgba(0,229,255,0.7)"/></svg></div>
+<div class="corner" id="co-bl"><svg width="85" height="85" viewBox="0 0 85 85"><path d="M2 52 L2 2 L52 2" fill="none" stroke="rgba(0,229,255,0.16)" stroke-width="0.8"/><path d="M2 2 L20 2" fill="none" stroke="rgba(0,229,255,0.65)" stroke-width="1.8"/><path d="M2 2 L2 20" fill="none" stroke="rgba(0,229,255,0.65)" stroke-width="1.8"/><circle cx="2" cy="2" r="2.8" fill="rgba(0,229,255,0.7)"/></svg></div>
+<div class="corner" id="co-br"><svg width="85" height="85" viewBox="0 0 85 85"><path d="M2 52 L2 2 L52 2" fill="none" stroke="rgba(0,229,255,0.16)" stroke-width="0.8"/><path d="M2 2 L20 2" fill="none" stroke="rgba(0,229,255,0.65)" stroke-width="1.8"/><path d="M2 2 L2 20" fill="none" stroke="rgba(0,229,255,0.65)" stroke-width="1.8"/><circle cx="2" cy="2" r="2.8" fill="rgba(0,229,255,0.7)"/></svg></div>
+
+<div class="dstream" id="ds-l"></div>
+<div class="dstream" id="ds-r"></div>
+<div id="lring"></div>
+
+<!-- CENTER LABEL -->
+<div id="lbl">
+<div id="jt">JARVIS</div>
+<div id="sbar">
+<div class="sb"></div><div class="sb"></div><div class="sb"></div>
+<div class="sb"></div><div class="sb"></div><div class="sb"></div>
+<div class="sb"></div><div class="sb"></div><div class="sb"></div>
+</div>
+</div>
+
+<!-- WIDGET 0: Code Archive -->
+<div class="w ltl" id="w0">
+<div class="wh"><span class="wt">CODE ARCHIVE: CORE SYSTEM v6.0</span><div class="wc"><button class="wbtn" onclick="closeW(0)">▲</button><button class="wbtn" onclick="closeW(0)">✕</button><div class="wdot"></div></div></div>
+<div class="wb"><pre class="code" id="codeEl"></pre><div class="cfoot"><span id="clinf">SL#17 / 060</span><span>▲ ▼</span></div></div>
+</div>
+
+<!-- WIDGET 1: Intelligence Report -->
+<div class="w ltr" id="w1">
+<div class="wh"><span class="wt">INTELLIGENCE REPORT: GLOBAL ANOMALIES</span><div class="wc"><button class="wbtn" onclick="closeW(1)">▲</button><button class="wbtn" onclick="closeW(1)">✕</button><div class="wdot"></div></div></div>
+<div class="wb">
+<div class="mwrap" id="mapwrap"><div class="mgline" style="top:33%;left:0;right:0;height:1px"></div><div class="mgline" style="top:66%;left:0;right:0;height:1px"></div><div class="mgline" style="left:25%;top:0;bottom:0;width:1px"></div><div class="mgline" style="left:50%;top:0;bottom:0;width:1px"></div><div class="mgline" style="left:75%;top:0;bottom:0;width:1px"></div></div>
+<div class="anom"><span class="adot"></span>Unusual seismic activity — Sector 4</div>
+<div class="anom">Data pattern correlation high — historical events</div>
+<div class="anom">Anomalous signal — origin: UNCLASSIFIED</div>
+<div class="anom">Neural intercept: 3 new vectors identified</div>
+</div>
+</div>
+
+<!-- WIDGET 2: Data Flow -->
+<div class="w lbl" id="w2">
+<div class="wh"><span class="wt">DATA FLOW ANALYSIS</span><div class="wc"><button class="wbtn" onclick="closeW(2)">▲</button><button class="wbtn" onclick="closeW(2)">✕</button><div class="wdot"></div></div></div>
+<div class="wb">
+<div class="mrow"><span class="mrlabel">CPU</span><div class="mrbar"><div class="mrfill cpu" id="cpubar" style="width:74%"></div></div><span class="mrval" id="cpuv">74%</span></div>
+<div class="mrow"><span class="mrlabel">RAM</span><div class="mrbar"><div class="mrfill ram" id="rambar" style="width:61%"></div></div><span class="mrval" id="ramv">61%</span></div>
+<div class="mrow"><span class="mrlabel">NET</span><div class="mrbar"><div class="mrfill net" id="netbar" style="width:32%"></div></div><span class="mrval" id="netv">32%</span></div>
+<div class="chlbl" style="margin-top:5px">CPU: <span id="cpuv2">74%</span></div>
+<canvas class="mc" id="cc" height="36"></canvas>
+<div class="chlbl">RAM: <span id="ramv2">61%</span></div>
+<canvas class="mc" id="rc" height="36"></canvas>
+<div style="display:flex;justify-content:space-between;font-size:5.5px;color:rgba(0,229,255,0.12);border-top:1px solid rgba(0,229,255,0.04);padding-top:4px;letter-spacing:1px"><span>CPU STATUS</span><span id="blstat">STATUS: ONLINE</span><span>SAFE STATUS</span></div>
+</div>
+</div>
+
+<!-- WIDGET 3: Active Protocols -->
+<div class="w lbr" id="w3">
+<div class="wh"><span class="wt">ACTIVE PROTOCOLS</span><div class="wc"><button class="wbtn" onclick="closeW(3)">▲</button><button class="wbtn" onclick="closeW(3)">✕</button><div class="wdot"></div></div></div>
+<div class="wb">
+<div class="pi"><span>Sentinel Node monitoring</span><span class="pbadge run">RUN</span></div>
+<div class="pi"><span>Project Insight simulation</span><span class="pbadge run">RUN</span></div>
+<div class="pi"><span>Neural Defense v3 sweep</span><span class="pbadge run">RUN</span></div>
+<div class="pi"><span>Sentinel Node monitoring</span><span class="pbadge stn">STN</span></div>
+<div class="pi"><span>Perimeter scan — alpha</span><span class="pbadge wrn">WRN</span></div>
+<div class="pi"><span>Project Insight simulation</span><span class="pbadge run">RUN</span></div>
+<div class="pfooter"><span>▲ ▼</span><span>SYSTEM MONITORING</span><span>◉</span></div>
+</div>
+</div>
+
+<!-- RAILS -->
+<div class="rail" id="r0"><div class="rico">●</div><div class="rico">▲</div><div class="rico">◈</div></div>
+<div class="rail" id="r1"><div class="rico">●</div><div class="rico">▲</div><div class="rico">◈</div></div>
+<div class="rail" id="r2"><div class="rico">◈</div><div class="rico">●</div><div class="rico">■</div></div>
+<div class="rail" id="r3"><div class="rico">▲</div><div class="rico">◉</div><div class="rico">▼</div></div>
+
+<!-- STATUS BAR -->
+<div id="stbar">
+<span class="seg">SYSTEM: JARVIS MARK X</span>
+<span class="seg" id="stlive">STATUS: STANDBY</span>
+<span class="seg">SAFE MODE: ACTIVE</span>
+</div>
+
+<!-- BOTTOM ROW -->
+<div id="botrow">
+<span>CPU STATUS</span>
+<span id="botctr">STANDBY</span>
+<span>SAFE STATUS</span>
+</div>
+
+<!-- COMMAND INPUT -->
+<div id="cmdinput">
+<span id="cmdprompt">JARVIS ›</span>
+<input id="cmdtext" type="text" autocomplete="off" spellcheck="false" placeholder="ENTER COMMAND...">
+<div id="cmdcursor"></div>
+</div>
+
+<!-- HINT -->
+<div id="hint">[ SPACE — COMMAND · 1-4 — TOGGLE PANELS · ESC — CLEAR ]</div>
+
+<!-- SPARKLE -->
+<div id="spark"><svg class="spksvg" width="16" height="16" viewBox="0 0 20 20"><defs><filter id="sf"><feGaussianBlur stdDeviation="1.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><path d="M10 0L11.9 8.1L20 10L11.9 11.9L10 20L8.1 11.9L0 10L8.1 8.1Z" fill="rgba(255,255,255,0.52)" filter="url(#sf)"/></svg></div>
+</div>
+
+<script>
+const WS_URL = 'ws://localhost:8000/ws/jarvis';
+let ws, wsReconnectTimer, wsConnected = false;
+
+function connectWS() {
+  ws = new WebSocket(WS_URL);
+  ws.onopen = () => {
+    wsConnected = true;
+    console.log('[JARVIS] WebSocket conectado');
+    setSpeaking(false);
+  };
+  ws.onmessage = (evt) => {
+    try {
+      const msg = JSON.parse(evt.data);
+      if (msg.status === 'speaking' || msg.type === 'speaking') {
+        setSpeaking(true, 4000);
+        if (msg.message) updateResponse(msg.message);
+      }
+      if (msg.status === 'idle' || msg.type === 'idle') setSpeaking(false);
+      if (msg.status === 'thinking' || msg.type === 'thinking') showThinking();
+      if (msg.response) updateResponse(msg.response);
+    } catch(e) { console.warn('[WS] Parse error:', e); }
+  };
+  ws.onerror = () => { wsConnected = false; console.warn('[JARVIS] WS erro'); };
+  ws.onclose = () => {
+    wsConnected = false;
+    console.warn('[JARVIS] WS desconectado — reconectando em 3s');
+    wsReconnectTimer = setTimeout(connectWS, 3000);
+  };
+}
+
+function sendCommand(text) {
+  if (ws && wsConnected) {
+    ws.send(text);
+    setSpeaking(true, 3500);
+  }
+}
+
+function updateResponse(text) {
+  const pi = document.querySelector('.w3 .pfooter');
+  if (!pi) return;
+  const par = document.createElement('div');
+  par.style.cssText = 'margin-top:6px;border-top:1px solid rgba(0,229,255,0.04);padding-top:6px;font-size:5.5px;color:rgba(200,220,220,0.7);line-height:1.4';
+  par.textContent = text.slice(0, 140) + (text.length > 140 ? '...' : '');
+  pi.parentElement.appendChild(par);
+}
+
+function showThinking() {
+  setSpeaking(true);
+  document.getElementById('stlive').textContent = 'STATUS: THINKING...';
+}
+
+connectWS();
+
+// Canvas setup
+const cvOrb = document.getElementById('c-orb');
+const ctx = cvOrb?.getContext('2d');
+let W, H, CX, CY, R;
+let speaking = false, alertMode = false, wsConnected_local = false;
+
+function resize() {
+  W = window.innerWidth; H = window.innerHeight;
+  cvOrb.width = W; cvOrb.height = H;
+  CX = W / 2; CY = H / 2;
+  R = Math.min(W, H) * 0.22;
+  buildMap();
+}
+
+function buildMap() {
+  const w = document.getElementById('mapwrap');
+  if (!w) return;
+  w.querySelectorAll('.mdot').forEach(d => d.remove());
+  [{t: '17%', l: '12%', dl: '0s'}, {t: '31%', l: '49%', dl: '.5s'}, {t: '59%', l: '67%', dl: '1s'}, {t: '19%', l: '79%', dl: '.3s'}, {t: '63%', l: '27%', dl: '.8s'}, {t: '41%', l: '91%', dl: '1.35s'}].forEach(d => {
+    const el = document.createElement('div');
+    el.className = 'mdot'; el.style.top = d.t; el.style.left = d.l; el.style.animationDelay = d.dl;
+    w.appendChild(el);
+  });
+}
+
+const SNIPS = [`<span class="ln">16</span><span class="kw">import</span> jarvis.neural <span class="kw">as</span> nn\n<span class="ln">17</span>\n<span class="ln">18</span><span class="kw">def</span> <span class="fn">optimize</span>(self):\n<span class="ln">19</span>    <span class="kw">return</span> data.processed`,
+`<span class="ln">30</span><span class="cm"># Neural defense</span>\n<span class="ln">31</span><span class="kw">class</span> <span class="fn">Core</span>:\n<span class="ln">32</span>    version = <span class="st">"v10"</span>\n<span class="ln">33</span>    <span class="kw">def</span> <span class="fn">init</span>(self):`,
+`<span class="ln">42</span><span class="kw">async def</span> <span class="fn">listen</span>():\n<span class="ln">43</span>    audio = <span class="kw">await</span> capture()\n<span class="ln">44</span>    text = stt.transcribe(audio)\n<span class="ln">45</span>    <span class="kw">return</span> response`,
+`<span class="ln">52</span><span class="kw">def</span> <span class="fn">process</span>(input_text):\n<span class="ln">53</span>    tokens = tokenize(input_text)\n<span class="ln">54</span>    result = model.forward(tokens)\n<span class="ln">55</span>    <span class="kw">return</span> result`];
+let ci = 0;
+document.getElementById('codeEl').innerHTML = SNIPS[0];
+setInterval(() => {
+  ci = (ci + 1) % SNIPS.length;
+  const cEl = document.getElementById('codeEl');
+  cEl.style.opacity = '0';
+  setTimeout(() => {cEl.innerHTML = SNIPS[ci]; cEl.style.opacity = '1'; document.getElementById('clinf').textContent = `SL#${17+ci*12} / 060`;}, 340);
+}, 5000);
+
+function setSpeaking(v, dur) {
+  speaking = v;
+  const sb = document.getElementById('sbar'), sl = document.getElementById('stlive');
+  const bc = document.getElementById('botctr'), lr = document.getElementById('lring');
+  if (v) {
+    sb.classList.add('on'); lr.classList.add('on');
+    sl.textContent = 'STATUS: SPEAKING';
+    bc.textContent = 'SPEAKING';
+    if (dur) setTimeout(() => setSpeaking(false), dur);
+  } else {
+    sb.classList.remove('on'); lr.classList.remove('on');
+    sl.textContent = wsConnected ? 'STATUS: CONNECTED' : 'STATUS: STANDBY';
+    bc.textContent = 'STANDBY';
+  }
+}
+
+function showW(i) { document.getElementById('w'+i)?.classList.add('show'); document.getElementById('r'+i)?.classList.add('show'); }
+function closeW(i) { document.getElementById('w'+i)?.classList.remove('show'); document.getElementById('r'+i)?.classList.remove('show'); }
+function showAll() { [0,1,2,3].forEach((_, i) => setTimeout(() => showW(i), i*115)); }
+function hideAll() { [0,1,2,3].forEach(i => closeW(i)); }
+function setAlert(on) { alertMode = on; document.body.classList.toggle('alert', on); if (on) { document.getElementById('stlive').textContent = '⚠ ALERT'; setSpeaking(true); } }
+
+const CMDS = {
+  'mostrar codigo': () => { showW(0); setSpeaking(true, 3000); },
+  'show code': () => { showW(0); setSpeaking(true, 3000); },
+  'mostrar tudo': () => { showAll(); setSpeaking(true, 4000); },
+  'show all': () => { showAll(); setSpeaking(true, 4000); },
+  'fechar': () => { hideAll(); setSpeaking(false); },
+  'hide': () => { hideAll(); setSpeaking(false); },
+};
+
+function runCmd(raw) {
+  const cmd = raw.trim().toLowerCase();
+  let ran = false;
+  for (const key in CMDS) { if (cmd.includes(key)) { CMDS[key](); ran = true; break; } }
+  if (!ran && cmd.length > 2) { sendCommand(cmd); showAll(); setSpeaking(true, 3500); }
+}
+
+document.addEventListener('keydown', e => {
+  if (e.target.id === 'cmdtext') return;
+  if (e.key === ' ') { e.preventDefault(); document.getElementById('cmdinput').classList.toggle('show'); if (document.getElementById('cmdinput').classList.contains('show')) document.getElementById('cmdtext').focus(); return; }
+  if (e.key === 'Escape') { document.getElementById('cmdinput').classList.remove('show'); hideAll(); setSpeaking(false); return; }
+  if (e.key >= '1' && e.key <= '4') { const i = parseInt(e.key) - 1; const el = document.getElementById('w' + i); if (el?.classList.contains('show')) closeW(i); else { showW(i); setSpeaking(true, 2500); } return; }
+  if (e.key === '0') { hideAll(); setSpeaking(false); }
+});
+
+document.getElementById('cmdtext').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { const cmd = e.target.value; runCmd(cmd); e.target.value = ''; document.getElementById('cmdinput').classList.remove('show'); }
+  if (e.key === 'Escape') { document.getElementById('cmdinput').classList.remove('show'); }
+  e.stopPropagation();
+});
+
+// Metrics update
+const cpuH = Array.from({length:80}, () => 38+Math.random()*44);
+const ramH = Array.from({length:80}, () => 50+Math.random()*24);
+setInterval(() => {
+  const c = Math.max(14, Math.min(95, cpuH[cpuH.length - 1] + (Math.random() - 0.45) * 15));
+  const r = Math.max(40, Math.min(84, ramH[ramH.length - 1] + (Math.random() - 0.5) * 6));
+  const n = Math.max(8, Math.min(78, Math.random() * 68));
+  cpuH.push(c); cpuH.shift();
+  ramH.push(r); ramH.shift();
+  document.getElementById('cpuv').textContent = Math.round(c) + '%';
+  document.getElementById('ramv').textContent = Math.round(r) + '%';
+  document.getElementById('netv').textContent = Math.round(n) + '%';
+  document.getElementById('cpuv2').textContent = Math.round(c) + '%';
+  document.getElementById('ramv2').textContent = Math.round(r) + '%';
+  document.getElementById('cpubar').style.width = Math.round(c) + '%';
+  document.getElementById('rambar').style.width = Math.round(r) + '%';
+  document.getElementById('netbar').style.width = Math.round(n) + '%';
+}, 1600);
+
+window.addEventListener('resize', resize);
+resize();
+</script>
+</body>
+</html>
