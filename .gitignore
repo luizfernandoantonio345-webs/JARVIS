@@ -75,3 +75,18 @@ htmlcov/
 temp/
 tmp/
 *.tmp
+
+# Virtual Environments
+venv311/
+.venv/
+
+# Jobs and screenshots
+jobs/
+test_screen.png
+*.db-shm
+*.db-wal
+*.png
+
+# Database files
+memory.db-wal
+memory.db-shm

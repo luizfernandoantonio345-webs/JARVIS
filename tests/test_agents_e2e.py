@@ -13,13 +13,16 @@ Run: pytest tests/test_agents_e2e.py -v
 """
 from __future__ import annotations
 
+import os
 import re
 import time
+import unittest.mock as mock
 
-import httpx
+from fastapi.testclient import TestClient
 import pytest
 
-from conftest import BASE_URL
+os.environ["JARVIS_TEST_MODE"] = "1"
+os.environ["JARVIS_DISABLE_VOICE"] = "1"
 
 AGENT_GOAL = (
     "analise o arquivo backend/main.py e liste todos os endpoints FastAPI "
@@ -43,20 +46,29 @@ KNOWN_ENDPOINTS = [
 ]
 
 
+@pytest.fixture(scope="class", autouse=True)
+def mock_llm_post():
+    with mock.patch("httpx.post") as mock_post:
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.json.return_value = {
+            "response": "resposta mock do LLM"
+        }
+        yield mock_post
+
+
 class TestAgentsE2E:
 
-    def test_agent_run_starts(self, api):
+    def test_agent_run_starts(self, client: TestClient):
         """POST /agents/run returns a result or task_id."""
-        r = httpx.post(
-            f"{BASE_URL}/agents/run",
+        r = client.post(
+            "/agents/run",
             json={"goal": AGENT_GOAL},
-            timeout=60,
         )
         assert r.status_code in (200, 202), f"Unexpected status {r.status_code}: {r.text}"
         data = r.json()
         self.__class__._response = data
 
-    def test_response_has_result(self):
+    def test_response_has_result(self, client: TestClient):
         """Response contains a non-empty result field."""
         data = getattr(self.__class__, "_response", {})
         result_text = (
@@ -68,7 +80,7 @@ class TestAgentsE2E:
         )
         # If it returned a task_id, poll for completion
         if not result_text and "task_id" in data:
-            result_text = _poll_task(data["task_id"])
+            result_text = _poll_task(client, data["task_id"])
         self.__class__._result_text = result_text
         assert result_text, f"Empty result from agent. Full response: {data}"
 
@@ -101,11 +113,11 @@ class TestAgentsE2E:
         assert has_result_field, f"Response missing known result fields: {data.keys()}"
 
 
-def _poll_task(task_id: str, timeout: int = 120) -> str:
+def _poll_task(client: TestClient, task_id: str, timeout: int = 120) -> str:
     """Poll /tasks/{task_id} until completed, return result."""
     deadline = time.time() + timeout
     while time.time() < deadline:
-        r = httpx.get(f"{BASE_URL}/tasks/{task_id}", timeout=10)
+        r = client.get(f"/tasks/{task_id}")
         if r.status_code == 200:
             data = r.json()
             if data.get("status") in ("completed", "done"):

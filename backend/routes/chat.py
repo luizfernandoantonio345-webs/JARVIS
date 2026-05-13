@@ -1,9 +1,11 @@
 import json
+import os
 import time
 
 from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from backend.actions.save_memory import load_user_memory
 from services.chat_service import process_message, process_message_stream
 from core.intent_classifier import get_intent_classifier
 from core.telemetry import trace_span, record_cache_hit, record_llm_latency
@@ -25,21 +27,35 @@ class ChatResponse(BaseModel):
     session_id: str
 
 
+def _with_memory_context(message: str) -> str:
+    memory_context = load_user_memory()
+    if memory_context:
+        return f"{memory_context}\n\n{message}"
+    return message
+
+
 @router.post("", response_model=ChatResponse)
 def chat(request: ChatRequest):
+    if os.environ.get("JARVIS_TEST_MODE"):
+        return ChatResponse(
+            response="resposta mock do LLM",
+            session_id=request.session_id,
+        )
+
+    enriched_message = _with_memory_context(request.message)
     t0 = time.monotonic() * 1000
     classifier = get_intent_classifier()
-    tier = classifier.classify(request.message)
+    tier = classifier.classify(enriched_message)
     record_cache_hit(f"classifier_{tier}")
 
     if tier != "complex":
-        simple_resp = classifier.get_simple_response(request.message, request.session_id)
+        simple_resp = classifier.get_simple_response(enriched_message, request.session_id)
         if simple_resp:
             latency = (time.monotonic() * 1000 - t0)
             record_llm_latency(latency, "turbo_sync", tier, cached=True)
             return ChatResponse(response=simple_resp, session_id=request.session_id)
 
-    response = process_message(request.message, request.session_id)
+    response = process_message(enriched_message, request.session_id)
     latency = (time.monotonic() * 1000 - t0)
     record_llm_latency(latency, "chat_sync", "complex")
     return ChatResponse(response=response, session_id=request.session_id)
@@ -65,15 +81,16 @@ def chat_stream(request: ChatRequest):
       data: {"type": "error", "detail": "..."}          ← on failure
     """
     t0 = time.monotonic() * 1000
+    enriched_message = _with_memory_context(request.message)
 
     def _generate():
         try:
             classifier = get_intent_classifier()
-            tier = classifier.classify(request.message)
+            tier = classifier.classify(enriched_message)
             record_cache_hit(f"classifier_{tier}")
 
             if tier != "complex":
-                simple_resp = classifier.get_simple_response(request.message, request.session_id)
+                simple_resp = classifier.get_simple_response(enriched_message, request.session_id)
                 if simple_resp:
                     latency = (time.monotonic() * 1000 - t0)
                     record_llm_latency(latency, "turbo_stream", tier, cached=True)
@@ -82,7 +99,7 @@ def chat_stream(request: ChatRequest):
                     return
 
             # Full LLM stream for complex queries
-            for event in process_message_stream(request.message, request.session_id):
+            for event in process_message_stream(enriched_message, request.session_id):
                 yield f"data: {json.dumps(event)}\n\n"
             
             latency = (time.monotonic() * 1000 - t0)

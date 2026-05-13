@@ -1,9 +1,33 @@
 """Controle de navegadores via Playwright."""
 
 import asyncio
+from urllib.parse import urlparse
 from threading import Thread
 
 _browsers = {}  # instancias ativas
+_ALLOWED_DOMAINS = {
+    "github.com",
+    "www.github.com",
+    "google.com",
+    "www.google.com",
+    "bing.com",
+    "www.bing.com",
+    "duckduckgo.com",
+    "www.duckduckgo.com",
+    "youtube.com",
+    "www.youtube.com",
+}
+
+
+def _validate_url(url: str) -> tuple[bool, str]:
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"}:
+        return False, "Somente URLs http/https sao permitidas"
+    if not parsed.netloc:
+        return False, "URL invalida"
+    if parsed.netloc.lower() not in _ALLOWED_DOMAINS:
+        return False, f"Dominio nao permitido: {parsed.netloc}"
+    return True, "ok"
 
 
 def _run_async(coro):
@@ -53,6 +77,9 @@ async def _browser_action(parameters: dict) -> str:
             url = parameters.get("url", "")
             if not url:
                 return "Parametro obrigatorio ausente: url"
+            is_valid, msg = _validate_url(url)
+            if not is_valid:
+                return msg
             await page.goto(url, wait_until="domcontentloaded", timeout=30000)
             return f"Navegou para {url}"
 

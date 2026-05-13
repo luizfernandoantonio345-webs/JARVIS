@@ -14,13 +14,17 @@ Run: pytest tests/test_autodev_resume.py -v
 from __future__ import annotations
 
 import json
+import os
 import time
 from pathlib import Path
 
-import httpx
 import pytest
+from fastapi.testclient import TestClient
 
-from conftest import BASE_URL, JOBS_DIR, start_job, wait_for_terminal
+from conftest import JOBS_DIR, start_job, wait_for_terminal
+
+os.environ["JARVIS_TEST_MODE"] = "1"
+os.environ["JARVIS_DISABLE_VOICE"] = "1"
 
 RESUME_GOAL = (
     "crie um projeto Python completo com: "
@@ -35,14 +39,14 @@ RESUME_GOAL = (
 
 class TestAutoDevResume:
 
-    def test_initial_job_starts(self, api):
+    def test_initial_job_starts(self, client: TestClient):
         """Start the large job."""
-        resp = start_job(RESUME_GOAL)
+        resp = start_job(client, RESUME_GOAL)
         assert "job_id" in resp
         self.__class__._job_id = resp["job_id"]
         self.__class__._workspace = JOBS_DIR / resp["job_id"]
 
-    def test_wait_for_some_files(self, api):
+    def test_wait_for_some_files(self, client: TestClient):
         """Wait until at least 1 file appears in workspace, then stop waiting."""
         job_id = getattr(self.__class__, "_job_id", None)
         workspace = getattr(self.__class__, "_workspace", None)
@@ -63,7 +67,7 @@ class TestAutoDevResume:
         assert len(generated) >= 1, "No files generated after 120s — job may be stalled"
         self.__class__._initial_files = {str(f.relative_to(workspace)) for f in generated}
 
-    def test_inject_partial_state(self, api):
+    def test_inject_partial_state(self, client: TestClient):
         """
         Simulate interruption: write state.json with status='generating'
         so the resume logic sees an in-progress job.
@@ -80,9 +84,9 @@ class TestAutoDevResume:
                 state["status"] = "generating"
                 state_file.write_text(json.dumps(state, indent=2), encoding="utf-8")
 
-    def test_same_goal_returns_resumed(self, api):
+    def test_same_goal_returns_resumed(self, client: TestClient):
         """POST /autodev/start with same goal returns resumed: true."""
-        resp = start_job(RESUME_GOAL)
+        resp = start_job(client, RESUME_GOAL)
         assert "job_id" in resp
 
         # Could be same job_id (resumed) or a new one (if original completed)
@@ -101,19 +105,19 @@ class TestAutoDevResume:
         self.__class__._resume_job_id = resp["job_id"]
         self.__class__._resume_resp = resp
 
-    def test_resumed_job_completes(self, api):
+    def test_resumed_job_completes(self, client: TestClient):
         """The resumed (or new) job completes successfully."""
         job_id = getattr(self.__class__, "_resume_job_id", None)
         if not job_id:
             pytest.skip("No resume job_id")
 
-        final = wait_for_terminal(job_id, timeout=240)
+        final = wait_for_terminal(client, job_id, timeout=240)
         assert final["status"] in ("done", "escalated"), (
             f"Resumed job ended with unexpected status: {final['status']}"
         )
         self.__class__._resume_final = final
 
-    def test_resumed_flag_in_final_state(self, api):
+    def test_resumed_flag_in_final_state(self, client: TestClient):
         """If job was actually resumed, final state.resumed == True."""
         job_id = getattr(self.__class__, "_job_id", None)
         resume_job_id = getattr(self.__class__, "_resume_job_id", None)

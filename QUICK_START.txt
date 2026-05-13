@@ -1,0 +1,133 @@
+╔══════════════════════════════════════════════════════════════════╗
+║                  JARVIS STARTUP - QUICK REFERENCE                ║
+╚══════════════════════════════════════════════════════════════════╝
+
+CURRENT STATUS: ❌ NOT RUNNING
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚡ QUICK START (Pick One)
+
+[METHOD 1] Command Prompt - Simplest
+───────────────────────────────────
+cd C:\Users\cibernetico\JARVIS
+RUN_START_JARVIS.bat
+
+[METHOD 2] PowerShell - Full Output
+────────────────────────────────────
+powershell -ExecutionPolicy Bypass -File `
+  "C:\Users\cibernetico\JARVIS\start_jarvis.ps1"
+
+[METHOD 3] Direct Python - Most Control
+────────────────────────────────────────
+C:\Users\cibernetico\JARVIS\.venv\Scripts\python.exe `
+  C:\Users\cibernetico\JARVIS\launch_jarvis.py
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ VERIFY STARTUP (After running above)
+
+Browser URLs:
+  • Health: http://localhost:8000/health
+  • Docs:   http://localhost:8000/docs
+  • API:    http://localhost:8000
+
+CLI Check (PowerShell):
+  Invoke-WebRequest http://localhost:8000/health
+
+Log File:
+  C:\Users\cibernetico\JARVIS\backend\logs\uvicorn.log
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📚 DETAILED GUIDES
+
+Full Instructions:
+  • C:\Users\cibernetico\JARVIS\STARTUP_INSTRUCTIONS.md
+
+Technical Reference:
+  • C:\Users\cibernetico\JARVIS\STARTUP_TECHNICAL_SUMMARY.md
+
+Complete Report:
+  • C:\Users\cibernetico\JARVIS\STARTUP_FINAL_REPORT.md
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🐛 TROUBLESHOOT
+
+Port 8000 in use?
+  netstat -ano | findstr :8000
+  taskkill /PID <PID> /F
+
+Test Python?
+  C:\Users\cibernetico\JARVIS\.venv\Scripts\python.exe --version
+
+Test imports?
+  C:\Users\cibernetico\JARVIS\.venv\Scripts\python.exe -c ^
+    "import backend.main; print('OK')"
+
+Check dependencies?
+  cd C:\Users\cibernetico\JARVIS
+  .venv\Scripts\pip install -r backend\requirements.txt
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📋 WHAT YOU SHOULD SEE
+
+After running startup command, you'll see:
+
+  ============================================================
+    JARVIS AI Backend Launcher
+  ============================================================
+
+  [+] Logs → C:\Users\cibernetico\JARVIS\backend\logs\uvicorn.log
+  
+  [+] Testing backend.main import...
+      ✓ backend.main OK — using full backend
+  
+  [+] Starting: python -m uvicorn backend.main:app ...
+      PID: 12345
+  
+  [+] Waiting for JARVIS to come online (up to 30s)...
+      ... 5s elapsed
+  
+  [✓] JARVIS is ONLINE after 8s!
+  
+  {
+    "status": "ok",
+    "uptime": 8.5,
+    "version": "5.2"
+  }
+  
+    API:  http://localhost:8000
+    Docs: http://localhost:8000/docs
+    WS:   ws://localhost:8000/ws/jarvis
+    Log:  C:\Users\cibernetico\JARVIS\backend\logs\uvicorn.log
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚙️  CONFIG
+
+Environment Variables (from .env):
+  JARVIS_OLLAMA_URL=http://192.168.0.106:11434
+  JARVIS_MODEL=phi:latest
+  JARVIS_PORT=8000
+
+Backend:
+  • Full backend: C:\Users\cibernetico\JARVIS\backend\main.py
+  • Fallback:     C:\Users\cibernetico\JARVIS\backend\main_simple.py
+  • Config:       C:\Users\cibernetico\JARVIS\backend\config.py
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 NOTES
+
+• Server starts as background process (doesn't block terminal)
+• Voice disabled by default (JARVIS_DISABLE_VOICE=1)
+• Logs stored in backend/logs/uvicorn.log
+• Health check happens automatically
+• Ollama (AI model) must be running on 192.168.0.106:11434
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Now pick a method above and start JARVIS! 🚀

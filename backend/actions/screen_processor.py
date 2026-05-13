@@ -1,6 +1,7 @@
 """Captura e analisa a tela usando Ollama vision."""
 
 import base64
+import os
 
 import httpx
 import pyautogui
@@ -9,6 +10,9 @@ import pyautogui
 def screen_process(parameters: dict, response=None, player=None, session_memory=None) -> str:
     angle = parameters.get("angle", "screen")
     question = parameters.get("text", "O que esta na tela?")
+
+    if os.environ.get("JARVIS_TEST_MODE"):
+        return f"Analise simulada da {angle}: resposta de teste para '{question}'."
 
     try:
         if angle == "screen":

@@ -12,8 +12,9 @@
   --w-bg:rgba(0,4,12,0.92);
   --w-border:rgba(0,229,255,0.1);
 }
-html,body{width:100%;height:100%;background:#000;overflow:hidden;font-family:var(--f);user-select:none;cursor:crosshair}
+html,body{width:100%;height:100%;background:#000814;overflow:hidden;font-family:var(--f);user-select:none;cursor:crosshair}
 #scene{position:relative;width:100vw;height:100vh;overflow:hidden}
+#scene>canvas{display:block;width:100%;height:100%}
 
 /* ── CANVAS LAYERS ── */
 #c-stars{position:absolute;inset:0;z-index:0;pointer-events:none}
@@ -351,17 +352,147 @@ function showThinking() {
 connectWS();
 
 // Canvas setup
+const cvStars = document.getElementById('c-stars');
+const ctxStars = cvStars?.getContext('2d');
+const cvRings = document.getElementById('c-rings');
+const ctxRings = cvRings?.getContext('2d');
 const cvOrb = document.getElementById('c-orb');
 const ctx = cvOrb?.getContext('2d');
+const cvFx = document.getElementById('c-fx');
+const ctxFx = cvFx?.getContext('2d');
 let W, H, CX, CY, R;
 let speaking = false, alertMode = false, wsConnected_local = false;
+let neuralFrame = 0;
 
 function resize() {
   W = window.innerWidth; H = window.innerHeight;
-  cvOrb.width = W; cvOrb.height = H;
+  [cvStars, cvRings, cvOrb, cvFx].forEach(canvas => {
+    if (!canvas) return;
+    canvas.width = W;
+    canvas.height = H;
+  });
   CX = W / 2; CY = H / 2;
   R = Math.min(W, H) * 0.22;
   buildMap();
+}
+
+function drawBackground(frame) {
+  if (!ctxStars) return;
+  ctxStars.clearRect(0, 0, W, H);
+
+  const bg = ctxStars.createRadialGradient(CX, CY, R * 0.2, CX, CY, Math.max(W, H) * 0.7);
+  bg.addColorStop(0, 'rgba(0, 26, 60, 0.14)');
+  bg.addColorStop(0.45, 'rgba(0, 10, 30, 0.08)');
+  bg.addColorStop(1, 'rgba(0, 8, 20, 0.02)');
+  ctxStars.fillStyle = bg;
+  ctxStars.fillRect(0, 0, W, H);
+
+  ctxStars.strokeStyle = 'rgba(0, 200, 255, 0.045)';
+  ctxStars.lineWidth = 1;
+  const gridSize = 40;
+  const offsetX = (frame * 0.15) % gridSize;
+  const offsetY = (frame * 0.1) % gridSize;
+
+  for (let x = -gridSize; x <= W + gridSize; x += gridSize) {
+    ctxStars.beginPath();
+    ctxStars.moveTo(x + offsetX, 0);
+    ctxStars.lineTo(x + offsetX, H);
+    ctxStars.stroke();
+  }
+
+  for (let y = -gridSize; y <= H + gridSize; y += gridSize) {
+    ctxStars.beginPath();
+    ctxStars.moveTo(0, y + offsetY);
+    ctxStars.lineTo(W, y + offsetY);
+    ctxStars.stroke();
+  }
+
+  for (let i = 0; i < 26; i++) {
+    const px = (i * 97 + frame * 0.35) % W;
+    const py = (i * 53 + frame * 0.22) % H;
+    const alpha = 0.12 + ((i % 5) * 0.03);
+    ctxStars.beginPath();
+    ctxStars.arc(px, py, (i % 3) + 0.8, 0, Math.PI * 2);
+    ctxStars.fillStyle = `rgba(120, 220, 255, ${alpha})`;
+    ctxStars.fill();
+  }
+}
+
+function drawRings(frame) {
+  if (!ctxRings) return;
+  ctxRings.clearRect(0, 0, W, H);
+  ctxRings.save();
+  ctxRings.translate(CX, CY);
+
+  for (let i = 1; i <= 3; i++) {
+    const angle = frame * 0.006 * i;
+    const rx = R * (1.08 + i * 0.38);
+    const ry = rx * (0.28 + i * 0.025);
+    ctxRings.save();
+    ctxRings.rotate(angle);
+    ctxRings.beginPath();
+    ctxRings.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+    ctxRings.strokeStyle = `rgba(0, 200, 255, ${0.28 - i * 0.06})`;
+    ctxRings.lineWidth = 1.2;
+    ctxRings.stroke();
+    ctxRings.restore();
+  }
+
+  ctxRings.restore();
+}
+
+function drawOrb(frame) {
+  if (!ctx) return;
+  ctx.clearRect(0, 0, W, H);
+
+  const pulse = Math.sin(frame * 0.03) * 0.1 + 0.92;
+  const glowRadius = R * 1.85 * pulse;
+  const glow = ctx.createRadialGradient(CX, CY, 0, CX, CY, glowRadius);
+  glow.addColorStop(0, 'rgba(0, 225, 255, 0.18)');
+  glow.addColorStop(0.45, 'rgba(0, 145, 255, 0.12)');
+  glow.addColorStop(1, 'rgba(0, 145, 255, 0)');
+  ctx.beginPath();
+  ctx.arc(CX, CY, glowRadius, 0, Math.PI * 2);
+  ctx.fillStyle = glow;
+  ctx.fill();
+
+  const coreRadius = R * 0.58 * pulse;
+  const grad = ctx.createRadialGradient(CX - coreRadius * 0.4, CY - coreRadius * 0.45, 0, CX, CY, coreRadius);
+  grad.addColorStop(0, 'rgba(180, 245, 255, 0.95)');
+  grad.addColorStop(0.35, 'rgba(50, 200, 255, 0.82)');
+  grad.addColorStop(0.7, 'rgba(0, 105, 220, 0.55)');
+  grad.addColorStop(1, 'rgba(0, 20, 60, 0.08)');
+  ctx.beginPath();
+  ctx.arc(CX, CY, coreRadius, 0, Math.PI * 2);
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.arc(CX, CY, coreRadius * 0.92, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(190, 250, 255, 0.5)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+}
+
+function drawFx(frame) {
+  if (!ctxFx) return;
+  ctxFx.clearRect(0, 0, W, H);
+  const pulse = Math.sin(frame * 0.05) * 0.5 + 0.5;
+  ctxFx.beginPath();
+  ctxFx.arc(CX, CY, R * (0.9 + pulse * 0.08), 0, Math.PI * 2);
+  ctxFx.strokeStyle = `rgba(120, 235, 255, ${0.1 + pulse * 0.08})`;
+  ctxFx.lineWidth = 1;
+  ctxFx.stroke();
+}
+
+function animateNeuralCore() {
+  neuralFrame += 1;
+  drawBackground(neuralFrame);
+  drawRings(neuralFrame);
+  drawOrb(neuralFrame);
+  drawFx(neuralFrame);
+  window.__jarvisNeuralCoreFrame = neuralFrame;
+  window.requestAnimationFrame(animateNeuralCore);
 }
 
 function buildMap() {
@@ -461,6 +592,197 @@ setInterval(() => {
 
 window.addEventListener('resize', resize);
 resize();
+
+if (!cvOrb || !ctx) {
+  console.error('Canvas do orb nao encontrado ou contexto 2D indisponivel.');
+} else {
+  animateNeuralCore();
+}
+</script>
+
+<!-- JARVIS COMMAND PANEL -->
+<div id="command-panel" style="
+  position: fixed; right: 20px; top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0,20,40,0.9);
+  border: 1px solid rgba(0,200,255,0.3);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex; flex-direction: column; gap: 8px;
+  z-index: 1000; min-width: 160px;
+  backdrop-filter: blur(10px);
+">
+  <div style="color: #00c8ff; font-size: 11px; text-align:center; margin-bottom:4px; letter-spacing:2px;">COMANDOS</div>
+
+  <button class="cmd-btn" onclick="jarvisCmd('weather')">🌤 Tempo</button>
+  <button class="cmd-btn" onclick="jarvisCmd('youtube')">▶ YouTube</button>
+  <button class="cmd-btn" onclick="jarvisCmd('screenshot')">📸 Tela</button>
+  <button class="cmd-btn" onclick="jarvisCmd('search')">🔍 Pesquisar</button>
+  <button class="cmd-btn" onclick="jarvisCmd('reminder')">⏰ Lembrete</button>
+  <button class="cmd-btn" onclick="jarvisCmd('memory')">🧠 Memória</button>
+  <button class="cmd-btn" onclick="jarvisCmd('tasks')">📋 Tarefas</button>
+  <button class="cmd-btn" onclick="jarvisCmd('code')">💻 Código</button>
+  <button class="cmd-btn" onclick="jarvisCmd('files')">📁 Arquivos</button>
+  <button class="cmd-btn" onclick="jarvisCmd('message')">💬 Mensagem</button>
+</div>
+
+<!-- STATUS WIDGET -->
+<div id="module-status" style="
+  position: fixed; left: 20px; bottom: 20px;
+  background: rgba(0,20,40,0.85);
+  border: 1px solid rgba(0,200,255,0.2);
+  border-radius: 10px; padding: 12px;
+  font-family: monospace; font-size: 11px;
+  color: rgba(0,200,255,0.7);
+  z-index: 999;
+">
+  <div style="color:#00c8ff; margin-bottom:6px; letter-spacing:1px;">MÓDULOS</div>
+  <div id="mod-list">carregando...</div>
+</div>
+
+<style>
+.cmd-btn {
+  background: rgba(0,200,255,0.1);
+  border: 1px solid rgba(0,200,255,0.25);
+  color: #00c8ff;
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  text-align: left;
+  transition: all 0.2s;
+  font-family: monospace;
+}
+.cmd-btn:hover {
+  background: rgba(0,200,255,0.25);
+  border-color: rgba(0,200,255,0.6);
+  transform: translateX(-3px);
+  box-shadow: 0 0 12px rgba(0,200,255,0.2);
+}
+@media(max-width: 960px) {
+  #command-panel {
+  top: auto;
+  bottom: 84px;
+  right: 12px;
+  transform: none;
+  min-width: 148px;
+  }
+  #module-status {
+  left: 12px;
+  bottom: 12px;
+  }
+}
+</style>
+
+<script>
+const QUICK_COMMANDS = {
+  weather: () => promptUser("Tempo em qual cidade?", city => callJarvis("/computer/weather", { city })),
+  youtube: () => promptUser("O que tocar no YouTube?", query => callJarvis("/computer/youtube", { action: "play", query })),
+  screenshot: () => callJarvis("/computer/screen", { angle: "screen", text: "O que está na tela?" }).then(showResultData),
+  search: () => promptUser("O que pesquisar?", query => callJarvis("/computer/websearch", { query })),
+  reminder: () => promptUser("Lembrete (ex: 2025-12-31 23:59 Mensagem)?", text => {
+    const [date, time, ...messageParts] = text.split(" ");
+    callJarvis("/computer/reminder", { date, time, message: messageParts.join(" ") });
+  }),
+  memory: () => callJarvis("/computer/memory/summary", null, "GET").then(showResultData),
+  tasks: () => callJarvis("/computer/tasks", null, "GET").then(showResultData),
+  code: () => promptUser("Descreva o código que quer criar?", description => callJarvis("/computer/code", { action: "write", description, language: "python" })),
+  files: () => promptUser("Listar qual pasta? (desktop, downloads, documents)", path => callJarvis("/computer/filemanager", { action: "list", path })),
+  message: () => promptUser("Para quem e qual mensagem? (ex: +5511999 Olá!)", text => {
+    const [receiver, ...messageParts] = text.split(" ");
+    callJarvis("/computer/message", { receiver, message_text: messageParts.join(" "), platform: "whatsapp" });
+  }),
+};
+
+function jarvisCmd(cmd) {
+  if (QUICK_COMMANDS[cmd]) QUICK_COMMANDS[cmd]();
+}
+
+function promptUser(label, callback) {
+  const value = window.prompt(label);
+  if (value) callback(value);
+}
+
+async function callJarvis(endpoint, body, method = "POST") {
+  try {
+    const options = {
+      method,
+      headers: { "Content-Type": "application/json" },
+    };
+    if (body && method !== "GET") options.body = JSON.stringify(body);
+
+    const response = await fetch("http://localhost:8000" + endpoint, options);
+    const data = await response.json();
+    const result = data.result || data.context || data.response || data;
+
+    if (typeof result === "string") {
+      displayMessage("JARVIS", result);
+    }
+    return data;
+  } catch (error) {
+    displayMessage("SISTEMA", "Erro: " + error.message);
+    return { error: error.message };
+  }
+}
+
+function showResultData(data) {
+  const content = typeof data === "string" ? data : JSON.stringify(data, null, 2);
+  displayMessage("JARVIS", content);
+}
+
+function displayMessage(sender, text) {
+  if (typeof addMessage === "function") {
+    addMessage(sender, text);
+    return;
+  }
+  if (typeof appendMessage === "function") {
+    appendMessage(sender + ": " + text);
+    return;
+  }
+  if (typeof updateResponse === "function") {
+    updateResponse(sender + ": " + text);
+    return;
+  }
+
+  const toast = document.createElement("div");
+  toast.style.cssText = `
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: rgba(0,20,40,0.95); border: 1px solid #00c8ff;
+    color: #00c8ff; padding: 12px 20px; border-radius: 8px;
+    z-index: 9999; max-width: 600px; font-family: monospace; font-size: 13px;
+    box-shadow: 0 0 20px rgba(0,200,255,0.3);
+  `;
+  toast.textContent = `${sender}: ${String(text).substring(0, 300)}`;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 6000);
+}
+
+async function updateModuleStatus() {
+  try {
+    const response = await fetch("http://localhost:8000/health");
+    const data = await response.json();
+
+    const modules = [
+      ["Chat", "✅"],
+      ["Voz", data.components?.voice_guard ? "✅" : "⚠️"],
+      ["Memória", data.components?.semantic_memory ? "✅" : "⚠️"],
+      ["Computer", "✅"],
+      ["Browser", "✅"],
+      ["YouTube", "✅"],
+      ["Weather", "✅"],
+      ["Tasks", "✅"],
+    ];
+
+    document.getElementById("mod-list").innerHTML = modules
+      .map(([name, icon]) => `<div>${icon} ${name}</div>`)
+      .join("");
+  } catch (error) {
+    document.getElementById("mod-list").textContent = "⚠️ Backend offline";
+  }
+}
+
+updateModuleStatus();
+setInterval(updateModuleStatus, 10000);
 </script>
 </body>
 </html>

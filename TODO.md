@@ -1,9 +1,19 @@
-# TODO — Neural Core Chat and Docs (execução guiada)
+# TODO — Implementação dos 11 módulos no JARVIS
 
-- [x] 1) Auditar estado atual dos arquivos-chave (`backend/main.py`, `backend/routes/jarvis.py`, `frontend/jarvis_neural_core.html`, `backend/voice_v2/output.py`, `frontend/jarvis-dashboard.html`)
-- [x] 2) Evoluir `backend/routes/jarvis.py` para contrato multimodal expandido em `POST /jarvis/ask` com metadados de anexos e TTS opcional
-- [ ] 3) Implementar fluxo de geração/download de documento no backend e retorno como artefato no chat
-- [ ] 4) Refatorar `frontend/jarvis_neural_core.html` para renderizar artefatos (resumo, tipo, páginas, preview e ações)
-- [ ] 5) Integrar ações de voz (ler resumo/ler completo) e comandos de interface (“abrir chat”, “analisar documento”, “gerar documento”)
-- [ ] 6) Fundir/aposentar `frontend/jarvis-dashboard.html` para manter Neural Core como frontend oficial único
-- [ ] 7) Validar fluxo fim a fim: texto simples, PDF, DOCX/imagem, TTS e download de documento gerado
+- [ ] Instalar dependências no `venv311`
+- [ ] Criar `backend/actions/send_message.py`
+- [ ] Criar `backend/actions/weather_report.py`
+- [ ] Criar `backend/actions/youtube_video.py`
+- [ ] Criar `backend/actions/reminder.py`
+- [ ] Criar `backend/actions/code_helper.py`
+- [ ] Criar `backend/actions/file_controller.py`
+- [ ] Criar `backend/actions/web_search.py`
+- [ ] Criar `backend/actions/save_memory.py`
+- [ ] Criar `backend/actions/game_updater.py`
+- [ ] Criar `backend/actions/flight_finder.py`
+- [ ] Criar `backend/actions/agent_task.py`
+- [ ] Atualizar `backend/routes/computer.py` com novos endpoints
+- [ ] Integrar memória automática em `backend/routes/chat.py`
+- [ ] Atualizar `backend/core/intent_classifier.py` com intents estendidas
+- [ ] Reiniciar backend
+- [ ] Testar endpoints solicitados

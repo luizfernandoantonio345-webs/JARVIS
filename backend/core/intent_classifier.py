@@ -40,6 +40,18 @@ COMPUTER_INTENTS = {
     "desktop": ["desktop", "wallpaper", "organiza", "area de trabalho"],
 }
 
+EXTENDED_INTENTS = {
+    "send_message": ["manda mensagem", "envia", "whatsapp", "telegram", "email"],
+    "weather": ["tempo", "clima", "previsao", "temperatura", "chuva"],
+    "youtube": ["youtube", "toca", "musica", "video", "play", "assiste"],
+    "reminder": ["lembra", "lembrete", "agenda", "alarme", "avisa"],
+    "code": ["codigo", "programa", "script", "explica o codigo", "edita o arquivo"],
+    "web_search": ["pesquisa", "busca", "procura", "o que e", "como funciona"],
+    "games": ["steam", "epic", "jogo", "atualiza jogo", "instala jogo"],
+    "flights": ["voo", "passagem", "viagem", "viajar", "aeroporto"],
+    "task": ["faz isso", "executa", "tarefa complexa", "pesquisa e salva"],
+}
+
 
 class IntentClassifier:
     def __init__(self):
@@ -99,6 +111,9 @@ class IntentClassifier:
     def detect_computer_intent(self, query: str) -> str | None:
         q = query.strip().lower()
         for intent_name, keywords in COMPUTER_INTENTS.items():
+            if any(keyword in q for keyword in keywords):
+                return intent_name
+        for intent_name, keywords in EXTENDED_INTENTS.items():
             if any(keyword in q for keyword in keywords):
                 return intent_name
         return None

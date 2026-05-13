@@ -4,9 +4,13 @@ Ensures backend schema matches frontend TypeScript types.
 """
 from __future__ import annotations
 
+import os
 import re
 import sys
 from pathlib import Path
+
+os.environ["JARVIS_TEST_MODE"] = "1"
+os.environ["JARVIS_DISABLE_VOICE"] = "1"
 
 # Ensure backend is on path
 _BACKEND = Path(__file__).parent.parent / "backend"

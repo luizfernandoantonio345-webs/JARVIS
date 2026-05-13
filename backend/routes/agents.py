@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -94,6 +96,60 @@ class MultiAgentRunResponse(BaseModel):
     error: str | None = None
 
 
+_FILE_ANALYSIS_RE = re.compile(r"(?:arquivo|file)\s+([^\s]+\.py)", re.IGNORECASE)
+_DECORATOR_RE = re.compile(r"@(app|router)\.(get|post|put|delete|patch|options|head)\(\s*[\"']([^\"']+)[\"']")
+_INCLUDE_ROUTER_RE = re.compile(r"include_router\([^\n]*prefix\s*=\s*[\"']([^\"']+)[\"']")
+_WS_RE = re.compile(r"@(app|router)\.websocket\(\s*[\"']([^\"']+)[\"']")
+
+
+def _extract_goal_file(goal: str) -> Path | None:
+    match = _FILE_ANALYSIS_RE.search(goal)
+    if not match:
+        return None
+    candidate = Path(match.group(1))
+    if candidate.exists():
+        return candidate
+    repo_candidate = Path.cwd() / candidate
+    if repo_candidate.exists():
+        return repo_candidate
+    return None
+
+
+def _fallback_endpoint_analysis(goal: str) -> str | None:
+    target = _extract_goal_file(goal)
+    if not target:
+        return None
+
+    lower_goal = goal.lower()
+    if "endpoint" not in lower_goal and "fastapi" not in lower_goal:
+        return None
+
+    try:
+        content = target.read_text(encoding="utf-8", errors="replace")
+    except Exception:
+        return None
+
+    lines: list[str] = [f"Analise local de endpoints em {target.as_posix()}:"]
+    found_any = False
+
+    for _, method, path in _DECORATOR_RE.findall(content):
+        lines.append(f"- {method.upper()} {path}")
+        found_any = True
+
+    for _, path in _WS_RE.findall(content):
+        lines.append(f"- WebSocket {path}")
+        found_any = True
+
+    for prefix in _INCLUDE_ROUTER_RE.findall(content):
+        lines.append(f"- Router prefix {prefix}")
+        found_any = True
+
+    if not found_any:
+        return f"Nenhum endpoint FastAPI encontrado em {target.as_posix()}."
+
+    return "\n".join(lines)
+
+
 @router.post("/run", response_model=MultiAgentRunResponse, summary="Run multi-agent pipeline")
 async def run_multi_agent(body: MultiAgentRunRequest):
     """
@@ -104,9 +160,30 @@ async def run_multi_agent(body: MultiAgentRunRequest):
     Example goal: "crie um CRUD em FastAPI"
     """
     log.info("[agents/run] goal=%d chars session=%s", len(body.goal), body.session_id)
+    fallback_output = _fallback_endpoint_analysis(body.goal)
+    if fallback_output:
+        return MultiAgentRunResponse(
+            status="success",
+            output=fallback_output,
+            tasks=[],
+            iterations=1,
+            error=None,
+        )
+
     try:
         orch = get_multi_agent_orchestrator(session_id=body.session_id)
-        result = await orch.run(body.goal)
+        result = await asyncio.wait_for(orch.run(body.goal), timeout=25)
+    except asyncio.TimeoutError:
+        fallback_output = _fallback_endpoint_analysis(body.goal)
+        if fallback_output:
+            return MultiAgentRunResponse(
+                status="timeout_fallback",
+                output=fallback_output,
+                tasks=[],
+                iterations=1,
+                error=None,
+            )
+        raise HTTPException(status_code=504, detail="Multi-agent timeout")
     except Exception as exc:
         log.exception("[agents/run] pipeline failed")
         raise HTTPException(status_code=503, detail=f"Multi-agent error: {exc}")

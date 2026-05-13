@@ -14,21 +14,17 @@ Note: requires websockets package (pip install websockets)
 """
 from __future__ import annotations
 
-import asyncio
 import json
+import os
 import time
-from collections import defaultdict
 
-import httpx
 import pytest
+from fastapi.testclient import TestClient
 
-try:
-    import websockets  # type: ignore
-    _WS_AVAILABLE = True
-except ImportError:
-    _WS_AVAILABLE = False
+from conftest import start_job, wait_for_terminal
 
-from conftest import BASE_URL, JOBS_DIR, start_job, wait_for_terminal
+os.environ["JARVIS_TEST_MODE"] = "1"
+os.environ["JARVIS_DISABLE_VOICE"] = "1"
 
 WS_GOAL = (
     "crie um módulo Python com duas funções: "
@@ -36,21 +32,15 @@ WS_GOAL = (
     "multiplica(a, b) que retorna a*b, com testes unitários"
 )
 
-WS_BASE = BASE_URL.replace("http://", "ws://").replace("https://", "wss://")
-
-
-@pytest.mark.skipif(not _WS_AVAILABLE, reason="websockets package not installed")
 class TestWebSocketStream:
 
-    def test_ws_smoke(self, api):
+    def test_ws_smoke(self, client: TestClient):
         """Start job then connect WS and collect all events until terminal."""
-        resp = start_job(WS_GOAL)
+        resp = start_job(client, WS_GOAL)
         job_id = resp["job_id"]
         self.__class__._job_id = job_id
 
-        events = asyncio.get_event_loop().run_until_complete(
-            _collect_ws_events(job_id, timeout=240)
-        )
+        events = _collect_ws_events(client, job_id, timeout=240)
         self.__class__._events = events
 
         assert len(events) >= 1, "Received zero WebSocket events"
@@ -86,14 +76,14 @@ class TestWebSocketStream:
             assert "ts" in evt, f"Event missing 'ts': {evt}"
             assert isinstance(evt["ts"], float | int), f"ts is not numeric: {evt}"
 
-    def test_event_count_matches_state(self):
+    def test_event_count_matches_state(self, client: TestClient):
         """file_generated event count >= files_generated in final state."""
         job_id = getattr(self.__class__, "_job_id", None)
         events = getattr(self.__class__, "_events", [])
         if not job_id:
             pytest.skip("No job_id")
 
-        final = wait_for_terminal(job_id, timeout=10)
+        final = wait_for_terminal(client, job_id, timeout=10)
         ws_files = len([e for e in events if e.get("event") == "file_generated"])
         state_files = final.get("files_generated", 0)
 
@@ -103,26 +93,21 @@ class TestWebSocketStream:
         )
 
 
-async def _collect_ws_events(job_id: str, timeout: int = 180) -> list[dict]:
-    """Connect to WS stream and collect all events until terminal."""
-    url = f"{WS_BASE}/autodev/stream/{job_id}"
+def _collect_ws_events(client: TestClient, job_id: str, timeout: int = 180) -> list[dict]:
+    """Connect to the in-process WS stream and collect all events until terminal."""
     events: list[dict] = []
     terminal = {"done", "escalated", "error"}
     deadline = time.time() + timeout
 
     try:
-        async with websockets.connect(url) as ws:
+        with client.websocket_connect(f"/autodev/stream/{job_id}") as ws:
             while time.time() < deadline:
-                try:
-                    raw = await asyncio.wait_for(ws.recv(), timeout=5)
-                    evt = json.loads(raw)
-                    if evt.get("event") == "heartbeat":
-                        continue
-                    events.append(evt)
-                    if evt.get("event") in terminal:
-                        break
-                except asyncio.TimeoutError:
+                evt = ws.receive_json()
+                if evt.get("event") == "heartbeat":
                     continue
+                events.append(evt)
+                if evt.get("event") in terminal:
+                    break
     except Exception as exc:
         events.append({"event": "ws_error", "data": {"error": str(exc)}, "ts": time.time()})
 

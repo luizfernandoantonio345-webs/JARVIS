@@ -61,6 +61,13 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
+
+def _voice_runtime_enabled() -> bool:
+    return not (
+        os.environ.get("JARVIS_TEST_MODE")
+        or os.environ.get("JARVIS_DISABLE_VOICE")
+    )
+
 # =========================
 # VOICE SYSTEM START/STOP
 # =========================
@@ -139,6 +146,14 @@ def _mount_routers() -> None:
         log.info("✓ Chat router carregado")
     except Exception as e:
         log.warning("Chat router falhou: %s", e)
+
+    # Agents
+    try:
+        from routes.agents import router as agents_router  # type: ignore
+        app.include_router(agents_router, prefix="/agents")
+        log.info("✓ Agents router carregado")
+    except Exception as e:
+        log.warning("Agents router falhou: %s", e)
 
     # Autonomy
     try:
@@ -223,8 +238,13 @@ async def startup():
     except Exception:
         pass
 
-    # Start voice system (resilient — never crashes)
-    asyncio.create_task(start_voice_system())
+    voice_enabled = _voice_runtime_enabled()
+
+    if voice_enabled:
+        # Start voice system (resilient — never crashes)
+        asyncio.create_task(start_voice_system())
+    else:
+        log.info("[VOZ] Inicialização de voz desativada por ambiente")
 
     # Start wake word detection (só se openwakeword + sounddevice disponíveis)
     async def _on_wake_word_detected():
@@ -236,38 +256,44 @@ async def startup():
             "source": "wake_word"
         })
 
-    try:
-        from voice_v2.resilient_loader import check_voice_capabilities
-        caps = check_voice_capabilities()
-        
-        if caps.wake_word_available and caps.audio_available:
-            from voice_v2.wake_word_engine import start_wake_word
-            loop = asyncio.get_event_loop()
-            engine = start_wake_word(
-                on_detected=_on_wake_word_detected,
-                loop=loop,
-                keyword="jarvis",
-                threshold=0.06,
-            )
-            if engine:
-                log.info("[WAKE] Wake word 'JARVIS' ativa e escutando")
+    if voice_enabled:
+        try:
+            from voice_v2.resilient_loader import check_voice_capabilities
+            caps = check_voice_capabilities()
+
+            if caps.wake_word_available and caps.audio_available:
+                from voice_v2.wake_word_engine import start_wake_word
+                loop = asyncio.get_event_loop()
+                engine = start_wake_word(
+                    on_detected=_on_wake_word_detected,
+                    loop=loop,
+                    keyword="jarvis",
+                    threshold=0.06,
+                )
+                if engine:
+                    log.info("[WAKE] Wake word 'JARVIS' ativa e escutando")
+                else:
+                    log.warning("[WAKE] Wake word não pode ser iniciada")
             else:
-                log.warning("[WAKE] Wake word não pode ser iniciada")
-        else:
-            log.warning(
-                "[WAKE] Wake word indisponível — openwakeword: %s, sounddevice: %s",
-                caps.wake_word_available,
-                caps.audio_available,
-            )
-    except Exception as e:
-        log.warning("[WAKE] Wake word não iniciada: %s", e)
+                log.warning(
+                    "[WAKE] Wake word indisponível — openwakeword: %s, sounddevice: %s",
+                    caps.wake_word_available,
+                    caps.audio_available,
+                )
+        except Exception as e:
+            log.warning("[WAKE] Wake word não iniciada: %s", e)
+    else:
+        log.info("[WAKE] Wake word desativada por ambiente")
 
     # Autonomia
-    try:
-        from autonomy.controller import get_autonomy_controller
-        asyncio.create_task(get_autonomy_controller().start())
-    except Exception:
-        pass
+    if not os.environ.get("JARVIS_TEST_MODE"):
+        try:
+            from autonomy.controller import get_autonomy_controller
+            asyncio.create_task(get_autonomy_controller().start())
+        except Exception:
+            pass
+    else:
+        log.info("[AUTONOMY] Inicialização desativada por ambiente de teste")
 
     await manager.broadcast(idle_msg("JARVIS ONLINE"))
 

@@ -108,7 +108,13 @@ async def websocket_endpoint(websocket: WebSocket):
 # Health check
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "JARVIS"}
+    return {"status": "ok", "service": "JARVIS", "mode": "simple"}
+
+
+# Process endpoint (fallback echo)
+@app.post("/process")
+async def process(cmd: str = ""):
+    return {"status": "ok", "response": f"Echo: {cmd}", "mode": "simple"}
 
 if __name__ == "__main__":
     import uvicorn

@@ -21,11 +21,20 @@ from typing import Literal
 _root_dir = Path(__file__).parent.parent  # backend/.. = project root
 _env_file = _root_dir / ".env"
 if _env_file.exists():
-    from dotenv import load_dotenv
-    load_dotenv(_env_file)
-    # Verify it loaded
-    if os.getenv("JARVIS_OLLAMA_URL"):
-        pass  # .env loaded successfully
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(_env_file)
+        # Verify it loaded
+        if os.getenv("JARVIS_OLLAMA_URL"):
+            pass  # .env loaded successfully
+    except ImportError:
+        # python-dotenv not installed — parse .env manually
+        with open(_env_file) as _f:
+            for _line in _f:
+                _line = _line.strip()
+                if _line and not _line.startswith("#") and "=" in _line:
+                    _k, _, _v = _line.partition("=")
+                    os.environ.setdefault(_k.strip(), _v.strip())
 
 try:
     from pydantic_settings import BaseSettings, SettingsConfigDict
