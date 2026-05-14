@@ -1,1 +1,2 @@
-"Behavior module — Behavior Profile for operational personality consistency."
+"""Adaptive behavior system for JARVIS."""
+

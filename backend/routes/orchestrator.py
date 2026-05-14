@@ -149,14 +149,14 @@ async def process_v2(request: Request, body: ProcessRequest) -> dict:
 @router.get("/v2/autonomy/status")
 async def autonomy_v2_status() -> dict:
     """Return autonomy_v2 manager status and pending suggestions."""
-    from autonomy_v2.autonomy_manager import get_autonomy_manager
+    from autonomy.autonomy_manager import get_autonomy_manager
     return get_autonomy_manager().status()
 
 
 @router.get("/v2/autonomy/suggestions")
 async def autonomy_v2_suggestions() -> dict:
     """Return and consume pending proactive suggestions."""
-    from autonomy_v2.autonomy_manager import get_autonomy_manager
+    from autonomy.autonomy_manager import get_autonomy_manager
     suggestions = get_autonomy_manager().get_suggestions()
     return {"suggestions": suggestions, "count": len(suggestions)}
 
@@ -168,8 +168,8 @@ class SetLevelRequest(BaseModel):
 @router.post("/v2/autonomy/level")
 async def set_autonomy_v2_level(body: SetLevelRequest) -> dict:
     """Set the autonomy_v2 level (0=reactive, 1=suggestions, 2=auto-safe)."""
-    from autonomy_v2.autonomy_manager import get_autonomy_manager
-    from autonomy_v2.autonomy_policy import AutonomyLevel
+    from autonomy.autonomy_manager import get_autonomy_manager
+    from autonomy.autonomy_policy import AutonomyLevel
     get_autonomy_manager().set_level(AutonomyLevel(body.level))
     return {"level": body.level, "status": "updated"}
 

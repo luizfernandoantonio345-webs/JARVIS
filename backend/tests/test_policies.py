@@ -1,4 +1,4 @@
-from autonomy_v2.policy_engine import Event, PolicyDecision, PolicyEngine
+from autonomy.policy_engine import Event, PolicyDecision, PolicyEngine
 
 
 def test_idle_detected_allows_daily_briefing():

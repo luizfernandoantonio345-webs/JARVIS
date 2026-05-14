@@ -1,0 +1,84 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+.venv/
+.venv-1/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Logs
+backend/logs/
+*.log
+
+# Build
+dist/
+build/
+*.egg-info/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Documentation
+docs/_build/
+site/
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Chroma store (can be regenerated)
+backend/chroma_store/
+
+# Jobs (can be regenerated)
+jobs/
+
+# Memory snapshots
+*.jsonl

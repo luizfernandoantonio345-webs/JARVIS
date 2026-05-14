@@ -171,7 +171,7 @@ async def ask(
 
     if tts:
         try:
-            from voice_v2.output import speak_silent
+            from voice.output import speak_silent
 
             tts_text = result.response
             if tts_summary_only:

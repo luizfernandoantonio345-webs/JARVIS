@@ -61,8 +61,8 @@ async def execute_intent(intent: Intent) -> IntentResult:
         log.info("intent.execute action=%s risk=%s params=%s", intent.action, intent.risk_level, intent.parameters)
         data = await asyncio.wait_for(handler(intent.parameters), timeout=STEP_TIMEOUT_SECONDS)
         try:
-            from behavior_v2.behavior_manager import get_behavior_manager
-            from behavior_v2.schemas import BehaviorEvent
+            from behavior.behavior_manager import get_behavior_manager
+            from behavior.schemas import BehaviorEvent
             get_behavior_manager().record_event(
                 BehaviorEvent(
                     type="intent_execution",

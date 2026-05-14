@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Response
 from pydantic import BaseModel
 
-from memory_v2.training_collector import get_training_collector
+from memory.training_collector import get_training_collector
 
 router = APIRouter()
 

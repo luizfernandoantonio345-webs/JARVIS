@@ -240,7 +240,7 @@ def call_llm(
 
     # Inject semantic memory from the optional ChromaDB layer.
     try:
-        from memory_v2.memory_manager import get_context_sync
+        from memory.memory_manager import get_context_sync
         query = " ".join(m.get("content", "") for m in messages if m.get("role") == "user")
         semantic_context = get_context_sync(query, top_k=3)
         if semantic_context:
@@ -334,7 +334,7 @@ def call_llm_turbo(messages: list[dict]) -> str:
 
 def _store_semantic_interaction(messages: list[dict], response: str) -> None:
     try:
-        from memory_v2.memory_manager import store_memory_sync
+        from memory.memory_manager import store_memory_sync
         user_text = "\n".join(
             m.get("content", "") for m in messages if m.get("role") == "user"
         ).strip()
@@ -479,7 +479,7 @@ def call_llm_stream(
 
 def _store_semantic_interaction(messages: list[dict], response: str) -> None:
     try:
-        from memory_v2.memory_manager import store_memory_sync
+        from memory.memory_manager import store_memory_sync
         user_text = "\n".join(
             m.get("content", "") for m in messages if m.get("role") == "user"
         ).strip()

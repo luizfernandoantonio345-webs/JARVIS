@@ -14,8 +14,8 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from behavior_v2.behavior_manager import get_behavior_manager
-from behavior_v2.schemas import BehaviorEvent
+from behavior.behavior_manager import get_behavior_manager
+from behavior.schemas import BehaviorEvent
 
 router = APIRouter()
 

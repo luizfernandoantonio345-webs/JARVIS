@@ -6,6 +6,8 @@ import asyncio
 import logging
 import os
 import sys
+import json
+import requests
 from typing import List
 
 # Ensure backend directory is on sys.path so sibling imports like `from config import get_config`
@@ -35,6 +37,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+# Security headers
+try:
+    from middleware.security_headers import setup_security_headers
+    setup_security_headers(app)
+    log.info("✓ Security headers middleware carregado")
+except Exception as e:
+    log.warning("Security headers middleware falhou: %s", e)
 
 # =========================
 # CONNECTION MANAGER
@@ -76,7 +86,7 @@ async def start_voice_system() -> None:
     Start voice system safely, adapting to available dependencies.
     Never crashes startup — always returns gracefully.
     """
-    from voice_v2.resilient_loader import load_voice_safe
+    from voice.resilient_loader import load_voice_safe
 
     result = load_voice_safe()
     mode = result["mode"]
@@ -96,7 +106,7 @@ async def start_voice_system() -> None:
     # Helper for safe TTS
     async def _speak_safe(text: str) -> None:
         try:
-            from voice_v2.output import speak
+            from voice.output import speak
             await speak(text)
         except Exception as e:
             log.warning("[VOZ] TTS falhou: %s", e)
@@ -108,8 +118,8 @@ async def start_voice_system() -> None:
     # Full mode: start STT loop
     if mode == "full":
         try:
-            from voice_v2.voice_loop import voice_loop_background
-            from voice_v2.voice_state import VoiceState
+            from voice.voice_loop import voice_loop_background
+            from voice.voice_state import VoiceState
 
             voice_state = VoiceState()
             asyncio.create_task(
@@ -219,6 +229,14 @@ def _mount_routers() -> None:
     except Exception as e:
         log.warning("Jarvis router falhou: %s", e)
 
+    # Static files & Frontend
+    try:
+        from routes.static import router as static_router  # type: ignore
+        app.include_router(static_router, prefix="")
+        log.info("✓ Static/Frontend router carregado")
+    except Exception as e:
+        log.warning("Static router falhou: %s", e)
+
 
 # =========================
 # STARTUP
@@ -258,11 +276,11 @@ async def startup():
 
     if voice_enabled:
         try:
-            from voice_v2.resilient_loader import check_voice_capabilities
+            from voice.resilient_loader import check_voice_capabilities
             caps = check_voice_capabilities()
 
             if caps.wake_word_available and caps.audio_available:
-                from voice_v2.wake_word_engine import start_wake_word
+                from voice.wake_word_engine import start_wake_word
                 loop = asyncio.get_event_loop()
                 engine = start_wake_word(
                     on_detected=_on_wake_word_detected,
@@ -328,7 +346,7 @@ async def websocket(ws: WebSocket):
 
             if not response_text:
                 try:
-                    from voice_v2.pipeline import run_jarvis_pipeline
+                    from voice.pipeline import run_jarvis_pipeline
                     result = await run_jarvis_pipeline(
                         input_text=data,
                         source="api",
@@ -351,34 +369,110 @@ async def websocket(ws: WebSocket):
 
 
 # =========================
-# COMMAND ENDPOINT
+# OLLAMA INTEGRATION
 # =========================
-@app.post("/process")
-async def process(cmd: str):
+import requests
+
+OLLAMA_BASE_URL = "http://localhost:11434"
+OLLAMA_MODEL = "neural-chat"
+
+@app.post("/chat")
+async def chat_with_ollama(message: str, session_id: str = "default"):
     """
-    Process a command without WebSocket.
-    Falls back gracefully if services unavailable.
+    Chat endpoint que se conecta ao Ollama para respostas reais.
+    Suporta streaming via Server-Sent Events.
     """
     try:
-        from services.chat_service import process_message
-        # process_message é síncrona - usar executor
-        response = await asyncio.get_event_loop().run_in_executor(
-            None, process_message, cmd, "api"
+        log.info(f"[CHAT] Nova mensagem: {message[:50]}...")
+
+        # Chamar Ollama com streaming
+        response = requests.post(
+            f"{OLLAMA_BASE_URL}/api/generate",
+            json={
+                "model": OLLAMA_MODEL,
+                "prompt": message,
+                "stream": True,
+                "temperature": 0.7,
+                "top_p": 0.9,
+            },
+            timeout=30,
+            stream=True
         )
-        return {"response": response, "status": "ok"}
+
+        if response.status_code != 200:
+            log.error(f"Ollama erro: {response.status_code}")
+            return {"error": "Ollama nao respondeu", "status": "error"}
+
+        # Acumular resposta completa
+        full_response = ""
+        for line in response.iter_lines():
+            if line:
+                try:
+                    chunk = json.loads(line)
+                    if "response" in chunk:
+                        full_response += chunk["response"]
+                except:
+                    pass
+
+        log.info(f"[CHAT] Resposta: {full_response[:50]}...")
+        return {
+            "response": full_response,
+            "status": "ok",
+            "model": OLLAMA_MODEL,
+            "session_id": session_id
+        }
+
+    except requests.exceptions.ConnectionError:
+        log.error("Ollama nao esta rodando em localhost:11434")
+        return {
+            "error": "Ollama offline. Execute setup_ollama.bat",
+            "status": "error"
+        }
     except Exception as e:
-        log.warning("process_message falhou: %s", e)
-        # Fallback para voice pipeline
-        try:
-            from voice_v2.pipeline import run_jarvis_pipeline
-            result = await run_jarvis_pipeline(
-                input_text=cmd,
-                source="api",
-            )
-            return {"response": result.response, "status": "ok", "source": "voice_pipeline"}
-        except Exception as e2:
-            log.exception("Ambos process_message e voice_pipeline falharam: %s | %s", e, e2)
-            return {"error": str(e2), "status": "error"}
+        log.exception(f"Erro ao processar chat: {e}")
+        return {"error": str(e), "status": "error"}
+
+# =========================
+# TEXT-TO-SPEECH ENDPOINT
+# =========================
+@app.post("/tts")
+async def text_to_speech(text: str, lang: str = "pt"):
+    """
+    Converte texto em áudio usando pyttsx3.
+    Retorna arquivo WAV em base64.
+    """
+    try:
+        import pyttsx3
+        import io
+        from base64 import b64encode
+
+        engine = pyttsx3.init()
+        engine.setProperty('rate', 150)
+
+        if lang == "pt":
+            engine.setProperty('voice', 0)
+        elif lang == "en":
+            engine.setProperty('voice', 1)
+
+        # Salvar em buffer
+        audio_buffer = io.BytesIO()
+        engine.save_to_file(text, "/tmp/jarvis_tts.wav")
+        engine.runAndWait()
+
+        # Ler arquivo
+        with open("/tmp/jarvis_tts.wav", "rb") as f:
+            audio_data = f.read()
+
+        audio_b64 = b64encode(audio_data).decode()
+
+        return {
+            "audio": audio_b64,
+            "format": "wav",
+            "status": "ok"
+        }
+    except Exception as e:
+        log.warning("TTS falhou: %s", e)
+        return {"error": str(e), "status": "error"}
 
 # =========================
 # RUN

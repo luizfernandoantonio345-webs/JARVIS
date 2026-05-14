@@ -30,7 +30,7 @@ from core.logger import log_error, log_execution, log_intent, log_memory, log_sy
 from core.risk_engine import RiskDecision, evaluate_risk
 from intents.intent_parser import parse_intent
 from intents.schemas import Intent
-from memory_v2.memory_manager import get_context, store_memory
+from memory.memory_manager import get_context, store_memory
 
 
 # ── Public API ─────────────────────────────────────────────────────────────────

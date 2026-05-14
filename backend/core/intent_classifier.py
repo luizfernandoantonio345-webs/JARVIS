@@ -23,8 +23,8 @@ from typing import Literal, Optional
 from core.intent_cache import fast_path_intent, cache_get, cache_stats
 from core.intent_engine import extract_intent, IntentModel
 from core.telemetry import record_llm_latency, record_cache_hit
-from memory_v2.vector_store import get_vector_store
-from memory_v2.schemas import RetrievedMemory
+from memory.vector_store import get_vector_store
+from memory.schemas import RetrievedMemory
 
 
 SimpleTier = Literal["simple", "cached", "complex"]

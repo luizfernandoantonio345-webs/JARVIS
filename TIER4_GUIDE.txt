@@ -1,0 +1,140 @@
+════════════════════════════════════════════════════════════════
+          JARVIS TIER 4 — GUIA DE INICIALIZACAO
+════════════════════════════════════════════════════════════════
+
+🚀 COMO INICIAR JARVIS COM OLLAMA
+────────────────────────────────────────────────────────────────
+
+PASSO 1: Preparar Ollama (primeira vez apenas)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Se Ollama nao estiver instalado:
+  1. Acesse: https://ollama.ai
+  2. Download e instale
+  3. Abra PowerShell/CMD em C:\Users\cibernetico\JARVIS
+  4. Execute: setup_ollama.bat
+     (Vai baixar modelo neural-chat ~4GB)
+
+PASSO 2: Iniciar JARVIS Completo
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Opção A (RECOMENDADA - Tudo automático):
+    Abra PowerShell/CMD em: C:\Users\cibernetico\JARVIS
+    Execute: run_jarvis_complete.bat
+    Aguarde 10 segundos
+    Browser abre automaticamente em http://localhost:3000
+
+  Opção B (Manual - 3 terminais):
+    Terminal 1: ollama serve
+    Terminal 2: cd frontend && npm run dev
+    Terminal 3: python -m uvicorn backend.main:app --port 8000
+
+PASSO 3: Testar JARVIS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Na pagina que abrir (localhost:3000):
+
+  1. Pressione ESPACO
+  2. Digite: "Oi jarvis, qual é a capital da França?"
+  3. Veja acontecer:
+     • Orbe fica AMARELO (thinking)
+     • Widget "Processando..." pisca
+     • Resposta chega do Ollama (verdadeira!)
+     • Orbe fica VERDE (success)
+     • Audio toca em português (TTS)
+     • Histórico registra: "✓ 2.5s"
+     • Response time mostra latência real
+
+  Outros testes:
+    • Clique em 🎤 para usar voz
+    • Clique em ❤️ para trocar para tema Iron Man
+    • Pressione 4 para ver histórico
+    • Tente: "Qual é a sua função?", "Me conte um piada", etc
+
+════════════════════════════════════════════════════════════════
+
+🔧 O QUE MUDOU NA TIER 4
+────────────────────────────────────────────────────────────────
+
+Backend (backend/main.py):
+  + 50 linhas de integração Ollama
+  + Endpoint POST /chat que chama http://localhost:11434
+  + Retorna resposta REAL do modelo neural-chat
+  + Logging de mensagens
+
+Frontend (frontend/index.html):
+  + Funcao callBackendChat() que chama /chat
+  + Integração com histórico (response + responseTime)
+  + Atualização de orbe (thinking → success/error)
+  + TTS automático da resposta
+
+Config (vite.config.ts):
+  + Proxy /chat adicionado
+  + Proxy /tts para TTS
+
+Scripts Novos:
+  + setup_ollama.bat (download/setup modelo)
+  + run_jarvis_complete.bat (inicia tudo automaticamente)
+
+════════════════════════════════════════════════════════════════
+
+⚡ FLUXO COMPLETO
+────────────────────────────────────────────────────────────────
+
+User digita em localhost:3000:
+  "Oi jarvis, qual é a hora?"
+           ↓
+   callBackendChat() chamada
+           ↓
+   HTTP POST /chat?message=...
+           ↓
+   Backend recebe, chama Ollama
+           ↓
+   Ollama (http://localhost:11434) processa
+           ↓
+   Retorna: "Neste momento são 14:30..."
+           ↓
+   Backend retorna resposta
+           ↓
+   Frontend recebe JSON {response: "..."}
+           ↓
+   Orbe VERDE + TTS toca
+           ↓
+   Histórico atualiza com resposta real + tempo
+
+════════════════════════════════════════════════════════════════
+
+🎯 ENDPOINTS AGORA FUNCIONAIS
+────────────────────────────────────────────────────────────────
+
+LocalHost:
+
+  http://localhost:3000
+    → Frontend JARVIS (Vite dev server)
+
+  http://localhost:8000
+    → Backend FastAPI
+
+  http://localhost:11434
+    → Ollama API
+
+CORS está habilitado, então frontend consegue chamar backend.
+
+════════════════════════════════════════════════════════════════
+
+❓ TROUBLESHOOTING
+────────────────────────────────────────────────────────────────
+
+Problema: "Ollama offline"
+  Solução: Execute em terminal: ollama serve
+
+Problema: "Modelo nao encontrado"
+  Solução: Execute setup_ollama.bat
+
+Problema: "Porta 3000 em uso"
+  Solução: Mude em vite.config.ts (port: 3001)
+
+Problema: "Resposta vazia"
+  Solução: Aguarde modelo carregar (primeira execucao leva +10s)
+
+════════════════════════════════════════════════════════════════
