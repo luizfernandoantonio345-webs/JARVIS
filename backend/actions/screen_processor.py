@@ -6,12 +6,16 @@ import os
 import httpx
 import pyautogui
 
+from backend.config import get_config
+from backend.utils.env import env_flag
+
 
 def screen_process(parameters: dict, response=None, player=None, session_memory=None) -> str:
     angle = parameters.get("angle", "screen")
     question = parameters.get("text", "O que esta na tela?")
+    cfg = get_config()
 
-    if os.environ.get("JARVIS_TEST_MODE"):
+    if env_flag("JARVIS_TEST_MODE"):
         return f"Analise simulada da {angle}: resposta de teste para '{question}'."
 
     try:
@@ -39,7 +43,7 @@ def screen_process(parameters: dict, response=None, player=None, session_memory=
         for model in ["llava", "moondream", "bakllava"]:
             try:
                 resp = httpx.post(
-                    "http://localhost:11434/api/generate",
+                    f"{cfg.ollama_url}/api/generate",
                     json={
                         "model": model,
                         "prompt": question,

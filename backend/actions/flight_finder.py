@@ -6,6 +6,8 @@ import urllib.parse
 import webbrowser
 from datetime import datetime
 
+from backend.utils.env import env_flag
+
 
 def flight_finder(parameters: dict, player=None) -> str:
     origin = parameters.get("origin", "")
@@ -40,13 +42,13 @@ def flight_finder(parameters: dict, player=None) -> str:
             "&hl=pt-BR"
         )
 
-        if not os.environ.get("JARVIS_TEST_MODE"):
+        if not env_flag("JARVIS_TEST_MODE"):
             webbrowser.open(base_url + params)
 
         result = (
             f"Buscando voos de {origin} para {destination} em {parsed_date.strftime('%d/%m/%Y')}. "
             f"Passageiros: {passengers}. Classe: {cabin}. "
-            f"{'Google Flights aberto no browser.' if not os.environ.get('JARVIS_TEST_MODE') else 'Consulta simulada em modo de teste.'}"
+            f"{'Google Flights aberto no browser.' if not env_flag('JARVIS_TEST_MODE') else 'Consulta simulada em modo de teste.'}"
         )
 
         if return_date:

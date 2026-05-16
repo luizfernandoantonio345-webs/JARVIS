@@ -59,8 +59,8 @@ class JarvisConfig(BaseSettings):
     jarvis_reports_dir: Path = Field(default=Path("reports"),         description="Directory for daily/weekly reports")
 
     # ── LLM ──────────────────────────────────────────────────────────────────
-    ollama_url:         str  = Field(default="http://localhost:11434", description="Ollama server URL")
-    model:              str  = Field(default="qwen2:0.5b",            description="Default Ollama model")
+    ollama_url:         str  = Field(default="http://192.168.0.106:11434", description="Ollama server URL")
+    model:              str  = Field(default="qwen2:0.5b",              description="Default Ollama model")
     embedding_model:    str  = Field(default="nomic-embed-text",      description="Embedding model")
     timeout:            int  = Field(default=60,                      description="Request timeout")
     max_retries:        int  = Field(default=3,                       description="Max retries for API calls")
@@ -141,7 +141,7 @@ def get_config() -> JarvisConfig:
     global _config
     if _config is None:
         _config = JarvisConfig(
-            ollama_url=os.getenv("JARVIS_OLLAMA_URL") or "http://localhost:11434",
+            ollama_url=os.getenv("JARVIS_OLLAMA_URL") or "http://192.168.0.106:11434",
             model=os.getenv("JARVIS_MODEL") or "qwen2:0.5b",
             embedding_model=os.getenv("JARVIS_EMBEDDING_MODEL") or "nomic-embed-text",
         )

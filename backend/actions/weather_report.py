@@ -4,12 +4,14 @@ import os
 import httpx
 import json
 
+from backend.utils.env import env_flag
+
 def weather_action(parameters: dict, player=None) -> str:
     city = parameters.get("city", "")
     if not city:
         return "Por favor, informe a cidade."
 
-    if os.environ.get("JARVIS_TEST_MODE"):
+    if env_flag("JARVIS_TEST_MODE"):
         return (
             f"Tempo em {city}: ceu limpo. Temperatura atual: 25°C, sensacao termica de 26°C. "
             "Umidade: 60%. Vento: 10 km/h. Maxima de 27°C e minima de 19°C hoje."

@@ -1,6 +1,16 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+const backendTarget = process.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000'
+const backendWsTarget = backendTarget.replace(/^http/i, 'ws')
+
+function httpProxy() {
+  return {
+    target: backendTarget,
+    changeOrigin: true,
+  }
+}
+
 export default defineConfig({
   plugins: [react()],
   root: '.',
@@ -10,15 +20,25 @@ export default defineConfig({
     host: true,
     proxy: {
       '/ws': {
-        target: 'ws://localhost:8000',
+        target: backendWsTarget,
         ws: true,
-        changeOrigin: true
+        changeOrigin: true,
       },
-      '/chat': 'http://localhost:8000',
-      '/tts': 'http://localhost:8000',
-      '/health': 'http://localhost:8000',
-      '/computer': 'http://localhost:8000',
-      '/execute': 'http://localhost:8000',
-    },
-  },
+      '/agents': httpProxy(),
+      '/audit': httpProxy(),
+      '/autonomy': httpProxy(),
+      '/chat': httpProxy(),
+      '/cockpit': httpProxy(),
+      '/computer': httpProxy(),
+      '/dashboard': httpProxy(),
+      '/health': httpProxy(),
+      '/jarvis': httpProxy(),
+      '/memory': httpProxy(),
+      '/sentinel': httpProxy(),
+      '/system': httpProxy(),
+      '/tasks': httpProxy(),
+      '/telemetry': httpProxy(),
+      '/voice': httpProxy(),
+    }
+  }
 })

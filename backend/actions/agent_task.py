@@ -11,6 +11,9 @@ from typing import Callable, Optional
 
 import httpx
 
+from backend.config import get_config
+from backend.utils.env import env_flag
+
 
 class TaskPriority(Enum):
     LOW = 1
@@ -98,18 +101,19 @@ class TaskQueue:
                 task.speak(f"Tarefa falhou: {e}")
 
     def _run_goal(self, goal: str) -> str:
-        if os.environ.get("JARVIS_TEST_MODE"):
+        if env_flag("JARVIS_TEST_MODE"):
             return f"Tarefa simulada em modo de teste: {goal}"
 
         try:
+            cfg = get_config()
             prompt = (
                 f"Voce e um agente executor. Sua tarefa e: {goal}\n\n"
                 "Execute a tarefa e descreva o que foi feito em portugues. "
                 "Seja conciso e objetivo."
             )
             resp = httpx.post(
-                "http://localhost:11434/api/generate",
-                json={"model": "qwen2:0.5b", "prompt": prompt, "stream": False},
+                f"{cfg.ollama_url}/api/generate",
+                json={"model": cfg.model, "prompt": prompt, "stream": False},
                 timeout=60,
             )
             return resp.json().get("response", "Tarefa executada")

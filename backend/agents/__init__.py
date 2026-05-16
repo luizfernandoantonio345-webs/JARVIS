@@ -12,16 +12,22 @@ Specialized agents available:
   - SystemAgent      → OS + browser automation
 """
 
-from agents.dev_agent import DevAgent
-from agents.architect_agent import ArchitectAgent
-from agents.security_agent import SecurityAgent
-from agents.debugger_agent import DebuggerAgent
-from agents.planner_agent import PlannerAgent
-from agents.reviewer_agent import ReviewerAgent
-from agents.executor_agent import ExecutorAgent
-from agents.system_agent import SystemAgent
+try:
+    from backend.agents.dev_agent import DevAgent
+    from backend.agents.architect_agent import ArchitectAgent
+    from backend.agents.security_agent import SecurityAgent
+    from backend.agents.debugger_agent import DebuggerAgent
+    from backend.agents.planner_agent import PlannerAgent
+    from backend.agents.reviewer_agent import ReviewerAgent
+    from backend.agents.executor_agent import ExecutorAgent
+    from backend.agents.system_agent import SystemAgent
+    __all__ = [
+        "DevAgent", "ArchitectAgent", "SecurityAgent", "DebuggerAgent",
+        "PlannerAgent", "ReviewerAgent", "ExecutorAgent", "SystemAgent",
+    ]
+except ImportError:
+    __all__ = []
 
-__all__ = [
-    "DevAgent", "ArchitectAgent", "SecurityAgent", "DebuggerAgent",
-    "PlannerAgent", "ReviewerAgent", "ExecutorAgent", "SystemAgent",
-]
+# Master orchestrator
+from backend.agents.master_orchestrator import get_orchestrator, MasterOrchestrator
+__all__ += ["get_orchestrator", "MasterOrchestrator"]

@@ -7,12 +7,15 @@ from pathlib import Path
 
 import httpx
 
+from backend.config import get_config
+
 
 def _ask_ollama(prompt: str) -> str:
+    cfg = get_config()
     try:
         resp = httpx.post(
-            "http://localhost:11434/api/generate",
-            json={"model": "qwen2:0.5b", "prompt": prompt, "stream": False},
+            f"{cfg.ollama_url}/api/generate",
+            json={"model": cfg.model, "prompt": prompt, "stream": False},
             timeout=60,
         )
         return resp.json().get("response", "")

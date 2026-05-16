@@ -1,14 +1,18 @@
 """Escreve, edita, explica, roda e builda código"""
 import subprocess
 import sys
-import httpx
 from pathlib import Path
 
-def _ask_ollama(prompt: str, model: str = "qwen2:0.5b") -> str:
+import httpx
+
+from backend.config import get_config
+
+def _ask_ollama(prompt: str, model: str | None = None) -> str:
+    cfg = get_config()
     try:
         resp = httpx.post(
-            "http://localhost:11434/api/generate",
-            json={"model": model, "prompt": prompt, "stream": False},
+            f"{cfg.ollama_url}/api/generate",
+            json={"model": model or cfg.model, "prompt": prompt, "stream": False},
             timeout=60
         )
         return resp.json().get("response", "")

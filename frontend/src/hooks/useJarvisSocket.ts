@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { OrbStatus, isJarvisWSMessage } from '../types/ws';
 import type { JarvisWSMessage } from '../types/ws';
+import { getWebSocketUrl } from '../services/runtime';
 
-const WS_URL = (import.meta.env.VITE_WS_URL as string | undefined) ?? 'ws://localhost:8000/ws/jarvis';
+const WS_URL = getWebSocketUrl();
 const BASE_DELAY_MS = 1_000;
 const MAX_DELAY_MS  = 30_000;
 

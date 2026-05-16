@@ -6,6 +6,8 @@ import platform
 import subprocess
 from pathlib import Path
 
+from backend.utils.env import env_flag
+
 
 def game_updater(parameters: dict, player=None, speak=None) -> str:
     action = parameters.get("action", "update")
@@ -16,7 +18,7 @@ def game_updater(parameters: dict, player=None, speak=None) -> str:
     minute = parameters.get("minute", 0)
 
     try:
-        if os.environ.get("JARVIS_TEST_MODE"):
+        if env_flag("JARVIS_TEST_MODE"):
             if action == "list":
                 return "Jogos Steam instalados (3): Portal 2, Hades, Celeste"
             if action == "update":

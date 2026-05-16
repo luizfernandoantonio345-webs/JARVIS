@@ -11,8 +11,9 @@ from services.preference_extractor import extract_async
 from services.task_manager import is_autonomous_goal, create_task, run_task, build_task_report
 from services.cache_service import get_cached, set_cached
 from actions.action_loader import get_system_prompt
-from services.llm_service import call_llm_stream
+from services.llm_service import call_llm, call_llm_stream
 from services.ai_router import route_with_intent
+from services.ai_router import decide_action
 from core.context_memory import save_intent, build_context_summary
 from agents.intent_orchestrator import get_intent_orchestrator
 from services.autodev_bridge import needs_full_autodev, run_autodev_from_intent
@@ -58,6 +59,44 @@ def _inject_intent_context(
     return [system_msg] + seeded
 
 
+def _should_fast_path_chat(message: str) -> bool:
+    # Extract actual user query — memory context is prepended with \n\n separator
+    if "\n\n" in message:
+        stripped = message.split("\n\n")[-1].strip()
+    else:
+        stripped = message.strip()
+    if not stripped or len(stripped) > 160:
+        return False
+    if "```" in stripped or "\n" in stripped or stripped.startswith("/"):
+        return False
+
+    action, _ = decide_action(stripped)
+    return action == "chat"
+
+
+def _build_direct_chat_messages(message: str, session_id: str) -> list[dict]:
+    # Extract actual user query — memory context is prepended with \n\n separator
+    if "\n\n" in message:
+        user_query = message.split("\n\n")[-1].strip()
+    else:
+        user_query = message.strip()
+
+    seeded = _seed_history(session_id)
+    messages: list[dict] = [{"role": "system", "content": SYSTEM_PROMPT}]
+    if seeded:
+        messages.extend(seeded[-4:])  # reduced from 8 to 4 for local model efficiency
+    messages.append({"role": "user", "content": user_query})
+    return messages
+
+
+def _persist_response(session_id: str, message: str, response: str, action: str) -> None:
+    append_message(session_id, "user", message)
+    append_message(session_id, "assistant", response)
+    save_memory(session_id, message, response, action=action)
+    extract_async(session_id, message)
+    set_cached(session_id, message, response)
+
+
 def process_message(message: str, session_id: str) -> str:
     # ── Cache hit ────────────────────────────────────────────────────────────
     cached = get_cached(session_id, message)
@@ -65,17 +104,18 @@ def process_message(message: str, session_id: str) -> str:
         log.debug("[session=%s] cache hit", session_id)
         return cached
 
+    if _should_fast_path_chat(message):
+        response = call_llm(_build_direct_chat_messages(message, session_id), force_local=True)
+        _persist_response(session_id, message, response, action="chat_fast")
+        return response
+
     # ── Autonomous goal path ─────────────────────────────────────────────────
     if is_autonomous_goal(message):
         task = create_task(session_id, message)
         task = run_task(task.id)
         response = build_task_report(task)
 
-        append_message(session_id, "user", message)
-        append_message(session_id, "assistant", response)
-        save_memory(session_id, message, response, action="task")
-        extract_async(session_id, message)
-        set_cached(session_id, message, response)
+        _persist_response(session_id, message, response, action="task")
         return response
 
     # ── Standard single/multi-step path ─────────────────────────────────────
@@ -86,23 +126,15 @@ def process_message(message: str, session_id: str) -> str:
         log.info("[session=%s] FASE 3: AutoDev bridge | domain=%s subgoals=%d",
                  session_id, intent_model.domain, len(intent_model.subgoals))
         response = run_autodev_from_intent(intent_model, message, session_id)
-        append_message(session_id, "user", message)
-        append_message(session_id, "assistant", response)
-        save_memory(session_id, message, response, action=f"autodev_{intent_model.domain}")
+        _persist_response(session_id, message, response, action=f"autodev_{intent_model.domain}")
         save_intent(session_id, message, intent_model, response)
-        extract_async(session_id, message)
-        set_cached(session_id, message, response)
         return response
 
     # FASE 2: Try domain-aware agent-chain orchestration first
     orch_result = get_intent_orchestrator().orchestrate(intent_model, message, session_id)
     if orch_result:
         response = orch_result.output
-        append_message(session_id, "user", message)
-        append_message(session_id, "assistant", response)
-        save_memory(session_id, message, response, action=f"orchestrated_{intent_model.domain}")
-        extract_async(session_id, message)
-        set_cached(session_id, message, response)
+        _persist_response(session_id, message, response, action=f"orchestrated_{intent_model.domain}")
         return response
 
     plan = build_plan(content, intent)
@@ -120,11 +152,7 @@ def process_message(message: str, session_id: str) -> str:
     response       = exec_result.final_response
     primary_action = exec_result.primary_action
 
-    append_message(session_id, "user", message)
-    append_message(session_id, "assistant", response)
-    save_memory(session_id, message, response, action=primary_action)
-    extract_async(session_id, message)
-    set_cached(session_id, message, response)
+    _persist_response(session_id, message, response, action=primary_action)
     save_intent(session_id, message, intent_model, response)
 
     return response
@@ -141,6 +169,21 @@ def process_message_stream(
       {"type": "done",  "action": "...", "task_id": None}
       {"type": "error", "detail": "..."}
     """
+    if _should_fast_path_chat(message):
+        full_response_parts: list[str] = []
+        try:
+            for token in call_llm_stream(_build_direct_chat_messages(message, session_id)):
+                full_response_parts.append(token)
+                yield {"type": "token", "content": token}
+        except Exception as e:
+            yield {"type": "error", "detail": str(e)}
+            return
+
+        response = "".join(full_response_parts)
+        _persist_response(session_id, message, response, action="chat_fast")
+        yield {"type": "done", "action": "chat_fast", "task_id": None}
+        return
+
     # ── Autonomous goal path (stream progress events, not tokens) ────────────
     if is_autonomous_goal(message):
         task = create_task(session_id, message)
@@ -156,10 +199,7 @@ def process_message_stream(
         completed_task = run_task(task.id)
         report = build_task_report(completed_task)
 
-        append_message(session_id, "user", message)
-        append_message(session_id, "assistant", report)
-        save_memory(session_id, message, report, action="task")
-        extract_async(session_id, message)
+        _persist_response(session_id, message, report, action="task")
 
         # Stream the report as tokens
         for word in report.split(" "):
@@ -178,11 +218,8 @@ def process_message_stream(
         response = run_autodev_from_intent(intent_model, message, session_id)
         for word in response.split(" "):
             yield {"type": "token", "content": word + " "}
-        append_message(session_id, "user", message)
-        append_message(session_id, "assistant", response)
-        save_memory(session_id, message, response, action=f"autodev_{intent_model.domain}")
+        _persist_response(session_id, message, response, action=f"autodev_{intent_model.domain}")
         save_intent(session_id, message, intent_model, response)
-        extract_async(session_id, message)
         yield {"type": "done", "action": f"autodev_{intent_model.domain}", "task_id": None}
         return
 
@@ -192,10 +229,7 @@ def process_message_stream(
         yield {"type": "plan", "steps": [{"action": f"orchestrated_{intent_model.domain}", "input": message[:120]}], "task_id": None}
         for word in orch_result.output.split(" "):
             yield {"type": "token", "content": word + " "}
-        append_message(session_id, "user", message)
-        append_message(session_id, "assistant", orch_result.output)
-        save_memory(session_id, message, orch_result.output, action=f"orchestrated_{intent_model.domain}")
-        extract_async(session_id, message)
+        _persist_response(session_id, message, orch_result.output, action=f"orchestrated_{intent_model.domain}")
         yield {"type": "done", "action": f"orchestrated_{intent_model.domain}", "task_id": None}
         return
 
@@ -226,10 +260,7 @@ def process_message_stream(
         response       = exec_result.final_response
         primary_action = exec_result.primary_action
 
-        append_message(session_id, "user", message)
-        append_message(session_id, "assistant", response)
-        save_memory(session_id, message, response, action=primary_action)
-        extract_async(session_id, message)
+        _persist_response(session_id, message, response, action=primary_action)
         save_intent(session_id, message, intent_model, response)
 
         for word in response.split(" "):
@@ -263,10 +294,7 @@ def process_message_stream(
     response       = "".join(full_response_parts)
     primary_action = first_step.action
 
-    append_message(session_id, "user", message)
-    append_message(session_id, "assistant", response)
-    save_memory(session_id, message, response, action=primary_action)
-    extract_async(session_id, message)
+    _persist_response(session_id, message, response, action=primary_action)
     save_intent(session_id, message, intent_model, response)
 
     yield {"type": "done", "action": primary_action, "task_id": None}

@@ -13,6 +13,7 @@ from core.telemetry import trace_span, record_cache_hit, record_llm_latency
 from services.session_store import clear_session
 from services.memory_service import get_memory, clear_memory, get_session_list
 from services.llm_service import get_model_info
+from backend.utils.env import env_flag
 
 router = APIRouter()
 
@@ -36,7 +37,7 @@ def _with_memory_context(message: str) -> str:
 
 @router.post("", response_model=ChatResponse)
 def chat(request: ChatRequest):
-    if os.environ.get("JARVIS_TEST_MODE"):
+    if env_flag("JARVIS_TEST_MODE"):
         return ChatResponse(
             response="resposta mock do LLM",
             session_id=request.session_id,

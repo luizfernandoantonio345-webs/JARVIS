@@ -22,16 +22,33 @@ from fastapi.middleware.gzip import GZipMiddleware
 
 from schemas.ws_messages import idle_msg, speaking_msg, thinking_msg, error_msg
 from config import get_config
+from backend.utils.env import env_flag
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("JARVIS_CORE")
+
+
+def _cors_origins() -> list[str]:
+    configured = os.getenv("JARVIS_FRONTEND_URL", "http://localhost:3000")
+    default_origins = [
+        configured,
+        "http://127.0.0.1:3000",
+        "http://localhost:3000",
+    ]
+    origins: list[str] = []
+    for origin in default_origins:
+        value = origin.strip()
+        if value and value not in origins:
+            origins.append(value)
+    return origins
+
 
 app = FastAPI(title="JARVIS v5.2")
 
 # Configure CORS for frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -63,20 +80,20 @@ class ConnectionManager:
             self.active_connections.remove(ws)
 
     async def broadcast(self, msg: dict):
-        for c in self.active_connections:
+        dead: List[WebSocket] = []
+        for c in list(self.active_connections):
             try:
                 await c.send_json(msg)
-            except:
-                pass
+            except Exception:
+                dead.append(c)
+        for c in dead:
+            self.disconnect(c)
 
 manager = ConnectionManager()
 
 
 def _voice_runtime_enabled() -> bool:
-    return not (
-        os.environ.get("JARVIS_TEST_MODE")
-        or os.environ.get("JARVIS_DISABLE_VOICE")
-    )
+    return not (env_flag("JARVIS_TEST_MODE") or env_flag("JARVIS_DISABLE_VOICE"))
 
 # =========================
 # VOICE SYSTEM START/STOP
@@ -304,7 +321,7 @@ async def startup():
         log.info("[WAKE] Wake word desativada por ambiente")
 
     # Autonomia
-    if not os.environ.get("JARVIS_TEST_MODE"):
+    if not env_flag("JARVIS_TEST_MODE"):
         try:
             from autonomy.controller import get_autonomy_controller
             asyncio.create_task(get_autonomy_controller().start())
@@ -319,160 +336,101 @@ async def startup():
 # =========================
 # WEBSOCKET
 # =========================
+_WS_PROCESS_TIMEOUT = 90   # seconds — guards against hung LLM calls
+_WS_PING_INTERVAL   = 25   # seconds — keepalive ping
+
+
 @app.websocket("/ws/jarvis")
 async def websocket(ws: WebSocket):
     await manager.connect(ws)
+    ping_task: asyncio.Task | None = None
+
+    async def _heartbeat():
+        try:
+            while True:
+                await asyncio.sleep(_WS_PING_INTERVAL)
+                await ws.send_json({"type": "ping", "ts": asyncio.get_event_loop().time()})
+        except Exception:
+            pass
 
     try:
         await ws.send_json(idle_msg("Conectado ao núcleo JARVIS"))
+        ping_task = asyncio.create_task(_heartbeat())
 
         while True:
             data = await ws.receive_text()
 
-            # Unify WS path with the real chat pipeline.
-            # Falls back to legacy voice_v2 pipeline if chat_service fails.
-            await manager.broadcast(thinking_msg("Processando..."))
+            if data.strip() in ('{"type":"pong"}', 'pong', '__ping__'):
+                continue
+
+            await ws.send_json(thinking_msg("Processando..."))
+
+            tokens_sent = []
+
+            async def on_token(token: str):
+                tokens_sent.append(token)
+                try:
+                    await ws.send_json({"type": "token", "content": token})
+                except Exception as e:
+                    log.warning("Failed to send token: %s", e)
 
             response_text: str | None = None
             try:
-                from services.chat_service import process_message
-                # process_message é síncrona - envolver em executor para não bloquear event loop
-                response_text = await asyncio.get_event_loop().run_in_executor(
-                    None, process_message, data, "ws"
-                )
-            except Exception as e:
-                log.warning("chat_service.process_message falhou: %s", e)
-                response_text = None
+                from ai.client import get_ai_client
+                from services.session_store import get_history, SYSTEM_PROMPT, append_message
 
-            if not response_text:
+                history = list(get_history("ws"))[-10:]
+                messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+                messages.extend(history)
+                messages.append({"role": "user", "content": data})
+
+                log.info("[WS] Streaming com %d msgs no contexto", len(messages))
+                response_text = await get_ai_client().stream_chat(messages, on_token)
+                log.info("[WS] Stream completo: %d tokens", len(tokens_sent))
+
+                append_message("ws", "user", data)
+                append_message("ws", "assistant", response_text)
+
+            except asyncio.TimeoutError:
+                log.warning("stream_chat timed out after %ds", _WS_PROCESS_TIMEOUT)
+                response_text = "Timeout: sem resposta do modelo."
+                await ws.send_json({"type": "token", "content": response_text})
+            except Exception as e:
+                log.warning("stream_chat falhou: %s — tentando fallback", e, exc_info=True)
                 try:
-                    from voice.pipeline import run_jarvis_pipeline
-                    result = await run_jarvis_pipeline(
-                        input_text=data,
-                        source="api",
+                    from services.chat_service import process_message
+                    response_text = await asyncio.wait_for(
+                        asyncio.get_event_loop().run_in_executor(
+                            None, process_message, data, "ws"
+                        ),
+                        timeout=_WS_PROCESS_TIMEOUT,
                     )
-                    response_text = result.response
-                except Exception as e:
-                    log.exception("voice_v2 pipeline falhou: %s", e)
-                    response_text = "Erro ao processar."
+                    if response_text:
+                        await ws.send_json({"type": "token", "content": response_text})
+                except Exception as e2:
+                    log.warning("Fallback também falhou: %s", e2)
+                    response_text = "Erro ao processar. Verifique a conexão com Ollama."
+                    await ws.send_json({"type": "token", "content": response_text})
 
             if response_text:
+                await ws.send_json({
+                    "type": "done",
+                    "action": "chat",
+                    "full_response": response_text
+                })
                 await manager.broadcast(speaking_msg(response_text))
             else:
-                await manager.broadcast(error_msg("Nenhuma resposta gerada"))
+                await ws.send_json(error_msg("Nenhuma resposta gerada"))
 
     except WebSocketDisconnect:
         manager.disconnect(ws)
     except Exception as e:
         log.exception("WebSocket error: %s", e)
         manager.disconnect(ws)
+    finally:
+        if ping_task and not ping_task.done():
+            ping_task.cancel()
 
-
-# =========================
-# OLLAMA INTEGRATION
-# =========================
-import requests
-
-OLLAMA_BASE_URL = "http://localhost:11434"
-OLLAMA_MODEL = "neural-chat"
-
-@app.post("/chat")
-async def chat_with_ollama(message: str, session_id: str = "default"):
-    """
-    Chat endpoint que se conecta ao Ollama para respostas reais.
-    Suporta streaming via Server-Sent Events.
-    """
-    try:
-        log.info(f"[CHAT] Nova mensagem: {message[:50]}...")
-
-        # Chamar Ollama com streaming
-        response = requests.post(
-            f"{OLLAMA_BASE_URL}/api/generate",
-            json={
-                "model": OLLAMA_MODEL,
-                "prompt": message,
-                "stream": True,
-                "temperature": 0.7,
-                "top_p": 0.9,
-            },
-            timeout=30,
-            stream=True
-        )
-
-        if response.status_code != 200:
-            log.error(f"Ollama erro: {response.status_code}")
-            return {"error": "Ollama nao respondeu", "status": "error"}
-
-        # Acumular resposta completa
-        full_response = ""
-        for line in response.iter_lines():
-            if line:
-                try:
-                    chunk = json.loads(line)
-                    if "response" in chunk:
-                        full_response += chunk["response"]
-                except:
-                    pass
-
-        log.info(f"[CHAT] Resposta: {full_response[:50]}...")
-        return {
-            "response": full_response,
-            "status": "ok",
-            "model": OLLAMA_MODEL,
-            "session_id": session_id
-        }
-
-    except requests.exceptions.ConnectionError:
-        log.error("Ollama nao esta rodando em localhost:11434")
-        return {
-            "error": "Ollama offline. Execute setup_ollama.bat",
-            "status": "error"
-        }
-    except Exception as e:
-        log.exception(f"Erro ao processar chat: {e}")
-        return {"error": str(e), "status": "error"}
-
-# =========================
-# TEXT-TO-SPEECH ENDPOINT
-# =========================
-@app.post("/tts")
-async def text_to_speech(text: str, lang: str = "pt"):
-    """
-    Converte texto em áudio usando pyttsx3.
-    Retorna arquivo WAV em base64.
-    """
-    try:
-        import pyttsx3
-        import io
-        from base64 import b64encode
-
-        engine = pyttsx3.init()
-        engine.setProperty('rate', 150)
-
-        if lang == "pt":
-            engine.setProperty('voice', 0)
-        elif lang == "en":
-            engine.setProperty('voice', 1)
-
-        # Salvar em buffer
-        audio_buffer = io.BytesIO()
-        engine.save_to_file(text, "/tmp/jarvis_tts.wav")
-        engine.runAndWait()
-
-        # Ler arquivo
-        with open("/tmp/jarvis_tts.wav", "rb") as f:
-            audio_data = f.read()
-
-        audio_b64 = b64encode(audio_data).decode()
-
-        return {
-            "audio": audio_b64,
-            "format": "wav",
-            "status": "ok"
-        }
-    except Exception as e:
-        log.warning("TTS falhou: %s", e)
-        return {"error": str(e), "status": "error"}
 
 # =========================
 # RUN

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import './JarvisDashboard.css'
+import { getWebSocketUrl } from '../services/runtime'
 
 type PipelineTrace = {
   trace_id: string
@@ -33,7 +34,7 @@ type SystemState = {
   sentinelEvent: string
 }
 
-const WS_URL = (import.meta.env.VITE_WS_URL as string | undefined) ?? 'ws://localhost:8000/ws/jarvis'
+const WS_URL = getWebSocketUrl()
 
 export default function JarvisDashboard() {
   const [traces, setTraces] = useState<PipelineTrace[]>([])

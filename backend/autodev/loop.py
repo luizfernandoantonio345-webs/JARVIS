@@ -206,7 +206,9 @@ class AutoDevLoop:
             )
             state.save(self.workspace)
 
-        if os.environ.get("JARVIS_TEST_MODE"):
+        from backend.utils.env import env_flag
+
+        if env_flag("JARVIS_TEST_MODE"):
             return await self._run_test_mode(state, is_resume)
 
         try:

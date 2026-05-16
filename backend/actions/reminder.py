@@ -5,6 +5,8 @@ import os
 from datetime import datetime
 from pathlib import Path
 
+from backend.utils.env import env_flag
+
 def reminder(parameters: dict, response=None, player=None) -> str:
     date_str = parameters.get("date", "")
     time_str = parameters.get("time", "")
@@ -19,7 +21,7 @@ def reminder(parameters: dict, response=None, player=None) -> str:
         formatted_time = dt.strftime("%H:%M")
         formatted_date = dt.strftime("%d/%m/%Y")
 
-        if os.environ.get("JARVIS_TEST_MODE"):
+        if env_flag("JARVIS_TEST_MODE"):
             return f"Lembrete agendado para {formatted_date} às {formatted_time}: {message}"
 
         system = platform.system()

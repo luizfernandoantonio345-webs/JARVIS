@@ -10,7 +10,7 @@ export const useAutonomy = () => {
 
   const fetchStatus = useCallback(async () => {
     try {
-      const res = await fetch('http://localhost:8000/system/heartbeat');
+      const res = await fetch('/system/heartbeat');
       const heartbeat = await res.json();
       setData({
         pending: heartbeat.autonomy_pending || 0,

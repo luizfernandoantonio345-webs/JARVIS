@@ -533,45 +533,55 @@ function connectWS() {
       if (m.event === 'hide_widget') closeW(m.index);
       if (m.event === 'command') runCmd(m.text);
 
-      if (m.status === 'speaking' && m.message) {
+      // Resposta completa via WS
+      if ((m.status === 'speaking' && m.message) || m.response) {
+        const txt = m.message || m.response;
         setOrbState('success');
         setSpeaking(true);
         showAll();
         const el = document.getElementById('last-resp');
-        if (el) el.textContent = m.message.slice(0, 80);
+        if (el) el.textContent = txt.slice(0, 120);
+        const st = document.getElementById('stlive');
+        if (st) st.textContent = txt.slice(0, 60);
+        playTTS(txt, 'pt');
+        setTimeout(() => { setOrbState('idle'); setSpeaking(false); }, 4000);
       }
       if (m.status === 'idle') { setOrbState('idle'); setSpeaking(false); }
       if (m.status === 'thinking') {
         setOrbState('thinking');
         const el = document.getElementById('last-resp');
-        if (el) el.innerHTML = '<span style="animation: dotdot 1.5s steps(4,end) infinite">Processando</span><style>@keyframes dotdot{0%,20%{content:".";}40%{content:"..";}60%{content:"...";}}</style>';
+        if (el) el.textContent = 'Processando...';
+        const st = document.getElementById('stlive');
+        if (st) st.textContent = 'PROCESSANDO';
       }
 
-      if (m.response) {
+      // Streaming token a token
+      if (m.type === 'token' && m.content) {
+        setOrbState('thinking');
+        const el = document.getElementById('last-resp');
+        if (el) {
+          if (el.textContent === 'Processando...') el.textContent = '';
+          el.textContent = (el.textContent + m.content).slice(-120);
+        }
+      }
+      if (m.type === 'turbo' && m.response) {
         setOrbState('success');
         setSpeaking(true);
         showAll();
         const el = document.getElementById('last-resp');
-        if (el) el.textContent = m.response.slice(0, 80);
+        if (el) el.textContent = m.response.slice(0, 120);
         playTTS(m.response, 'pt');
-        setTimeout(() => { setOrbState('idle'); setSpeaking(false); }, 4000);
-      }
-
-      if (m.type === 'token' && m.content) {
-        setOrbState('thinking');
-        const el = document.getElementById('last-resp');
-        if (el && el.textContent.includes('Processando')) el.textContent = '';
-        if (el) el.textContent += m.content;
+        setTimeout(() => { setOrbState('idle'); setSpeaking(false); }, 3000);
       }
       if (m.type === 'done') {
         setOrbState('success');
         setTimeout(() => { setOrbState('idle'); setSpeaking(false); }, 2000);
       }
-
-      if (m.error) {
+      if (m.type === 'error' || m.error) {
+        const errTxt = m.detail || m.error || 'falha desconhecida';
         setOrbState('error');
         const el = document.getElementById('last-resp');
-        if (el) el.textContent = '❌ ' + (m.error.slice ? m.error.slice(0, 60) : 'Erro desconhecido');
+        if (el) el.textContent = 'Erro: ' + errTxt.slice(0, 80);
         setTimeout(() => setOrbState('idle'), 3000);
       }
     } catch(e) { setOrbState('error'); console.warn('[WS] Parse error:', e); setTimeout(() => setOrbState('idle'), 2000); }
@@ -818,7 +828,11 @@ function runCmd(raw) {
 async function callBackendChat(text, timerId) {
   try {
     setOrbState('thinking');
-    const response = await fetch(`http://localhost:8000/chat?message=${encodeURIComponent(text)}&session_id=jarvis`);
+    const response = await fetch('/chat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message: text, session_id: 'jarvis-ui'})
+    });
     const data = await response.json();
 
     if (data.response) {
@@ -828,12 +842,12 @@ async function callBackendChat(text, timerId) {
       showAll();
 
       const el = document.getElementById('last-resp');
-      if (el) el.textContent = data.response.slice(0, 80);
+      if (el) el.textContent = data.response.slice(0, 120);
+      const st = document.getElementById('stlive');
+      if (st) st.textContent = data.response.slice(0, 60);
 
-      // Tocar TTS
       playTTS(data.response, 'pt');
 
-      // Atualizar histórico com resposta real
       commandHistory[0].response = data.response.slice(0, 100);
       commandHistory[0].status = 'success';
       commandHistory[0].responseTime = elapsed;
@@ -850,7 +864,7 @@ async function callBackendChat(text, timerId) {
     console.error('[CHAT]', e);
     setOrbState('error');
     const el = document.getElementById('last-resp');
-    if (el) el.textContent = 'Erro: Ollama offline?';
+    if (el) el.textContent = 'Erro: backend offline?';
     setTimeout(() => setOrbState('idle'), 3000);
   }
 }
