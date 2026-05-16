@@ -46,8 +46,8 @@ class MasterOrchestrator:
             return await self._chat_agent(message, session_id, on_token)
 
     async def _chat_agent(self, message, session_id, on_token):
-        from backend.ai.client import get_ai_client
-        from backend.memory.persistent_memory import get_persistent_memory
+        from ai.client import get_ai_client
+        from memory.persistent_memory import get_persistent_memory
         mem = get_persistent_memory()
         context = mem.build_context(session_id)
         system = (
@@ -70,7 +70,7 @@ class MasterOrchestrator:
         return resp
 
     async def _code_agent(self, message, session_id, on_token):
-        from backend.ai.client import get_ai_client
+        from ai.client import get_ai_client
         system = (
             "Você é um engenheiro de software sênior assistindo o Senhor. "
             "Escreva código limpo, comentado e funcional. "
@@ -110,7 +110,7 @@ class MasterOrchestrator:
         return "Comando de computador recebido. Especifique o que deseja abrir, Senhor."
 
     async def _memory_agent(self, message, session_id):
-        from backend.memory.persistent_memory import get_persistent_memory
+        from memory.persistent_memory import get_persistent_memory
         mem = get_persistent_memory()
         msg = message.lower()
         if any(w in msg for w in ["histórico", "conversas", "lembra"]):
@@ -126,7 +126,7 @@ class MasterOrchestrator:
         return "Memória consultada, Senhor."
 
     async def _research_agent(self, message, session_id, on_token):
-        from backend.ai.client import get_ai_client
+        from ai.client import get_ai_client
         system = (
             "Você é um pesquisador especializado. "
             "Explique de forma clara, estruturada e completa. "

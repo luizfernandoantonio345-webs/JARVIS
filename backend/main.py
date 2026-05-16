@@ -340,6 +340,15 @@ _WS_PROCESS_TIMEOUT = 90   # seconds — guards against hung LLM calls
 _WS_PING_INTERVAL   = 25   # seconds — keepalive ping
 
 
+async def _speak_response(text: str) -> None:
+    """Falar resposta via TTS de forma assíncrona."""
+    try:
+        from voice.output import speak
+        await speak(text[:300])
+    except Exception as e:
+        log.warning("[VOZ] Fala falhou: %s", e)
+
+
 @app.websocket("/ws/jarvis")
 async def websocket(ws: WebSocket):
     await manager.connect(ws)
@@ -354,78 +363,100 @@ async def websocket(ws: WebSocket):
             pass
 
     try:
-        await ws.send_json(idle_msg("Conectado ao núcleo JARVIS"))
+        await ws.send_json(idle_msg("JARVIS online. Ouvindo, Senhor."))
         ping_task = asyncio.create_task(_heartbeat())
 
         while True:
             data = await ws.receive_text()
 
             if data.strip() in ('{"type":"pong"}', 'pong', '__ping__'):
+                await ws.send_json({"type": "pong"})
                 continue
 
             await ws.send_json(thinking_msg("Processando..."))
 
-            tokens_sent = []
+            response_text: str | None = None
+            tokens_sent: list[str] = []
 
-            async def on_token(token: str):
+            # Closure captura ws do escopo externo corretamente
+            current_ws = ws
+
+            async def on_token(token: str) -> None:
                 tokens_sent.append(token)
                 try:
-                    await ws.send_json({"type": "token", "content": token})
-                except Exception as e:
-                    log.warning("Failed to send token: %s", e)
+                    await current_ws.send_json({"type": "token", "content": token})
+                except Exception as tok_err:
+                    log.warning("[WS] token send failed: %s", tok_err)
 
-            response_text: str | None = None
             try:
-                from ai.client import get_ai_client
-                from services.session_store import get_history, SYSTEM_PROMPT, append_message
+                # FASE 3.2: Usar orquestrador para rotear e executar
+                from agents.master_orchestrator import get_orchestrator
+                orch = get_orchestrator()
 
-                history = list(get_history("ws"))[-10:]
-                messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-                messages.extend(history)
-                messages.append({"role": "user", "content": data})
+                # Detecta agente e envia ao frontend
+                agent_name = orch.route(data)
+                await current_ws.send_json({"type": "agent", "agent": agent_name})
+                log.info("[WS] Agente: %s | Msg: %s", agent_name, data[:60])
 
-                log.info("[WS] Streaming com %d msgs no contexto", len(messages))
-                response_text = await get_ai_client().stream_chat(messages, on_token)
+                response_text = await orch.execute(
+                    message=data,
+                    session_id="ws",
+                    on_token=on_token,
+                )
                 log.info("[WS] Stream completo: %d tokens", len(tokens_sent))
 
-                append_message("ws", "user", data)
-                append_message("ws", "assistant", response_text)
-
-            except asyncio.TimeoutError:
-                log.warning("stream_chat timed out after %ds", _WS_PROCESS_TIMEOUT)
-                response_text = "Timeout: sem resposta do modelo."
-                await ws.send_json({"type": "token", "content": response_text})
             except Exception as e:
-                log.warning("stream_chat falhou: %s — tentando fallback", e, exc_info=True)
+                log.warning("[WS] Orquestrador falhou: %s — fallback direto", e, exc_info=True)
                 try:
-                    from services.chat_service import process_message
-                    response_text = await asyncio.wait_for(
-                        asyncio.get_event_loop().run_in_executor(
-                            None, process_message, data, "ws"
-                        ),
-                        timeout=_WS_PROCESS_TIMEOUT,
-                    )
-                    if response_text:
-                        await ws.send_json({"type": "token", "content": response_text})
+                    # Fallback: stream_chat direto
+                    from ai.client import get_ai_client
+                    from services.session_store import get_history, SYSTEM_PROMPT, append_message
+
+                    history = list(get_history("ws"))[-10:]
+                    msgs = [{"role": "system", "content": SYSTEM_PROMPT}]
+                    msgs.extend(history)
+                    msgs.append({"role": "user", "content": data})
+
+                    response_text = await get_ai_client().stream_chat(msgs, on_token)
+                    append_message("ws", "user", data)
+                    append_message("ws", "assistant", response_text)
+
                 except Exception as e2:
-                    log.warning("Fallback também falhou: %s", e2)
-                    response_text = "Erro ao processar. Verifique a conexão com Ollama."
-                    await ws.send_json({"type": "token", "content": response_text})
+                    log.warning("[WS] Fallback stream_chat falhou: %s — sync fallback", e2)
+                    try:
+                        from services.chat_service import process_message
+                        response_text = await asyncio.wait_for(
+                            asyncio.get_event_loop().run_in_executor(
+                                None, process_message, data, "ws"
+                            ),
+                            timeout=_WS_PROCESS_TIMEOUT,
+                        )
+                        if response_text:
+                            await current_ws.send_json({"type": "token", "content": response_text})
+                    except Exception as e3:
+                        log.error("[WS] Todos os fallbacks falharam: %s", e3)
+                        response_text = "Erro ao processar. Verifique a conexão com Ollama."
+                        await current_ws.send_json({"type": "token", "content": response_text})
 
             if response_text:
-                await ws.send_json({
+                await current_ws.send_json({
                     "type": "done",
                     "action": "chat",
-                    "full_response": response_text
+                    "full_response": response_text[:500],
                 })
                 await manager.broadcast(speaking_msg(response_text))
+
+                # FASE 4.2: TTS assíncrono após resposta completa
+                cfg = get_config()
+                if getattr(cfg, "voice_enabled", True):
+                    asyncio.create_task(_speak_response(response_text))
             else:
-                await ws.send_json(error_msg("Nenhuma resposta gerada"))
+                await current_ws.send_json(error_msg("Nenhuma resposta gerada"))
 
     except WebSocketDisconnect:
         manager.disconnect(ws)
     except Exception as e:
-        log.exception("WebSocket error: %s", e)
+        log.exception("[WS] Erro crítico: %s", e)
         manager.disconnect(ws)
     finally:
         if ping_task and not ping_task.done():

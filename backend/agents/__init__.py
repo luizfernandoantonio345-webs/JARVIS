@@ -1,15 +1,5 @@
 """
 Multi-Agent System — Phases 4.5 / 5 / 6
-
-Specialized agents available:
-  - DevAgent         → writes and reviews code (alias: coder)
-  - ArchitectAgent   → system design and architecture
-  - SecurityAgent    → vulnerability analysis (OWASP Top 10)
-  - DebuggerAgent    → error diagnosis and bug fixes
-  - PlannerAgent     → breaks goals into structured plans
-  - ReviewerAgent    → validates code; APPROVE / REQUEST_CHANGES
-  - ExecutorAgent    → runs commands safely
-  - SystemAgent      → OS + browser automation
 """
 
 try:
@@ -27,7 +17,3 @@ try:
     ]
 except ImportError:
     __all__ = []
-
-# Master orchestrator
-from backend.agents.master_orchestrator import get_orchestrator, MasterOrchestrator
-__all__ += ["get_orchestrator", "MasterOrchestrator"]

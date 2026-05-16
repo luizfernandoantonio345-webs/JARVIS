@@ -224,6 +224,7 @@ body.alert #jt{text-shadow:0 0 8px rgba(255,42,74,0.9),0 0 25px rgba(255,42,74,0
 <!-- WIDGET 0: Code Archive -->
 <div class="w ltl" id="w0">
 <div class="wh"><span class="wt">CODE ARCHIVE: CORE SYSTEM v6.0</span><div class="wc"><button class="wbtn" onclick="closeW(0)">▲</button><button class="wbtn" onclick="closeW(0)">✕</button><div class="wdot"></div></div></div>
+<div style="font-size:7px;color:rgba(0,229,255,0.4);letter-spacing:2px;margin-bottom:4px;padding:0 8px;padding-top:4px">AGENTE: <span id="agent-label" style="color:rgba(0,229,255,0.8)">CHAT</span></div>
 <div class="wb"><pre class="code" id="codeEl"></pre><div class="cfoot"><span id="clinf">SL#17 / 060</span><span>▲ ▼</span></div></div>
 </div>
 
@@ -533,6 +534,13 @@ function connectWS() {
       if (m.event === 'hide_widget') closeW(m.index);
       if (m.event === 'command') runCmd(m.text);
 
+      // Agent label update
+      if (m.agent) {
+        const agentMap = { chat_agent: 'CHAT', code_agent: 'CODE', computer_agent: 'COMPUTER', memory_agent: 'MEMORY', research_agent: 'RESEARCH' };
+        const label = document.getElementById('agent-label');
+        if (label) label.textContent = agentMap[m.agent] || m.agent.toUpperCase();
+      }
+
       // Resposta completa via WS
       if ((m.status === 'speaking' && m.message) || m.response) {
         const txt = m.message || m.response;
@@ -817,10 +825,32 @@ function runCmd(raw) {
   const cmd = raw.trim().toLowerCase();
   let ran = false;
   const timerId = startResponseTimer();
-  for (const key in CMDS) { if (cmd.includes(key)) { CMDS[key](); ran = true; break; } }
 
-  // Chamar backend /chat ao invés de sendToBackend
-  callBackendChat(raw, timerId);
+  const map = {
+    'mostrar codigo':     () => { showW(0); setSpeaking(true, 3000); },
+    'mostrar mapa':       () => { showW(1); setSpeaking(true, 2500); },
+    'mostrar dados':      () => { showW(2); setSpeaking(true, 2500); },
+    'mostrar protocolos': () => { showW(3); setSpeaking(true, 2500); },
+    'mostrar tudo':       () => { showAll(); setSpeaking(true, 4000); },
+    'show all':           () => { showAll(); setSpeaking(true, 4000); },
+    'fechar':             () => { hideAll(); setSpeaking(false); },
+    'analise':            () => { showAll(); setSpeaking(true, 5000); },
+  };
+
+  for (const [k, fn] of Object.entries(map)) {
+    if (cmd.includes(k)) { fn(); ran = true; }
+  }
+
+  // Sempre envia ao backend — prefere WebSocket, fallback HTTP
+  if (raw.trim().length > 1) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(raw.trim());
+      setOrbState('thinking');
+    } else {
+      callBackendChat(raw, timerId);
+    }
+  }
+
   addToHistory(raw, 'pending', 0);
   if (!ran && cmd.length > 2) { showAll(); setSpeaking(true, 3500); }
 }
@@ -828,7 +858,7 @@ function runCmd(raw) {
 async function callBackendChat(text, timerId) {
   try {
     setOrbState('thinking');
-    const response = await fetch('/chat', {
+    const response = await fetch('http://localhost:8000/chat', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({message: text, session_id: 'jarvis-ui'})
@@ -848,10 +878,12 @@ async function callBackendChat(text, timerId) {
 
       playTTS(data.response, 'pt');
 
-      commandHistory[0].response = data.response.slice(0, 100);
-      commandHistory[0].status = 'success';
-      commandHistory[0].responseTime = elapsed;
-      updateHistoryDisplay();
+      if (commandHistory[0]) {
+        commandHistory[0].response = data.response.slice(0, 100);
+        commandHistory[0].status = 'success';
+        commandHistory[0].responseTime = elapsed;
+        updateHistoryDisplay();
+      }
 
       setTimeout(() => { setOrbState('idle'); setSpeaking(false); }, 4000);
     } else if (data.error) {
