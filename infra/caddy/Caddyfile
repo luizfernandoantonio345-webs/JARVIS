@@ -1,0 +1,10 @@
+http://localhost, http://127.0.0.1 {
+    encode gzip zstd
+    reverse_proxy jarvis:8000
+}
+
+https://localhost {
+    tls internal
+    encode gzip zstd
+    reverse_proxy jarvis:8000
+}

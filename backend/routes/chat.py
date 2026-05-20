@@ -13,7 +13,10 @@ from core.telemetry import trace_span, record_cache_hit, record_llm_latency
 from services.session_store import clear_session
 from services.memory_service import get_memory, clear_memory, get_session_list
 from services.llm_service import get_model_info
+from services.llm_service import call_llm
+from services.session_store import SYSTEM_PROMPT
 from backend.utils.env import env_flag
+from backend.config import get_config
 
 router = APIRouter()
 
@@ -43,7 +46,33 @@ def chat(request: ChatRequest):
             session_id=request.session_id,
         )
 
+    # Fast-path: skip all expensive work if Ollama is down and no API keys
+    from services.llm_service import _ANTHROPIC_KEY, _OPENAI_KEY
+    if not _ANTHROPIC_KEY and not _OPENAI_KEY:
+        from backend.ai.client import is_ollama_available
+        if not is_ollama_available():
+            cfg = get_config()
+            return ChatResponse(
+                response=(
+                    f"JARVIS offline - Ollama nao responde em {cfg.ollama_url}. "
+                    "Verifique se o servico esta rodando e se JARVIS_OLLAMA_URL esta correto."
+                ),
+                session_id=request.session_id,
+            )
+
     enriched_message = _with_memory_context(request.message)
+
+    # Low-latency fast path for short natural messages.
+    # This avoids planner/orchestrator overhead that can stall on constrained local setups.
+    raw_message = (request.message or "").strip()
+    if raw_message and len(raw_message) <= 160 and "```" not in raw_message and "\n" not in raw_message:
+        quick_messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": raw_message},
+        ]
+        quick_response = call_llm(quick_messages, force_local=True)
+        return ChatResponse(response=quick_response, session_id=request.session_id)
+
     t0 = time.monotonic() * 1000
     classifier = get_intent_classifier()
     tier = classifier.classify(enriched_message)

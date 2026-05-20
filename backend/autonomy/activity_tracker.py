@@ -11,7 +11,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
-from core.logger import log_autonomy
+from backend.core.logger import log_autonomy
 
 # Persisted to disk so patterns survive restarts
 _STORAGE = Path(__file__).parent.parent / "reports" / "activity_log.jsonl"

@@ -34,6 +34,14 @@ def _check_import(module_name: str, package_name: Optional[str] = None) -> bool:
         True if module is available, False otherwise
     """
     try:
+        # Usar subprocess para checar módulos C-extension pesados (evita forrtl crash)
+        if module_name in ("faster_whisper", "sounddevice", "openwakeword"):
+            result = subprocess.run(
+                [sys.executable, "-c", f"import {module_name}"],
+                capture_output=True,
+                timeout=30,
+            )
+            return result.returncode == 0
         __import__(module_name)
         return True
     except ImportError:

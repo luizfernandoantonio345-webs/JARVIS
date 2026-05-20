@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from intents.schemas import Intent, RiskLevel
+from backend.intents.schemas import Intent, RiskLevel
 
 LOW_ACTIONS = {"open_app", "open_browser", "go_to_url", "navigate", "search_web"}
 MEDIUM_ACTIONS = {"fill_form", "download_file", "upload_file"}

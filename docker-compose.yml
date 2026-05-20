@@ -13,6 +13,7 @@ services:
       - "8000:8000"
     environment:
       - JARVIS_OLLAMA_URL=http://ollama:11434
+      - JARVIS_OTEL_CONSOLE=false
       - JARVIS_PORT=8000
       - JARVIS_HOST=0.0.0.0
       - JARVIS_DISABLE_VOICE=1
@@ -24,6 +25,7 @@ services:
       - ./jobs:/app/jobs
     depends_on:
       - ollama
+      - redis
     networks:
       - jarvis-network
     healthcheck:
@@ -81,26 +83,74 @@ services:
   # ===========================================================================
   # Redis — Optional: Caching and session storage
   # ===========================================================================
-  # redis:
-  #   image: redis:7-alpine
-  #   container_name: jarvis-redis
-  #   ports:
-  #     - "6379:6379"
-  #   volumes:
-  #     - redis-data:/data
-  #   networks:
-  #     - jarvis-network
-  #   healthcheck:
-  #     test: ["CMD", "redis-cli", "ping"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 5
-  #   restart: unless-stopped
+  redis:
+    image: redis:7-alpine
+    container_name: jarvis-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - jarvis-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: jarvis-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks:
+      - jarvis-network
+    depends_on:
+      - jarvis
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: jarvis-grafana
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - jarvis-network
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: jarvis-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - jarvis-network
+    depends_on:
+      - jarvis
+    restart: unless-stopped
 
 volumes:
   ollama-data:
   # postgres-data:
-  # redis-data:
+  redis-data:
+  grafana-data:
+  caddy-data:
+  caddy-config:
 
 networks:
   jarvis-network:

@@ -22,7 +22,6 @@ from services.memory_service import (
     resolve_failure,
 )
 from memory.semantic_engine import SemanticMemory
-from memory.lifecycle import MemoryLifecycle
 from expertise.domain_memory import DomainMemory
 
 router = APIRouter()

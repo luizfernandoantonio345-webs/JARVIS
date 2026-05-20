@@ -212,6 +212,15 @@ def call_llm(
     force_local : skip complexity check, always use local model
     force_api   : skip complexity check, always try external API first
     """
+    # Fast-path: if no API keys and Ollama circuit is open, skip all expensive work
+    if not _ANTHROPIC_KEY and not _OPENAI_KEY:
+        from backend.ai.client import is_ollama_available
+        if not is_ollama_available():
+            return (
+                f"JARVIS offline - Ollama nao responde em {_config.ollama_url}. "
+                "Verifique se o servico esta rodando e se JARVIS_OLLAMA_URL esta correto."
+            )
+
     original_messages = list(messages)
     messages = inject_system_persona(messages)
     # Cache check — only for local (deterministic) calls
@@ -252,8 +261,6 @@ def call_llm(
             ] + messages
     except Exception:
         pass
-
-    messages = inject_system_persona(messages)
 
     # Optional local LoRA adapter. If unavailable, normal routing continues.
     if USE_FINE_TUNED_MODEL and not force_api:

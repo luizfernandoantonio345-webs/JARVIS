@@ -400,22 +400,33 @@
                     try {
                         const data = JSON.parse(event.data);
 
-                        if (data.type === 'heartbeat') {
+                        // Silently handle keepalive/control messages
+                        if (data.type === 'ping' || data.type === 'pong' || data.type === 'heartbeat') {
                             lastHeartbeatTime = Date.now();
                             resetHeartbeatTimeout();
                             return;
                         }
 
-                        if (data.status === 'thinking') {
+                        // Skip non-displayable internal events
+                        if (data.type === 'agent' || data.type === 'token') return;
+
+                        const type = data.type;
+                        const status = data.status;
+
+                        if (type === 'thinking' || status === 'thinking') {
                             addMessage('💭 ' + (data.message || 'Processando...'), 'thinking');
-                        } else if (data.status === 'speaking') {
+                        } else if (type === 'done') {
+                            const text = data.full_response || data.response || data.message;
+                            if (text) addMessage('🗣️ ' + text, 'system');
+                        } else if (status === 'speaking') {
                             addMessage('🗣️ ' + (data.message || 'Respondendo...'), 'system');
-                        } else if (data.status === 'error') {
-                            addMessage('❌ Erro: ' + (data.message || 'Erro desconhecido'), 'error');
+                        } else if (type === 'error' || status === 'error') {
+                            addMessage('❌ Erro: ' + (data.message || data.detail || 'Erro desconhecido'), 'error');
+                        } else if (status === 'idle' || type === 'idle') {
+                            addMessage('✅ ' + (data.message || 'JARVIS online.'), 'system');
                         } else {
-                            const message = data.content || data.message || event.data;
-                            const type = data.type === 'thinking' ? 'thinking' : 'system';
-                            addMessage(message, type);
+                            const message = data.message || data.content || data.response;
+                            if (message) addMessage(message, 'system');
                         }
                     } catch (e) {
                         console.warn('Parse error:', e);

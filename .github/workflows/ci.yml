@@ -48,3 +48,8 @@ jobs:
         with:
           name: coverage-report
           path: coverage.xml
+
+      - name: Validate Docker Compose
+        run: |
+          docker compose -f docker-compose.yml config > /tmp/jarvis-compose.out
+          test -s /tmp/jarvis-compose.out

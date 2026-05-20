@@ -7,6 +7,8 @@ import logging
 import os
 import sys
 import json
+import time
+import uuid
 import requests
 from typing import List
 
@@ -16,16 +18,44 @@ BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
 if BACKEND_DIR not in sys.path:
     sys.path.insert(0, BACKEND_DIR)
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
 from schemas.ws_messages import idle_msg, speaking_msg, thinking_msg, error_msg
 from config import get_config
 from backend.utils.env import env_flag
+from core.logger import log_system, log_error
+
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("JARVIS_CORE")
+
+# Cache e Rate Limiting — graceful degradation se Redis indisponível
+try:
+    from fastapi_cache import FastAPICache
+    from fastapi_cache.backends.inmemory import InMemoryBackend
+    try:
+        from fastapi_cache.backends.redis import RedisBackend
+    except ImportError:
+        RedisBackend = None
+    from fastapi_cache.decorator import cache
+    _CACHE_OK = True
+except ImportError:
+    log.warning("[CACHE] fastapi_cache não disponível — cache desabilitado")
+    _CACHE_OK = False
+    def cache(*a, **kw):
+        def decorator(fn): return fn
+        return decorator
+
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+try:
+    import aioredis
+    _AIOREDIS_OK = True
+except Exception:
+    _AIOREDIS_OK = False
 
 
 def _cors_origins() -> list[str]:
@@ -42,8 +72,11 @@ def _cors_origins() -> list[str]:
             origins.append(value)
     return origins
 
-
 app = FastAPI(title="JARVIS v5.2")
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 
 # Configure CORS for frontend
 app.add_middleware(
@@ -55,6 +88,27 @@ app.add_middleware(
 )
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
+# Inicializar cache Redis e rate limiting
+@app.on_event("startup")
+async def startup_cache():
+    if not _CACHE_OK:
+        return
+    # Tenta Redis; cai para InMemory se indisponível
+    if _AIOREDIS_OK:
+        try:
+            redis = aioredis.from_url("redis://localhost", encoding="utf8", decode_responses=True)
+            FastAPICache.init(RedisBackend(redis), prefix="jarvis-cache")
+            log.info("[CACHE] Redis backend inicializado")
+            return
+        except Exception as e:
+            log.warning("[CACHE] Redis falhou (%s) — usando InMemory", e)
+    try:
+        from fastapi_cache.backends.inmemory import InMemoryBackend
+        FastAPICache.init(InMemoryBackend(), prefix="jarvis-cache")
+        log.info("[CACHE] InMemory backend inicializado")
+    except Exception as e:
+        log.warning("[CACHE] Falha no InMemory backend: %s", e)
+
 # Security headers
 try:
     from middleware.security_headers import setup_security_headers
@@ -63,9 +117,44 @@ try:
 except Exception as e:
     log.warning("Security headers middleware falhou: %s", e)
 
+
 # =========================
-# CONNECTION MANAGER
+# RATE LIMITER GLOBAL
 # =========================
+@app.middleware("http")
+async def global_rate_limit(request: Request, call_next):
+    request_id = request.headers.get("x-request-id") or str(uuid.uuid4())
+    start = time.perf_counter()
+    try:
+        response = await call_next(request)
+    except Exception as exc:
+        log_error(
+            "http_request_failed",
+            category="error",
+            error=str(exc),
+            action=str(request.url.path),
+            session_id=request_id,
+        )
+        raise
+    duration_ms = round((time.perf_counter() - start) * 1000, 2)
+    response.headers["x-request-id"] = request_id
+    log_system(
+        "http_request",
+        session_id=request_id,
+        action=f"{request.method} {request.url.path}",
+        tool="http",
+        risk=response.status_code,
+        error=duration_ms,
+    )
+    return response
+
+
+try:
+    from prometheus_client import make_asgi_app
+    app.mount("/metrics", make_asgi_app())
+    log.info("✓ Metrics endpoint montado em /metrics")
+except Exception as e:
+    log.warning("Metrics endpoint falhou: %s", e)
 
 class ConnectionManager:
     def __init__(self):
@@ -105,7 +194,8 @@ async def start_voice_system() -> None:
     """
     from voice.resilient_loader import load_voice_safe
 
-    result = load_voice_safe()
+    # Carrega voz em thread separada para não bloquear o event loop
+    result = await asyncio.to_thread(load_voice_safe)
     mode = result["mode"]
     missing = result["missing"]
 
@@ -134,6 +224,15 @@ async def start_voice_system() -> None:
 
     # Full mode: start STT loop
     if mode == "full":
+        # Pre-aquece o modelo Whisper em background para eliminar latência no 1º comando
+        async def _prewarm_whisper():
+            try:
+                from voice.input import WhisperTranscriber
+                await asyncio.to_thread(WhisperTranscriber().prewarm)
+            except Exception as exc:
+                log.debug("[STT] Pre-warm ignorado: %s", exc)
+        asyncio.create_task(_prewarm_whisper())
+
         try:
             from voice.voice_loop import voice_loop_background
             from voice.voice_state import VoiceState
@@ -149,6 +248,23 @@ async def start_voice_system() -> None:
             )
         except Exception as e:
             log.error("[VOZ] Falha ao iniciar voice_loop em modo full: %s", e)
+
+    # Initialize Voice Pipeline v3 (headset → STT → pipeline → TTS)
+    if mode == "full":
+        try:
+            from voice_v2.voice_pipeline_v3 import get_voice_pipeline
+            pipeline = get_voice_pipeline()
+            # Attach manager for WebSocket broadcasts
+            pipeline.manager = manager
+            try:
+                from agents.master_orchestrator import get_orchestrator
+                pipeline.orchestrator = get_orchestrator()
+            except Exception:
+                pass
+            await pipeline.initialize()
+            log.info('[VOZ_V3] Pipeline ativa — ouvindo headset')
+        except Exception as e:
+            log.warning('[VOZ_V3] Falha ao iniciar: %s', e)
 
 
 def _mount_routers() -> None:
@@ -206,6 +322,14 @@ def _mount_routers() -> None:
     except Exception as e:
         log.warning("Dashboard router falhou: %s", e)
 
+    # Telemetry
+    try:
+        from routes.telemetry import router as telemetry_router  # type: ignore
+        app.include_router(telemetry_router, prefix="/telemetry", tags=["telemetry"])
+        log.info("✓ Telemetry router carregado")
+    except Exception as e:
+        log.warning("Telemetry router falhou: %s", e)
+
     # Memory (optional)
     try:
         from routes.memory import router as memory_router  # type: ignore
@@ -240,8 +364,10 @@ def _mount_routers() -> None:
 
     # Jarvis multimodal chat
     try:
-        from routes.jarvis import router as jarvis_router  # type: ignore
+        from routes.jarvis import router as jarvis_router, tts_from_text  # type: ignore
         app.include_router(jarvis_router, prefix="/jarvis", tags=["jarvis"])
+        if not any(getattr(r, "path", None) == "/tts" and "GET" in getattr(r, "methods", set()) for r in app.routes):
+            app.add_api_route("/tts", tts_from_text, methods=["GET"], tags=["tts"])
         log.info("✓ Jarvis router carregado")
     except Exception as e:
         log.warning("Jarvis router falhou: %s", e)
@@ -254,6 +380,48 @@ def _mount_routers() -> None:
     except Exception as e:
         log.warning("Static router falhou: %s", e)
 
+    # Experience Engine
+    try:
+        from backend.routes.experience import router as exp_router
+        app.include_router(exp_router, prefix="/experience", tags=["experience"])
+        log.info("✓ Experience router carregado")
+    except Exception as e:
+        log.warning("Experience router falhou: %s", e)
+
+    # Research
+    try:
+        from backend.routes.research import router as research_router
+        app.include_router(research_router, prefix="/research", tags=["research"])
+        log.info("✓ Research router carregado")
+    except Exception as e:
+        log.warning("Research router falhou: %s", e)
+
+    # TTS Iron Man (edge-tts dedicado)
+    try:
+        from backend.routes.jarvis_tts import router as tts_router
+        app.include_router(tts_router, prefix="/tts-iron", tags=["tts"])
+        log.info("✓ TTS Iron Man router carregado em /tts-iron")
+    except Exception as e:
+        log.warning("TTS Iron Man router falhou: %s", e)
+
+    # Metrics endpoints (runtime + events) - BEFORE Prometheus mount to avoid conflict
+    try:
+        from backend.observability.metrics import get_metrics
+        from backend.core.event_bus import get_event_bus as _get_bus
+
+        @app.get("/api-metrics/runtime", tags=["metrics"])
+        async def _metrics_runtime():
+            return get_metrics().snapshot()
+
+        @app.get("/api-metrics/events", tags=["metrics"])
+        async def _metrics_events(event: str = None, limit: int = 50):
+            bus = _get_bus()
+            return {"events": bus.get_history(event, limit), "stats": bus.get_stats()}
+
+        log.info("✓ Metrics endpoints registrados (/api-metrics/*)")
+    except Exception as e:
+        log.warning("Metrics endpoints falharam: %s", e)
+
 
 # =========================
 # STARTUP
@@ -265,6 +433,36 @@ async def startup():
 
     # Mount routers ASAP
     _mount_routers()
+
+    # ── OMEGA: Watchdog + SystemMetrics + Experience + EventBus ──
+    try:
+        from backend.runtime.watchdog import get_watchdog
+        from backend.core.event_bus import get_event_bus
+        from backend.observability.system_metrics import collect as collect_sys
+        from backend.experience.engine import get_experience
+
+        cfg = get_config()
+        wd = get_watchdog()
+        bus = get_event_bus()
+
+        get_experience()  # init DB on startup
+
+        async def _check_ollama():
+            try:
+                import httpx
+                async with httpx.AsyncClient(timeout=3) as c:
+                    r = await c.get(f"{cfg.ollama_url}/api/tags")
+                    return r.status_code == 200
+            except Exception:
+                return False
+
+        wd.register("ollama", _check_ollama)
+        asyncio.create_task(wd.run(60))
+        asyncio.create_task(collect_sys(30))
+        await bus.emit("system.startup", {"version": "6.0"})
+        log.info("[OMEGA] Watchdog + Metrics + Experience inicializados")
+    except Exception as e:
+        log.warning("[OMEGA] Init parcial: %s", e)
 
     # Telemetry init (no-op if deps missing)
     try:
@@ -292,45 +490,69 @@ async def startup():
         })
 
     if voice_enabled:
-        try:
-            from voice.resilient_loader import check_voice_capabilities
-            caps = check_voice_capabilities()
+        # Mover setup do wake word para background task — evita bloquear startup
+        async def _start_wake_word_background():
+            try:
+                from voice.resilient_loader import check_voice_capabilities
+                caps = await asyncio.to_thread(check_voice_capabilities)
 
-            if caps.wake_word_available and caps.audio_available:
-                from voice.wake_word_engine import start_wake_word
-                loop = asyncio.get_event_loop()
-                engine = start_wake_word(
-                    on_detected=_on_wake_word_detected,
-                    loop=loop,
-                    keyword="jarvis",
-                    threshold=0.06,
-                )
-                if engine:
-                    log.info("[WAKE] Wake word 'JARVIS' ativa e escutando")
+                if caps.wake_word_available and caps.audio_available:
+                    from voice.wake_word_engine import start_wake_word
+                    loop = asyncio.get_event_loop()
+                    engine = start_wake_word(
+                        on_detected=_on_wake_word_detected,
+                        loop=loop,
+                        keyword="jarvis",
+                        threshold=0.06,
+                    )
+                    if engine:
+                        log.info("[WAKE] Wake word 'JARVIS' ativa e escutando")
+                    else:
+                        log.warning("[WAKE] Wake word não pode ser iniciada")
                 else:
-                    log.warning("[WAKE] Wake word não pode ser iniciada")
-            else:
-                log.warning(
-                    "[WAKE] Wake word indisponível — openwakeword: %s, sounddevice: %s",
-                    caps.wake_word_available,
-                    caps.audio_available,
-                )
-        except Exception as e:
-            log.warning("[WAKE] Wake word não iniciada: %s", e)
+                    log.warning(
+                        "[WAKE] Wake word indisponível — openwakeword: %s, sounddevice: %s",
+                        caps.wake_word_available,
+                        caps.audio_available,
+                    )
+            except Exception as e:
+                log.warning("[WAKE] Wake word não iniciada: %s", e)
+
+        asyncio.create_task(_start_wake_word_background())
     else:
         log.info("[WAKE] Wake word desativada por ambiente")
 
     # Autonomia
     if not env_flag("JARVIS_TEST_MODE"):
         try:
-            from autonomy.controller import get_autonomy_controller
-            asyncio.create_task(get_autonomy_controller().start())
-        except Exception:
-            pass
+            from autonomy.controller import get_autonomy_controller as _get_ac  # type: ignore
+            asyncio.create_task(_get_ac().start())
+        except Exception as e:
+            log.warning("[AUTONOMY] Nao iniciado: %s", e)
     else:
         log.info("[AUTONOMY] Inicialização desativada por ambiente de teste")
 
     await manager.broadcast(idle_msg("JARVIS ONLINE"))
+
+    # Warmup: pré-carrega modelo Ollama em background para eliminar cold start
+    async def _warmup_ollama():
+        try:
+            cfg = get_config()
+            log.info("[WARMUP] Pré-carregando modelo %s no Ollama...", cfg.model)
+            from backend.ai.client import get_ai_client
+            client = get_ai_client()
+            result = await asyncio.to_thread(
+                client._post_chat,
+                {"model": client.model, "messages": [{"role": "user", "content": "hi"}], "stream": False, "keep_alive": "30m"},
+            )
+            if result:
+                log.info("[WARMUP] OK — modelo %s pronto na VRAM", client.model)
+            else:
+                log.warning("[WARMUP] Sem resposta — cold start na 1a mensagem")
+        except Exception as e:
+            log.warning("[WARMUP] Falhou (nao critico): %r", e)
+
+    asyncio.create_task(_warmup_ollama())
 
 
 # =========================
@@ -338,6 +560,63 @@ async def startup():
 # =========================
 _WS_PROCESS_TIMEOUT = 90   # seconds — guards against hung LLM calls
 _WS_PING_INTERVAL   = 25   # seconds — keepalive ping
+
+
+# ===============
+# AUDIO STREAM WS
+# ===============
+import base64
+
+@app.websocket("/ws/audio_stream")
+async def audio_stream_ws(ws: WebSocket):
+    """
+    WebSocket para streaming de áudio bidirecional:
+    - Recebe chunks de áudio (base64 PCM/WAV)
+    - Retorna transcrição parcial/final e resposta TTS (base64 áudio)
+    """
+    # Lazy import para evitar crash forrtl no startup
+    try:
+        from backend.voice.input import WhisperTranscriber
+        from backend.voice.output import speak_silent
+    except Exception as e:
+        await ws.accept()
+        await ws.send_json({"type": "error", "message": f"Voice não disponível: {e}"})
+        await ws.close()
+        return
+    await ws.accept()
+    transcriber = WhisperTranscriber()
+    buffer = bytearray()
+    try:
+        while True:
+            msg = await ws.receive_json()
+            if msg.get("type") == "audio_chunk":
+                chunk = base64.b64decode(msg["data"])
+                buffer.extend(chunk)
+                # Opcional: transcrição parcial (não bloqueante)
+                if len(buffer) > 32000:  # ~2s áudio
+                    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+                        f.write(buffer)
+                        f.flush()
+                        text = await transcriber.transcribe_audio(f.name)
+                    await ws.send_json({"type": "partial_transcript", "text": text})
+            elif msg.get("type") == "end":
+                # Transcrição final
+                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+                    f.write(buffer)
+                    f.flush()
+                    text = await transcriber.transcribe_audio(f.name)
+                await ws.send_json({"type": "final_transcript", "text": text})
+                # Gera resposta TTS
+                tts_path = await speak_silent(text)
+                if tts_path:
+                    audio_bytes = Path(tts_path).read_bytes()
+                    await ws.send_json({"type": "tts_audio", "data": base64.b64encode(audio_bytes).decode()})
+                buffer.clear()
+            elif msg.get("type") == "ping":
+                await ws.send_json({"type": "pong"})
+    except Exception as e:
+        await ws.close(code=status.WS_1011_INTERNAL_ERROR)
+        log.error(f"[WS][audio_stream] erro: {e}")
 
 
 async def _speak_response(text: str) -> None:
@@ -375,11 +654,32 @@ async def websocket(ws: WebSocket):
 
             await ws.send_json(thinking_msg("Processando..."))
 
+            _ws_t0 = time.time()
+            try:
+                from backend.observability.metrics import get_metrics as _get_m
+                _get_m().inc("ws.messages_received")
+            except Exception:
+                pass
+
             response_text: str | None = None
             tokens_sent: list[str] = []
 
             # Closure captura ws do escopo externo corretamente
             current_ws = ws
+
+            # Fast-path: if Ollama is dead and no API keys, skip orchestration entirely
+            from backend.ai.client import is_ollama_available
+            from services.llm_service import _ANTHROPIC_KEY, _OPENAI_KEY
+            if not _ANTHROPIC_KEY and not _OPENAI_KEY and not is_ollama_available():
+                ollama_url = get_config().ollama_url
+                response_text = (
+                    f"JARVIS offline - Ollama nao responde em {ollama_url}. "
+                    "Verifique se o servico esta rodando e se JARVIS_OLLAMA_URL esta correto."
+                )
+                await current_ws.send_json({"type": "done", "action": "chat", "full_response": response_text})
+                await manager.broadcast(speaking_msg(response_text))
+                await ws.send_json({"type": "idle", "message": "JARVIS pronto."})
+                continue
 
             async def on_token(token: str) -> None:
                 tokens_sent.append(token)
@@ -445,6 +745,13 @@ async def websocket(ws: WebSocket):
                     "full_response": response_text[:500],
                 })
                 await manager.broadcast(speaking_msg(response_text))
+
+                try:
+                    from backend.observability.metrics import get_metrics as _get_m
+                    _get_m().timing("ws.response_time", time.time() - _ws_t0)
+                    _get_m().inc("ws.messages_responded")
+                except Exception:
+                    pass
 
                 # FASE 4.2: TTS assíncrono após resposta completa
                 cfg = get_config()

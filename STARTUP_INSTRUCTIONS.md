@@ -13,12 +13,12 @@ Since automated command execution is not available through the Copilot tools, yo
 1. Open Command Prompt (cmd.exe)
 2. Run this command:
    ```
-   C:\Users\cibernetico\JARVIS\RUN_START_JARVIS.bat
+  C:\Users\cibernetico\JARVIS\start_jarvis.bat
    ```
    Or:
    ```
    cd C:\Users\cibernetico\JARVIS
-   RUN_START_JARVIS.bat
+  start_jarvis.bat
    ```
 
 ## Method 2: Direct Python Launch
@@ -126,8 +126,7 @@ JARVIS_PORT=8000
 - Python venv: `C:\Users\cibernetico\JARVIS\.venv\Scripts\python.exe`
 - Alternative venvs: `.venv-1`, `venv`, `venv311`
 - Launcher: `launch_jarvis.py` (Python-based, reliable cross-platform)
-- Batch script: `start_jarvis_v2.bat` (robust batch implementation)
-- Your new script: `RUN_START_JARVIS.bat`
+- Script oficial de duplo clique: `start_jarvis.bat`
 
 ---
 

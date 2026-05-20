@@ -6,8 +6,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-OLLAMA_URL = os.getenv("JARVIS_OLLAMA_URL", "http://192.168.0.106:11434")
-MODEL = os.getenv("JARVIS_MODEL", "phi:latest")
+OLLAMA_URL = os.getenv("JARVIS_OLLAMA_URL", "http://localhost:11434")
+MODEL = os.getenv("JARVIS_MODEL", "qwen2:0.5b")
 
 print(f"Testando conexao com: {OLLAMA_URL}")
 print(f"Modelo: {MODEL}")
@@ -20,7 +20,7 @@ try:
     print(f"OK Conexao OK - Modelos disponiveis: {models}")
 except Exception as exc:
     print(f"FALHA na conexao: {exc}")
-    print("   Verifique se o PC2 esta ligado e o Ollama esta rodando")
+    print("   Verifique se o Ollama esta rodando e se JARVIS_OLLAMA_URL esta correto")
     raise SystemExit(1)
 
 print("\nTestando geracao de resposta...")
@@ -38,5 +38,5 @@ except Exception as exc:
     raise SystemExit(1)
 
 print("\n" + "=" * 40)
-print("OK PC2 conectado e funcionando!")
+print("OK Ollama conectado e funcionando!")
 print("=" * 40)

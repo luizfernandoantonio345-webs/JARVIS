@@ -1,12 +1,22 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import tempfile
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import APIRouter, File, Form, UploadFile
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, File, Form, UploadFile, Request
+try:
+    from fastapi_cache.decorator import cache
+except ImportError:
+    def cache(*a, **kw):
+        def decorator(fn): return fn
+        return decorator
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi import Limiter
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from documents.analyzer import DocumentAnalyzer
@@ -159,13 +169,18 @@ async def jarvis_pipeline(
 
 
 @router.post("/ask", response_model=JarvisResponse)
+@cache(expire=30)  # cache de 30s para perguntas idênticas
 async def ask(
+    request: Request,
     text: str = Form(...),
     audio: Optional[UploadFile] = File(None),
     attachments: Optional[list[UploadFile]] = File(None),
     tts: bool = Form(False),
     tts_summary_only: bool = Form(True),
 ):
+    # Rate limit por IP: 10 req/min
+    limiter: Limiter = request.app.state.limiter
+    await limiter.limit("10/minute")(lambda req: None)(request)
     audio_bytes = await audio.read() if audio else None
     result = await jarvis_pipeline(text, audio_bytes, attachments or [])
 
@@ -187,11 +202,61 @@ async def ask(
 
 
 @router.get("/tts")
-async def get_tts(path: str):
-    tts_path = Path(path)
-    if not tts_path.exists():
-        return {"status": "error", "message": "Arquivo de audio nao encontrado"}
-    return FileResponse(tts_path, media_type="audio/wav", filename=tts_path.name)
+@cache(expire=60)
+async def tts_from_text(request: Request, text: str = "", lang: str = "pt", path: Optional[str] = None):
+    """TTS JARVIS — voz PT-BR configurável via .env (JARVIS_TTS_VOICE/RATE/PITCH)."""
+    if path:
+        tts_path = Path(path)
+        if not tts_path.exists():
+            return {"status": "error", "message": "Arquivo de audio nao encontrado"}
+        return FileResponse(tts_path, media_type="audio/wav", filename=tts_path.name)
+
+    if not text or not text.strip():
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="text e obrigatorio")
+
+    try:
+        import edge_tts
+        from backend.config import get_config
+        cfg = get_config()
+
+        voice = cfg.tts_voice or "pt-BR-AntonioNeural"
+        rate  = cfg.tts_rate  or "-12%"
+        pitch = cfg.tts_pitch or "-15Hz"
+
+        communicate = edge_tts.Communicate(
+            text.strip()[:600],
+            voice,
+            rate=rate,
+            pitch=pitch,
+        )
+
+        async def _stream_audio():
+            async for chunk in communicate.stream():
+                if chunk["type"] == "audio":
+                    yield chunk["data"]
+
+        try:
+            from backend.observability.metrics import get_metrics
+            from backend.core.event_bus import get_event_bus
+            get_metrics().inc("tts.requests")
+            import asyncio as _aio
+            _aio.create_task(get_event_bus().emit("voice.tts", {"chars": len(text)}))
+        except Exception:
+            pass
+
+        return StreamingResponse(
+            _stream_audio(),
+            media_type="audio/mpeg",
+            headers={"Cache-Control": "no-store", "X-JARVIS-TTS": "ok"},
+        )
+
+    except ImportError:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=503, detail="edge-tts nao instalado. Execute: pip install edge-tts")
+    except Exception as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail=f"Erro TTS: {str(e)}")
 
 
 @router.post("/generate-document", response_model=GeneratedDocumentArtifact)

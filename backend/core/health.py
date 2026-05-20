@@ -15,6 +15,7 @@ from fastapi import APIRouter
 
 from config import get_config
 from backend.ai.client import get_ai_client
+from autonomy.controller import get_autonomy_controller
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -51,7 +52,6 @@ def _check_voice() -> dict:
 
 def _check_autonomy() -> dict:
     try:
-        from autonomy.controller import get_autonomy_controller
         ctrl = get_autonomy_controller()
         return {"ok": True}
     except Exception:

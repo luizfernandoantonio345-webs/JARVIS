@@ -7,8 +7,8 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from autonomy.activity_tracker import ActivityTracker
-from core.logger import log_autonomy
+from backend.autonomy.activity_tracker import ActivityTracker
+from backend.core.logger import log_autonomy
 
 
 class Suggestion:

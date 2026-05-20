@@ -61,7 +61,7 @@ except Exception:
 
 # Configuracoes
 OLLAMA_URL    = os.getenv("JARVIS_OLLAMA_URL", "http://localhost:11434")
-MODEL         = os.getenv("JARVIS_MODEL", "phi:latest")
+MODEL         = os.getenv("JARVIS_MODEL", "qwen2:0.5b")
 USER_TITLE    = os.getenv("JARVIS_USER_TITLE", "Senhor")
 TTS_VOICE     = os.getenv("JARVIS_TTS_VOICE", "pt-BR-AntonioNeural")
 VOICE_ENABLED = os.getenv("JARVIS_VOICE_ENABLED", "true").lower() == "true"

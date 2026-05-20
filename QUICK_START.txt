@@ -8,17 +8,21 @@ CURRENT STATUS: ❌ NOT RUNNING
 
 ⚡ QUICK START (Pick One)
 
-[METHOD 1] Command Prompt - Simplest
+[METHOD 1] Duplo clique (RECOMENDADO)
+───────────────────────────────────
+start_jarvis.bat
+
+[METHOD 2] Command Prompt - Manual
 ───────────────────────────────────
 cd C:\Users\cibernetico\JARVIS
-RUN_START_JARVIS.bat
+start_jarvis.bat
 
-[METHOD 2] PowerShell - Full Output
+[METHOD 3] PowerShell - Full Output
 ────────────────────────────────────
 powershell -ExecutionPolicy Bypass -File `
   "C:\Users\cibernetico\JARVIS\start_jarvis.ps1"
 
-[METHOD 3] Direct Python - Most Control
+[METHOD 4] Direct Python - Most Control
 ────────────────────────────────────────
 C:\Users\cibernetico\JARVIS\.venv\Scripts\python.exe `
   C:\Users\cibernetico\JARVIS\launch_jarvis.py

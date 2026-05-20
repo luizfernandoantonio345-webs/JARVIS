@@ -15,11 +15,12 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from backend.autonomy.controller import get_autonomy_controller
+
 router = APIRouter()
 
 
 def _ctrl():
-    from autonomy.controller import get_autonomy_controller
     return get_autonomy_controller()
 
 

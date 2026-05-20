@@ -14,7 +14,7 @@ I've created everything you need to start JARVIS manually. Choose ONE of these:
 ### ⭐ QUICKEST: Run Batch Script
 Open Command Prompt and run:
 ```
-C:\Users\cibernetico\JARVIS\RUN_START_JARVIS.bat
+C:\Users\cibernetico\JARVIS\start_jarvis.bat
 ```
 
 ### OR: Run PowerShell Script  
@@ -54,7 +54,7 @@ Expected output:
 
 ## Files I Created
 
-1. **RUN_START_JARVIS.bat** - Simple batch wrapper (easiest method)
+1. **start_jarvis.bat** - Script oficial de inicializacao (duplo clique)
 2. **start_jarvis.ps1** - PowerShell 5.x launcher script (with full output)
 3. **STARTUP_INSTRUCTIONS.md** - Detailed guide with all methods
 4. **STARTUP_TECHNICAL_SUMMARY.md** - Technical reference and troubleshooting

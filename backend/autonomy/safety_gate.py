@@ -8,9 +8,9 @@ Rules:
 """
 from __future__ import annotations
 
-from core.logger import log_security
-from core.risk_engine import RiskDecision
-from autonomy.autonomy_policy import AutonomyLevel
+from backend.core.logger import log_security
+from backend.core.risk_engine import RiskDecision
+from backend.autonomy.autonomy_policy import AutonomyLevel
 
 
 class SafetyGate:

@@ -130,4 +130,5 @@ async def task(params: dict = Body(...)):
 
 @router.get("/tasks")
 async def list_tasks():
-    return {"tasks": get_queue().list_tasks()}
+    tasks = get_queue().list_tasks()
+    return {"tasks": tasks, "count": len(tasks)}

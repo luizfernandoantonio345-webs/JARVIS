@@ -36,13 +36,16 @@ class VoiceLoopConfig:
     language_hint: str = "pt"
     sample_rate: int = 16000
     channels: int = 1
-    listen_chunk_s: float = 0.35
+    # 150ms chunks → detecção de fala ~200ms mais rápida que 350ms
+    listen_chunk_s: float = 0.15
     wake_phrase_max_s: float = 4.0
     command_timeout_s: float = 12.0
-    silence_end_ms: int = 500
-    silence_threshold: float = 0.012
+    # 300ms de silêncio → corta o comando ~200ms antes vs 500ms anterior
+    silence_end_ms: int = 300
+    # threshold ligeiramente mais alto → menos falsos positivos em ambiente com ruído
+    silence_threshold: float = 0.015
     listen_poll_s: float = 0.05
-    tts_tail_s: float = 0.35
+    tts_tail_s: float = 0.25
 
 
 class _TTSState:

@@ -7,8 +7,14 @@ from pydantic import BaseModel
 from typing import Optional
 
 from voice.controller import process_voice_command
-from voice.authenticator import authenticate_voice, get_auth_log
-from voice.enrollment import enroll_voice, load_encrypted_profile, reset_profile, save_encrypted_profile
+from voice.enrollment import (
+    enroll_voice,
+    load_encrypted_profile,
+    reset_profile,
+    save_encrypted_profile,
+    authenticate_voice,
+    get_auth_log,
+)
 
 log = logging.getLogger(__name__)
 

@@ -21,11 +21,11 @@ import asyncio
 import time
 from typing import Any
 
-from autonomy.activity_tracker import ActivityTracker
-from autonomy.autonomy_policy import AutonomyLevel, DEFAULT_LEVEL
-from autonomy.decision_engine import DecisionEngine, DecisionOutcome
-from autonomy.suggestion_engine import SuggestionEngine
-from core.logger import log_autonomy, log_error
+from backend.autonomy.activity_tracker import ActivityTracker
+from backend.autonomy.autonomy_policy import AutonomyLevel, DEFAULT_LEVEL
+from backend.autonomy.decision_engine import DecisionEngine, DecisionOutcome
+from backend.autonomy.suggestion_engine import SuggestionEngine
+from backend.core.logger import log_autonomy, log_error
 
 DEDUP_WINDOW_S = 300.0   # 5 min: same suggestion text won't repeat within this window
 MAX_PENDING    = 5       # max suggestions queued at any time
@@ -95,7 +95,7 @@ class AutonomyManager:
     async def _auto_execute(self, suggestion, session_id: str) -> None:
         """Execute a suggestion through the orchestrator (NOT directly)."""
         try:
-            from core.orchestrator import get_orchestrator  # noqa: PLC0415
+            from backend.core.orchestrator import get_orchestrator  # noqa: PLC0415
             orchestrator = get_orchestrator()
             log_autonomy(
                 "autonomy_auto_execute",

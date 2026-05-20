@@ -8,25 +8,29 @@ from pathlib import Path
 
 router = APIRouter()
 
-STATIC_DIR = Path(__file__).parent.parent / "static"
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+FRONTEND_DIR = BACKEND_DIR.parent / "frontend"
+STATIC_DIR = BACKEND_DIR / "static"
 
 
 @router.get("/", response_class=HTMLResponse)
 @router.get("/dashboard", response_class=HTMLResponse)
 async def serve_dashboard():
-    """Serve main dashboard HTML."""
-    index_path = STATIC_DIR / "index.html"
+    """Serve main dashboard HTML from frontend/index.html."""
+    index_path = FRONTEND_DIR / "index.html"
+    if not index_path.exists():
+        index_path = STATIC_DIR / "index.html"
     if not index_path.exists():
         return """
         <html>
             <head><title>JARVIS Dashboard</title></head>
             <body>
                 <h1>Dashboard not configured</h1>
-                <p>Please configure static files in backend/static/</p>
+                <p>Please configure static files in frontend/ or backend/static/</p>
             </body>
         </html>
         """
-    return FileResponse(index_path)
+    return FileResponse(str(index_path))
 
 
 @router.get("/api/frontend/config")

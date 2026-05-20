@@ -12,7 +12,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from config import get_config
+from backend.config import get_config
 
 cfg = get_config()
 
@@ -72,8 +72,11 @@ def _build_logger() -> logging.Logger:
 _logger = _build_logger()
 
 
-def _log(log_level: int, msg: str, category: LogCategory, **extra: Any) -> None:
-    # Strip 'level' from extra to avoid collision with logging internals
+def _log(log_level: int, msg: str, _category: LogCategory, **extra: Any) -> None:
+    category = extra.pop("category", _category)
+    if not isinstance(category, LogCategory):
+        category = _category
+    # Strip reserved keys from extra to avoid collision with logging internals
     extra.pop("level", None)
     record = logging.LogRecord(
         name="jarvis",

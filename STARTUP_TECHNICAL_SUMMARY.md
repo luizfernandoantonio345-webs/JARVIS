@@ -15,7 +15,7 @@ Created multiple startup methods for manual execution:
 ### Option 1: Command Prompt (cmd.exe)
 ```cmd
 cd C:\Users\cibernetico\JARVIS
-RUN_START_JARVIS.bat
+start_jarvis.bat
 ```
 
 ### Option 2: PowerShell 5.x (Windows PowerShell)
@@ -29,7 +29,7 @@ C:\Users\cibernetico\JARVIS\.venv\Scripts\python.exe C:\Users\cibernetico\JARVIS
 ```
 
 ## Files Created
-1. **RUN_START_JARVIS.bat** - Simple batch wrapper
+1. **start_jarvis.bat** - Script oficial de inicializacao
 2. **start_jarvis.ps1** - PowerShell 5.x launcher script  
 3. **STARTUP_INSTRUCTIONS.md** - Detailed manual startup guide
 
@@ -42,8 +42,8 @@ C:\Users\cibernetico\JARVIS\.venv\Scripts\python.exe C:\Users\cibernetico\JARVIS
   - Reports status
 
 ### Alternative Launchers
-- **start_jarvis_v2.bat** - Batch-based launcher
-- **start_jarvis.bat** - Simple batch script (opens browser)
+- **start_jarvis.ps1** - Launcher PowerShell alternativo
+- **launch_jarvis.py** - Launcher Python alternativo
 
 ### Backend Implementations
 - **backend/main.py** - Full JARVIS backend with all features

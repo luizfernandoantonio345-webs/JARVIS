@@ -7,10 +7,11 @@ echo ======================================================
 cd /d "%~dp0"
 
 set BACKEND=http://localhost:8000
-set OLLAMA=http://192.168.0.106:11434
+set OLLAMA=%JARVIS_OLLAMA_URL%
+if "%OLLAMA%"=="" set OLLAMA=http://localhost:11434
 
 echo.
-echo [1/3] Verificando Ollama remoto...
+echo [1/3] Verificando Ollama...
 curl -s --connect-timeout 5 "%OLLAMA%/api/tags" >nul 2>&1
 if %errorlevel%==0 (
     echo   [OK] Ollama acessivel em %OLLAMA%

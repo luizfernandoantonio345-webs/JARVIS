@@ -10,6 +10,11 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from backend.config import get_config
 
+# Circuit breaker — if Ollama failed recently, skip and fail fast
+_CIRCUIT_OPEN = False
+_CIRCUIT_OPEN_AT: float = 0.0
+_CIRCUIT_COOLDOWN = 30.0  # seconds before retrying after failure
+
 logger = logging.getLogger(__name__)
 
 # Compact system prompt for local/CPU inference — keeps token count minimal
@@ -46,16 +51,27 @@ def _build_session(pool_connections: int = 6, pool_maxsize: int = 6) -> requests
 class JarvisAIClient:
     def __init__(self):
         cfg = get_config()
-        self.ollama_url = cfg.ollama_url
-        self.model = cfg.model
+        # Usar 127.0.0.1 em vez de localhost para evitar duplo-timeout IPv6/IPv4 no Windows
+        self.ollama_url = cfg.ollama_url.replace("localhost", "127.0.0.1")
+        self.model = self._normalize_model(cfg.model)
         self.embedding_model = cfg.embedding_model
         self.timeout = cfg.timeout
         self.max_retries = cfg.max_retries
-        connect_timeout = 10
-        per_attempt_read_timeout = max(60, self.timeout)
+        # Ollama builds can differ: some setups reject /api/chat with 404.
+        # After first 404, prefer /api/generate directly to avoid repeated failures.
+        self._chat_supported: bool = True
+        connect_timeout = 3
+        # Ollama pode demorar no primeiro token durante cold start do modelo.
+        per_attempt_read_timeout = max(35, self.timeout)
         self.request_timeout = (connect_timeout, per_attempt_read_timeout)
-        self.health_timeout = (5, 15)
+        self.health_timeout = (3, 5)
         self._session = _build_session(pool_connections=6, pool_maxsize=6)
+
+    @staticmethod
+    def _normalize_model(model: str) -> str:
+        if model in {"phi", "phi:latest"}:
+            return "tinyllama:latest"
+        return model
 
     def _sleep_before_retry(self, attempt: int) -> None:
         delay = min(2 ** attempt, 8)
@@ -63,6 +79,12 @@ class JarvisAIClient:
 
     def _log_request_exception(self, endpoint: str, exc: Exception) -> None:
         logger.warning("Ollama request to %s failed: %s", endpoint, exc)
+
+    def _offline_message(self) -> str:
+        return (
+            f"JARVIS offline - Ollama nao responde em {self.ollama_url}. "
+            "Verifique se o servico esta rodando e se JARVIS_OLLAMA_URL esta correto."
+        )
 
     @staticmethod
     def _compress_for_local(messages: List[Dict]) -> List[Dict]:
@@ -124,6 +146,14 @@ class JarvisAIClient:
             )
         except RequestException as exc:
             self._log_request_exception(endpoint, exc)
+            # Open circuit immediately on read timeout — same host won't answer generate either
+            global _CIRCUIT_OPEN, _CIRCUIT_OPEN_AT
+            _CIRCUIT_OPEN = True
+            _CIRCUIT_OPEN_AT = time.time()
+            return None
+        if response.status_code == 404:
+            self._chat_supported = False
+            logger.warning("Chat endpoint unavailable (404) — switching to /api/generate")
             return None
         if response.status_code != 200:
             logger.warning("Chat request failed: %s (%s)", response.status_code, endpoint)
@@ -144,6 +174,7 @@ class JarvisAIClient:
                     "prompt": self._messages_to_prompt(messages),
                     "stream": False,
                     "keep_alive": "30m",
+                    "options": {"num_predict": 128, "temperature": 0.3},
                 },
                 timeout=self.request_timeout,
             )
@@ -173,61 +204,98 @@ class JarvisAIClient:
             return {"ok": False, "error": str(e)}
 
     def call(self, messages: List[Dict], stream=False) -> str:
+        global _CIRCUIT_OPEN, _CIRCUIT_OPEN_AT
+        # Circuit breaker: skip if Ollama recently failed
+        if _CIRCUIT_OPEN:
+            if time.time() - _CIRCUIT_OPEN_AT < _CIRCUIT_COOLDOWN:
+                return self._offline_message()
+            else:
+                _CIRCUIT_OPEN = False
+                logger.info("Circuit breaker reset — retrying Ollama")
+
         messages = self._compress_for_local(messages)
-        payload = {"model": self.model, "messages": messages, "stream": stream, "keep_alive": "30m"}
+        payload = {"model": self.model, "messages": messages, "stream": stream, "keep_alive": "30m", "options": {"num_predict": 256, "temperature": 0.3}}
         for attempt in range(self.max_retries):
             try:
-                content = self._post_chat(payload)
-                if content:
-                    return content
-
-                logger.warning("Attempt %s: /api/chat fallback to /api/generate", attempt + 1)
+                content = None
+                if self._chat_supported:
+                    content = self._post_chat(payload)
+                    if content:
+                        _CIRCUIT_OPEN = False
+                        return content
+                    # If circuit just opened inside _post_chat, skip generate and bail
+                    if _CIRCUIT_OPEN:
+                        break
+                    logger.warning("Attempt %s: /api/chat fallback to /api/generate", attempt + 1)
                 content = self._post_generate(messages)
                 if content:
+                    _CIRCUIT_OPEN = False
                     return content
             except Exception as e:
                 logger.warning("Attempt %s error: %s", attempt + 1, e)
             if attempt < self.max_retries - 1:
                 self._sleep_before_retry(attempt)
 
-        # Final fallback: try tinyllama
-        logger.warning("All attempts with %s failed — trying fallback model %s", self.model, FALLBACK_MODEL)
-        try:
-            fallback_payload = {"model": FALLBACK_MODEL, "messages": messages, "stream": False, "keep_alive": "30m"}
-            content = self._post_chat(fallback_payload)
-            if content:
-                return content
-            content = self._post_generate(messages, model=FALLBACK_MODEL)
-            if content:
-                return content
-        except Exception as e:
-            logger.warning("Fallback model %s also failed: %s", FALLBACK_MODEL, e)
-
-        return "Erro: Não foi possível conectar ao serviço de IA. Verifique a configuração do Ollama."
+        # Skip tinyllama fallback — same dead host, wastes another 8s
+        # Open circuit — all models failed
+        _CIRCUIT_OPEN = True
+        _CIRCUIT_OPEN_AT = time.time()
+        return self._offline_message()
 
     def stream(self, messages: List[Dict]) -> Generator[str, None, None]:
         messages = self._compress_for_local(messages)
-        payload = {"model": self.model, "messages": messages, "stream": True, "keep_alive": "30m"}
+        payload = {"model": self.model, "messages": messages, "stream": True, "keep_alive": "30m", "options": {"num_predict": 256, "temperature": 0.3}}
         try:
-            response = self._session.post(
-                f"{self.ollama_url}/api/chat",
-                json=payload,
-                timeout=self.request_timeout,
-                stream=True,
-            )
-            if response.status_code == 200:
-                for line in response.iter_lines():
-                    if line:
-                        try:
-                            data = json.loads(line.decode('utf-8'))
-                            if 'message' in data and 'content' in data['message']:
-                                yield data['message']['content']
-                            if data.get('done', False):
-                                break
-                        except Exception:
-                            pass
-            else:
-                yield f"Erro: Status {response.status_code}"
+            if self._chat_supported:
+                response = self._session.post(
+                    f"{self.ollama_url}/api/chat",
+                    json=payload,
+                    timeout=self.request_timeout,
+                    stream=True,
+                )
+                if response.status_code == 200:
+                    for line in response.iter_lines():
+                        if line:
+                            try:
+                                data = json.loads(line.decode('utf-8'))
+                                if 'message' in data and 'content' in data['message']:
+                                    yield data['message']['content']
+                                if data.get('done', False):
+                                    break
+                            except Exception:
+                                pass
+                    return
+                if response.status_code == 404:
+                    self._chat_supported = False
+                logger.warning("stream /api/chat failed: %s — fallback to /api/generate", response.status_code)
+                gen_payload = {
+                    "model": self.model,
+                    "prompt": self._messages_to_prompt(messages),
+                    "stream": True,
+                    "keep_alive": "30m",
+                    "options": {"num_predict": 128, "temperature": 0.3},
+                }
+                gen_resp = self._session.post(
+                    f"{self.ollama_url}/api/generate",
+                    json=gen_payload,
+                    timeout=self.request_timeout,
+                    stream=True,
+                )
+                if gen_resp.status_code != 200:
+                    yield f"Erro: Status {gen_resp.status_code}"
+                    return
+                for line in gen_resp.iter_lines():
+                    if not line:
+                        continue
+                    try:
+                        data = json.loads(line.decode('utf-8'))
+                        token = data.get('response', '')
+                        if token:
+                            yield token
+                        if data.get('done', False):
+                            break
+                    except Exception:
+                        continue
         except Exception as e:
             yield f"Erro: {str(e)}"
 
@@ -243,18 +311,46 @@ class JarvisAIClient:
             "messages": messages,
             "stream": True,
             "keep_alive": "30m",
-            "options": {"temperature": 0.7, "num_predict": 512}
+            "options": {"temperature": 0.7, "num_predict": 256}
         }
         full = []
         try:
-            async with httpx.AsyncClient(timeout=90) as client:
-                async with client.stream("POST", url, json=payload) as resp:
-                    async for line in resp.aiter_lines():
+            async with httpx.AsyncClient(timeout=35) as client:
+                if self._chat_supported:
+                    async with client.stream("POST", url, json=payload) as resp:
+                        if resp.status_code == 200:
+                            async for line in resp.aiter_lines():
+                                if not line.strip():
+                                    continue
+                                try:
+                                    obj = json.loads(line)
+                                    token = obj.get("message", {}).get("content", "")
+                                    if token:
+                                        full.append(token)
+                                        await on_token(token)
+                                    if obj.get("done"):
+                                        break
+                                except Exception:
+                                    continue
+                            return "".join(full)
+                        if resp.status_code == 404:
+                            self._chat_supported = False
+                        logger.warning("stream_chat /api/chat failed: %s — fallback to /api/generate", resp.status_code)
+
+                gen_payload = {
+                    "model": self.model,
+                    "prompt": self._messages_to_prompt(messages),
+                    "stream": True,
+                    "keep_alive": "30m",
+                    "options": {"num_predict": 128, "temperature": 0.7},
+                }
+                async with client.stream("POST", f"{self.ollama_url}/api/generate", json=gen_payload) as gen_resp:
+                    async for line in gen_resp.aiter_lines():
                         if not line.strip():
                             continue
                         try:
                             obj = json.loads(line)
-                            token = obj.get("message", {}).get("content", "")
+                            token = obj.get("response", "")
                             if token:
                                 full.append(token)
                                 await on_token(token)
@@ -268,6 +364,9 @@ class JarvisAIClient:
         return "".join(full)
 
     def embed(self, text: str) -> List[float]:
+        global _CIRCUIT_OPEN, _CIRCUIT_OPEN_AT
+        if _CIRCUIT_OPEN and time.time() - _CIRCUIT_OPEN_AT < _CIRCUIT_COOLDOWN:
+            return []
         payload = {"model": self.embedding_model, "prompt": text}
         try:
             response = self._session.post(
@@ -282,6 +381,8 @@ class JarvisAIClient:
                 logger.warning(f"Embed failed: {response.status_code}")
         except Exception as e:
             logger.warning(f"Embed error: {e}")
+            _CIRCUIT_OPEN = True
+            _CIRCUIT_OPEN_AT = time.time()
         return []
 
 _client: JarvisAIClient | None = None
@@ -291,3 +392,29 @@ def get_ai_client() -> JarvisAIClient:
     if _client is None:
         _client = JarvisAIClient()
     return _client
+
+
+def is_ollama_available() -> bool:
+    """Return Ollama availability and auto-recover the circuit when service is back."""
+    global _CIRCUIT_OPEN, _CIRCUIT_OPEN_AT
+
+    if not _CIRCUIT_OPEN:
+        return True
+
+    # If cooldown elapsed, allow normal retry path.
+    if time.time() - _CIRCUIT_OPEN_AT >= _CIRCUIT_COOLDOWN:
+        _CIRCUIT_OPEN = False
+        return True
+
+    # While still in cooldown, do a lightweight probe so we can recover early.
+    try:
+        cfg = get_config()
+        probe_url = cfg.ollama_url.replace("localhost", "127.0.0.1") + "/api/tags"
+        resp = requests.get(probe_url, timeout=(1, 2))
+        if resp.status_code == 200:
+            _CIRCUIT_OPEN = False
+            return True
+    except Exception:
+        pass
+
+    return False

@@ -1,11 +1,10 @@
 import shutil
 import time
 import logging
+import asyncio
 
+import httpx
 from fastapi import APIRouter
-
-from services.llm_service import get_model_info
-from services.cache_service import cache_stats
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -13,39 +12,75 @@ log = logging.getLogger(__name__)
 _START_TIME = time.time()
 
 
+async def _check_ollama_fast(url: str, timeout: float = 1.0) -> bool:
+    """Check rápido com timeout curto — não trava o health"""
+    try:
+        clean_url = url.replace("localhost", "127.0.0.1")
+        async with httpx.AsyncClient(timeout=httpx.Timeout(connect=0.5, read=0.9)) as c:
+            r = await c.get(f"{clean_url}/api/tags")
+            return r.status_code == 200
+    except Exception:
+        return False
+
+
 @router.get("/health")
-def health_check():
-    uptime_s = int(time.time() - _START_TIME)
+async def health_check():
+    from backend.config import get_config
+    from backend.runtime.watchdog import get_watchdog
+
+    cfg = get_config()
+    wd = get_watchdog()
+    uptime_s = wd.uptime()
     hours, rem = divmod(uptime_s, 3600)
     mins, secs = divmod(rem, 60)
 
-    model_info = {}
+    ollama_ok = False
     try:
-        model_info = get_model_info()
-    except Exception as exc:
-        log.debug("[routes.health] suppressed exception", exc_info=exc)
-        pass
+        ollama_ok = await asyncio.wait_for(
+            _check_ollama_fast(cfg.ollama_url),
+            timeout=1.6,
+        )
+    except Exception:
+        ollama_ok = False
+
+    model_info = {
+        "provider": "ollama",
+        "local_model": cfg.local_model,
+        "model": cfg.local_model,
+        "url": cfg.ollama_url,
+        "status": "ok" if ollama_ok else "error",
+        "models": [],
+        "openai_available": bool(getattr(cfg, "openai_api_key", None)),
+        "claude_model": None,
+        "openai_model": None,
+        "complex_threshold": getattr(cfg, "complex_threshold", 0.45),
+    }
 
     cache_info = {}
     try:
+        from services.cache_service import cache_stats
         cache_info = cache_stats()
-    except Exception as exc:
-        log.debug("[routes.health] suppressed exception", exc_info=exc)
+    except Exception:
         pass
 
+    components = {
+        "api": True,
+        "ollama": ollama_ok,
+        "voice_guard": True,
+        "domain_detector": True,
+        "semantic_memory": True,
+    }
+    degraded = [k for k, v in components.items() if not v]
+
     return {
-        "status": "ok",
+        "status": "ok" if not degraded else "degraded",
         "service": "JARVIS API",
-        "version": "3.0.0",
+        "version": "6.0",
         "uptime": f"{hours:02d}:{mins:02d}:{secs:02d}",
+        "uptime_seconds": uptime_s,
         "docker_available": shutil.which("docker") is not None,
         "models": model_info,
         "cache": cache_info,
-        "components": {
-            "voice_guard": True,
-            "domain_detector": True,
-            "semantic_memory": True,
-            "document_processor": True,
-            "expert_system": True,
-        },
+        "components": components,
+        "degraded": degraded,
     }

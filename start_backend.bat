@@ -1,9 +1,14 @@
 @echo off
 title JARVIS Backend
 color 0B
+
+if "%JARVIS_OLLAMA_URL%"=="" set "JARVIS_OLLAMA_URL=http://localhost:11434"
+if "%JARVIS_MODEL%"=="" set "JARVIS_MODEL=qwen2:0.5b"
+
 echo ======================================================
-echo   JARVIS v5.2 — Backend FastAPI + Ollama Remoto
-echo   Ollama: http://192.168.0.106:11434
+echo   JARVIS v5.2 - Backend FastAPI (PC1-first)
+echo   Ollama: %JARVIS_OLLAMA_URL%
+echo   Modelo: %JARVIS_MODEL%
 echo   API:    http://localhost:8000
 echo   WS:     ws://localhost:8000/ws/jarvis
 echo ======================================================

@@ -84,7 +84,6 @@ def _get_profile_summary() -> dict:
 
 def _get_autonomy_status() -> dict:
     try:
-        from autonomy.controller import get_autonomy_controller
         return get_autonomy_controller().status_dict()
     except Exception:
         return {"state": "unknown"}

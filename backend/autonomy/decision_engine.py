@@ -11,12 +11,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
-from autonomy.autonomy_policy import AutonomyLevel
-from autonomy.safety_gate import SafetyGate
-from autonomy.suggestion_engine import Suggestion
-from core.logger import log_autonomy
-from core.risk_engine import RiskDecision, evaluate_risk
-from intents.schemas import Intent
+from backend.autonomy.autonomy_policy import AutonomyLevel
+from backend.autonomy.safety_gate import SafetyGate
+from backend.autonomy.suggestion_engine import Suggestion
+from backend.core.logger import log_autonomy
+from backend.core.risk_engine import RiskDecision, evaluate_risk
+from backend.intents.schemas import Intent
 
 
 class DecisionOutcome(str, Enum):

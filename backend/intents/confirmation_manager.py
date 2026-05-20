@@ -5,7 +5,7 @@ import logging
 import uuid
 from datetime import datetime, timedelta
 
-from intents.schemas import ConfirmationRequest, Intent
+from backend.intents.schemas import ConfirmationRequest, Intent
 
 log = logging.getLogger(__name__)
 _pending: dict[str, asyncio.Future[bool]] = {}
