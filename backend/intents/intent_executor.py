@@ -4,11 +4,18 @@ import asyncio
 import logging
 from datetime import datetime
 
-from backend.intents.confirmation_manager import request_confirmation
-from backend.intents.intent_registry import get_handler
-from backend.intents.risk_evaluator import evaluate_risk
-from backend.intents.schemas import Intent, IntentResult
-from backend.core.safety_gate import Action, safety_gate
+try:
+    from intents.confirmation_manager import request_confirmation
+    from intents.intent_registry import get_handler
+    from intents.risk_evaluator import evaluate_risk
+    from intents.schemas import Intent, IntentResult
+    from core.safety_gate import Action, safety_gate
+except ImportError:
+    from .confirmation_manager import request_confirmation
+    from .intent_registry import get_handler
+    from .risk_evaluator import evaluate_risk
+    from .schemas import Intent, IntentResult
+    from core.safety_gate import Action, safety_gate
 
 log = logging.getLogger(__name__)
 STEP_TIMEOUT_SECONDS = 10.0

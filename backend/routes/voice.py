@@ -32,7 +32,7 @@ class ThresholdRequest(BaseModel):
 async def enroll(samples: list[UploadFile] = File(...), threshold: float = Form(0.82)):
     audio_samples = [await sample.read() for sample in samples]
     try:
-        profile = await enroll_voice(audio_samples, threshold=threshold)
+        profile = enroll_voice(audio_samples, threshold=threshold)
     except ValueError as exc:
         raise HTTPException(400, str(exc))
     return {"enrolled": True, "samples": profile.samples_count, "threshold": profile.threshold}
@@ -40,7 +40,7 @@ async def enroll(samples: list[UploadFile] = File(...), threshold: float = Form(
 
 @router.post("/verify")
 async def verify(audio: UploadFile = File(...)):
-    result = await authenticate_voice(await audio.read())
+    result = authenticate_voice(await audio.read())
     return result
 
 

@@ -38,8 +38,8 @@ from typing import Any
 
 import structlog
 
-from autodev.code_generator import GeneratedFile
-from services.code_validator import PythonValidator
+from backend.autodev.code_generator import GeneratedFile
+from backend.services.code_validator import PythonValidator
 
 log = structlog.get_logger(__name__)
 

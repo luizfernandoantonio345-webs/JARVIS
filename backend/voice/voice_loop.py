@@ -74,6 +74,22 @@ async def speak_assistant(text: str, *, tail_s: float = 0.35) -> str:
     return await _tts_state.run_tts(filtered, tail_s=tail_s)
 
 
+def _detect_speech_energy(audio_chunk, threshold: float = 0.015) -> float:
+    """
+    Detect speech using RMS energy.
+    Returns confidence 0.0-1.0 (0=silence, 1=loud speech).
+    """
+    np = importlib.import_module("numpy")
+    audio_array = np.asarray(audio_chunk).flatten().astype(np.float32)
+    if len(audio_array) == 0:
+        return 0.0
+    
+    rms = float(np.sqrt(np.mean(audio_array ** 2)))
+    # Normalize confidence: 0-2x threshold = 0-1.0
+    confidence = min(1.0, max(0.0, rms / (threshold * 2)))
+    return confidence
+
+
 def capture_audio_realtime(duration: float, sample_rate: int = 16000):
     """Capture microphone audio and return a mono float32 numpy array."""
     np = importlib.import_module("numpy")

@@ -223,8 +223,9 @@ body.alert #jt{text-shadow:0 0 8px rgba(255,42,74,0.9),0 0 25px rgba(255,42,74,0
 <div id="hint">[ FALE UM COMANDO — JARVIS ESTÁ OUVINDO ]</div>
 <div id="spark"><svg class="spksvg" width="16" height="16" viewBox="0 0 20 20"><defs><filter id="sf"><feGaussianBlur stdDeviation="1.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><path d="M10 0L11.9 8.1L20 10L11.9 11.9L10 20L8.1 11.9L0 10L8.1 8.1Z" fill="rgba(255,255,255,0.52)" filter="url(#sf)"/></svg></div>
 <script>
-const WS_URL  = 'ws://localhost:8000/ws/jarvis';
-const API_URL = 'http://localhost:8000';
+const _h = window.location.hostname || 'localhost';
+const WS_URL  = `ws://${_h}:8000/ws/jarvis`;
+const API_URL = `http://${_h}:8000`;
 const cvStars=document.getElementById('c-stars'),cxS=cvStars.getContext('2d');
 const cvRings=document.getElementById('c-rings'),cxR=cvRings.getContext('2d');
 const cvOrb=document.getElementById('c-orb'),cxO=cvOrb.getContext('2d');
@@ -517,9 +518,54 @@ function initSpeech(){
   recognition.onend=()=>{setTimeout(()=>{try{recognition.start()}catch(e){}},250)};
   try{recognition.start()}catch(e){}
 }
+// ── VOICE AUDIO CAPTURE & PLAYBACK ──
+let mediaRecorder=null,audioChunks=[],audioStream=null,isRecording=false;
+async function startRecording(){
+  try{
+    if(!audioStream)audioStream=await navigator.mediaDevices.getUserMedia({audio:true});
+    const ac=new(window.AudioContext||window.webkitAudioContext)();
+    mediaRecorder=new MediaRecorder(audioStream);
+    audioChunks=[];
+    mediaRecorder.ondataavailable=(e)=>audioChunks.push(e.data);
+    mediaRecorder.onstart=()=>{isRecording=true;document.getElementById('hint').textContent='[ ⏺️  GRAVANDO... ]';setSpeaking(false);};
+    mediaRecorder.onstop=async()=>{isRecording=false;const audioBlob=new Blob(audioChunks,{type:'audio/wav'});await sendVoiceCommand(audioBlob);};
+    mediaRecorder.start();
+    setTimeout(()=>{if(isRecording)stopRecording();},12000);
+  }catch(e){console.error('Erro ao gravar:',e);document.getElementById('hint').textContent='[ ✗ ERRO MICROFONE ]';}
+}
+function stopRecording(){
+  if(mediaRecorder&&isRecording){
+    mediaRecorder.stop();
+    document.getElementById('hint').textContent='[ ⚙️  PROCESSANDO... ]';
+  }
+}
+async function sendVoiceCommand(audioBlob){
+  try{
+    const fd=new FormData();
+    fd.append('audio',audioBlob,'command.wav');
+    fd.append('session_id','voice_v2');
+    const r=await fetch(`${API_URL}/voice/command`,{method:'POST',body:fd});
+    if(!r.ok){showResponse('❌ Erro de voz: '+r.status);document.getElementById('hint').textContent='[ ✗ ERRO ]';return;}
+    const d=await r.json();
+    if(d.audio_path){await playVoiceResponse(d.audio_path);showResponse(d.response||'Processado');}
+    else showResponse(d.response||'Comando processado');
+    document.getElementById('hint').textContent='[ JARVIS PRONTO ]';
+  }catch(e){console.error('Erro enviando áudio:',e);showResponse('❌ Erro de conexão');document.getElementById('hint').textContent='[ ✗ ERRO ]';}
+}
+async function playVoiceResponse(audioPath){
+  try{
+    setSpeaking(true,5000);
+    const url=`${API_URL}${audioPath.startsWith('/')?'':'/'} ${audioPath}`;
+    const audio=new Audio();
+    audio.onended=()=>setSpeaking(false);
+    audio.onerror=()=>{console.error('Erro tocando áudio');setSpeaking(false);};
+    audio.src=url;
+    await audio.play();
+  }catch(e){console.error('Erro ao tocar áudio:',e);setSpeaking(false);}
+}
 document.addEventListener('keydown',e=>{
   if(e.target===cmdText)return;
-  if(e.key===' '){e.preventDefault();cmdText.value='';cmdInput.classList.toggle('show');if(cmdInput.classList.contains('show'))cmdText.focus();return}
+  if(e.key===' '){e.preventDefault();if(isRecording){stopRecording();}else{startRecording();showAll();}return}
   if(e.key==='Escape'){cmdInput.classList.remove('show');hideAll();setSpeaking(false);return}
   if(e.key==='a'||e.key==='A'){setAlert(!alertMode);return}
   if(e.key>='1'&&e.key<='4'){const i=parseInt(e.key)-1;const el=document.getElementById(WIDS[i]);if(el?.classList.contains('show'))closeW(i);else{showW(i);setSpeaking(true,2500)};return}

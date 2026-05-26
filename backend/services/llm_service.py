@@ -63,7 +63,29 @@ _llm_cache: OrderedDict[str, str] = OrderedDict()
 
 
 def _cache_key(messages: list[dict], force_local: bool, force_api: bool) -> str:
-    return json.dumps({"m": messages, "l": force_local, "a": force_api}, sort_keys=True)
+    """
+    Build a stable, JSON-serializable cache key from messages.
+    Fallbacks to a SHA256 hash if serialization fails.
+    """
+    try:
+        safe_msgs = []
+        for m in messages:
+            role = m.get("role") if isinstance(m.get("role"), str) else str(m.get("role") or "")
+            content = m.get("content")
+            if isinstance(content, str):
+                content_safe = content
+            else:
+                try:
+                    content_safe = json.dumps(content, sort_keys=True, ensure_ascii=False)
+                except Exception:
+                    content_safe = str(content)
+            safe_msgs.append({"role": role, "content": content_safe})
+        key = json.dumps({"m": safe_msgs, "l": force_local, "a": force_api}, sort_keys=True, ensure_ascii=False)
+        return key
+    except Exception:
+        # Last-resort: deterministic hash
+        raw = str([(m.get("role"), str(m.get("content"))) for m in messages])
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 def _cache_get(key: str) -> str | None:

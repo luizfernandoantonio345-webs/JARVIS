@@ -5,7 +5,7 @@ import time
 from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from backend.actions.save_memory import load_user_memory
+from actions.save_memory import load_user_memory
 from services.chat_service import process_message, process_message_stream
 from core.intent_classifier import get_intent_classifier
 from core.telemetry import trace_span, record_cache_hit, record_llm_latency
@@ -15,8 +15,8 @@ from services.memory_service import get_memory, clear_memory, get_session_list
 from services.llm_service import get_model_info
 from services.llm_service import call_llm
 from services.session_store import SYSTEM_PROMPT
-from backend.utils.env import env_flag
-from backend.config import get_config
+from utils.env import env_flag
+from config import get_config
 
 router = APIRouter()
 
@@ -49,7 +49,7 @@ def chat(request: ChatRequest):
     # Fast-path: skip all expensive work if Ollama is down and no API keys
     from services.llm_service import _ANTHROPIC_KEY, _OPENAI_KEY
     if not _ANTHROPIC_KEY and not _OPENAI_KEY:
-        from backend.ai.client import is_ollama_available
+        from ai.client import is_ollama_available
         if not is_ollama_available():
             cfg = get_config()
             return ChatResponse(

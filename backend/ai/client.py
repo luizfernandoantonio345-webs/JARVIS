@@ -62,7 +62,8 @@ class JarvisAIClient:
         self._chat_supported: bool = True
         connect_timeout = 3
         # Ollama pode demorar no primeiro token durante cold start do modelo.
-        per_attempt_read_timeout = max(35, self.timeout)
+        # Aumentado para 120s para tolerar modelos pequenos em hardware limitado (Qwen 0.5B pode levar 40-50s no primeira vez)
+        per_attempt_read_timeout = max(120, self.timeout)
         self.request_timeout = (connect_timeout, per_attempt_read_timeout)
         self.health_timeout = (3, 5)
         self._session = _build_session(pool_connections=6, pool_maxsize=6)
@@ -174,7 +175,7 @@ class JarvisAIClient:
                     "prompt": self._messages_to_prompt(messages),
                     "stream": False,
                     "keep_alive": "30m",
-                    "options": {"num_predict": 128, "temperature": 0.3},
+                    "options": {"num_predict": 64, "temperature": 0.3},
                 },
                 timeout=self.request_timeout,
             )
@@ -214,7 +215,7 @@ class JarvisAIClient:
                 logger.info("Circuit breaker reset — retrying Ollama")
 
         messages = self._compress_for_local(messages)
-        payload = {"model": self.model, "messages": messages, "stream": stream, "keep_alive": "30m", "options": {"num_predict": 256, "temperature": 0.3}}
+        payload = {"model": self.model, "messages": messages, "stream": stream, "keep_alive": "30m", "options": {"num_predict": 64, "temperature": 0.3}}
         for attempt in range(self.max_retries):
             try:
                 content = None
@@ -243,8 +244,16 @@ class JarvisAIClient:
         return self._offline_message()
 
     def stream(self, messages: List[Dict]) -> Generator[str, None, None]:
+        global _CIRCUIT_OPEN, _CIRCUIT_OPEN_AT
+        if _CIRCUIT_OPEN:
+            if time.time() - _CIRCUIT_OPEN_AT < _CIRCUIT_COOLDOWN:
+                yield self._offline_message()
+                return
+            else:
+                _CIRCUIT_OPEN = False
+                logger.info("Circuit breaker reset — retrying Ollama (stream)")
         messages = self._compress_for_local(messages)
-        payload = {"model": self.model, "messages": messages, "stream": True, "keep_alive": "30m", "options": {"num_predict": 256, "temperature": 0.3}}
+        payload = {"model": self.model, "messages": messages, "stream": True, "keep_alive": "30m", "options": {"num_predict": 64, "temperature": 0.3}}
         try:
             if self._chat_supported:
                 response = self._session.post(
@@ -273,7 +282,7 @@ class JarvisAIClient:
                     "prompt": self._messages_to_prompt(messages),
                     "stream": True,
                     "keep_alive": "30m",
-                    "options": {"num_predict": 128, "temperature": 0.3},
+                    "options": {"num_predict": 64, "temperature": 0.3},
                 }
                 gen_resp = self._session.post(
                     f"{self.ollama_url}/api/generate",
@@ -304,6 +313,15 @@ class JarvisAIClient:
         messages: List[Dict],
         on_token: Callable[[str], Awaitable[None]]
     ) -> str:
+        global _CIRCUIT_OPEN, _CIRCUIT_OPEN_AT
+        if _CIRCUIT_OPEN:
+            if time.time() - _CIRCUIT_OPEN_AT < _CIRCUIT_COOLDOWN:
+                msg = self._offline_message()
+                await on_token(msg)
+                return msg
+            else:
+                _CIRCUIT_OPEN = False
+                logger.info("Circuit breaker reset — retrying Ollama (stream_chat)")
         messages = self._compress_for_local(messages)
         url = f"{self.ollama_url}/api/chat"
         payload = {
@@ -311,7 +329,7 @@ class JarvisAIClient:
             "messages": messages,
             "stream": True,
             "keep_alive": "30m",
-            "options": {"temperature": 0.7, "num_predict": 256}
+            "options": {"temperature": 0.7, "num_predict": 64}
         }
         full = []
         try:
@@ -342,7 +360,7 @@ class JarvisAIClient:
                     "prompt": self._messages_to_prompt(messages),
                     "stream": True,
                     "keep_alive": "30m",
-                    "options": {"num_predict": 128, "temperature": 0.7},
+                    "options": {"num_predict": 64, "temperature": 0.7},
                 }
                 async with client.stream("POST", f"{self.ollama_url}/api/generate", json=gen_payload) as gen_resp:
                     async for line in gen_resp.aiter_lines():

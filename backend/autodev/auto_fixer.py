@@ -46,8 +46,8 @@ from typing import Any
 
 import structlog
 
-from services.llm_service import call_llm
-from autodev.validator import ValidationError
+from backend.services.llm_service import call_llm
+from backend.autodev.validator import ValidationError
 
 log = structlog.get_logger(__name__)
 

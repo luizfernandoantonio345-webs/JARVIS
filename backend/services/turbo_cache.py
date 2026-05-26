@@ -19,6 +19,7 @@ Performance targets:
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import threading
 import time
@@ -86,8 +87,24 @@ _exact_cache: OrderedDict[str, tuple[str, float]] = OrderedDict()
 
 
 def _exact_key(messages: list[dict]) -> str:
-    raw = str([(m.get("role"), m.get("content", "").strip().lower()) for m in messages])
-    return hashlib.sha256(raw.encode()).hexdigest()
+    parts = []
+    for m in messages:
+        role = m.get("role") or ""
+        content = m.get("content", "")
+        # Normalize content to a deterministic string
+        try:
+            if isinstance(content, dict):
+                content_str = json.dumps(content, sort_keys=True)
+            elif not isinstance(content, str):
+                content_str = str(content)
+            else:
+                content_str = content
+            content_str = content_str.strip().lower()
+        except Exception:
+            content_str = str(content)
+        parts.append((role, content_str))
+    raw = json.dumps(parts, ensure_ascii=False, sort_keys=True)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 def exact_cache_get(messages: list[dict]) -> str | None:

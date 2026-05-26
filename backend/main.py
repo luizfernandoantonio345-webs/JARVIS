@@ -24,7 +24,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 
 from schemas.ws_messages import idle_msg, speaking_msg, thinking_msg, error_msg
 from config import get_config
-from backend.utils.env import env_flag
+from utils.env import env_flag
 from core.logger import log_system, log_error
 
 
@@ -362,6 +362,14 @@ def _mount_routers() -> None:
     except Exception as e:
         log.warning("Computer router falhou: %s", e)
 
+    # Security compatibility aliases used by integration/security tests
+    try:
+        from routes.security_compat import router as security_compat_router  # type: ignore
+        app.include_router(security_compat_router, prefix="")
+        log.info("Security compatibility router carregado")
+    except Exception as e:
+        log.warning("Security compatibility router falhou: %s", e)
+
     # Jarvis multimodal chat
     try:
         from routes.jarvis import router as jarvis_router, tts_from_text  # type: ignore
@@ -460,6 +468,26 @@ async def startup():
         asyncio.create_task(wd.run(60))
         asyncio.create_task(collect_sys(30))
         await bus.emit("system.startup", {"version": "6.0"})
+
+        # ── Verify the configured model is actually installed in Ollama ──
+        try:
+            import httpx as _httpx
+            async with _httpx.AsyncClient(timeout=5) as _c:
+                _r = await _c.get(f"{cfg.ollama_url}/api/tags")
+                if _r.status_code == 200:
+                    _installed = [m["name"] for m in _r.json().get("models", [])]
+                    _model = cfg.model
+                    if not any(_model == m or _model.split(":")[0] == m.split(":")[0] for m in _installed):
+                        log.error(
+                            "[MODELO] '%s' NÃO está instalado no Ollama! "
+                            "Execute: ollama pull %s | Modelos disponíveis: %s",
+                            _model, _model, _installed or "(nenhum)"
+                        )
+                    else:
+                        log.info("[MODELO] '%s' OK ✓", _model)
+        except Exception as _me:
+            log.warning("[MODELO] Não foi possível verificar modelo: %s", _me)
+
         log.info("[OMEGA] Watchdog + Metrics + Experience inicializados")
     except Exception as e:
         log.warning("[OMEGA] Init parcial: %s", e)
@@ -539,7 +567,7 @@ async def startup():
         try:
             cfg = get_config()
             log.info("[WARMUP] Pré-carregando modelo %s no Ollama...", cfg.model)
-            from backend.ai.client import get_ai_client
+            from ai.client import get_ai_client
             client = get_ai_client()
             result = await asyncio.to_thread(
                 client._post_chat,
@@ -668,7 +696,7 @@ async def websocket(ws: WebSocket):
             current_ws = ws
 
             # Fast-path: if Ollama is dead and no API keys, skip orchestration entirely
-            from backend.ai.client import is_ollama_available
+            from ai.client import is_ollama_available
             from services.llm_service import _ANTHROPIC_KEY, _OPENAI_KEY
             if not _ANTHROPIC_KEY and not _OPENAI_KEY and not is_ollama_available():
                 ollama_url = get_config().ollama_url
@@ -687,6 +715,24 @@ async def websocket(ws: WebSocket):
                     await current_ws.send_json({"type": "token", "content": token})
                 except Exception as tok_err:
                     log.warning("[WS] token send failed: %s", tok_err)
+
+            # Keepalive task: sends "thinking" every 5s so the user sees progress
+            _thinking_stop = asyncio.Event()
+            async def _thinking_keepalive():
+                count = 0
+                try:
+                    while not _thinking_stop.is_set():
+                        await asyncio.sleep(5)
+                        if _thinking_stop.is_set():
+                            break
+                        count += 1
+                        try:
+                            await current_ws.send_json({"type": "thinking", "message": f"Processando... ({count * 5}s)"})
+                        except Exception:
+                            break
+                except asyncio.CancelledError:
+                    pass
+            _thinking_task = asyncio.create_task(_thinking_keepalive())
 
             try:
                 # FASE 3.2: Usar orquestrador para rotear e executar
@@ -735,8 +781,11 @@ async def websocket(ws: WebSocket):
                             await current_ws.send_json({"type": "token", "content": response_text})
                     except Exception as e3:
                         log.error("[WS] Todos os fallbacks falharam: %s", e3)
-                        response_text = "Erro ao processar. Verifique a conexão com Ollama."
+                        response_text = f"Erro ao processar: {e3}. Verifique se Ollama está rodando com: ollama list"
                         await current_ws.send_json({"type": "token", "content": response_text})
+
+            _thinking_stop.set()
+            _thinking_task.cancel()
 
             if response_text:
                 await current_ws.send_json({

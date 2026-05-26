@@ -38,9 +38,9 @@ from typing import Any
 
 import structlog
 
-from services.llm_service import call_llm
-from autodev.scaffolder import FileSpec, ProjectBlueprint
-from autodev.context_tracker import ProjectContext
+from backend.services.llm_service import call_llm
+from backend.autodev.scaffolder import FileSpec, ProjectBlueprint
+from backend.autodev.context_tracker import ProjectContext
 
 log = structlog.get_logger(__name__)
 

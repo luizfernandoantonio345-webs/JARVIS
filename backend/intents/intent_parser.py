@@ -11,9 +11,14 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from backend.intents.risk_evaluator import evaluate_risk
-from backend.intents.schemas import Intent
-from backend.services.llm_service import call_llm
+try:
+    from intents.risk_evaluator import evaluate_risk
+    from intents.schemas import Intent
+    from services.llm_service import call_llm
+except ImportError:
+    from .risk_evaluator import evaluate_risk
+    from .schemas import Intent
+    from ..services.llm_service import call_llm
 
 log = logging.getLogger(__name__)
 

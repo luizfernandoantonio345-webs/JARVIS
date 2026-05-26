@@ -49,14 +49,14 @@ from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 if TYPE_CHECKING:
-    from core.intent_engine import IntentModel
+    from backend.core.intent_engine import IntentModel
 
 import structlog
 
-from services.llm_service import call_llm
-from agents.agent_protocol import AgentMessage, FinalResult, MessageType, Task
-from agents.critic_agent import CriticAgent
-from agents.memory_agent import MemoryAgent
+from backend.services.llm_service import call_llm
+from backend.agents.agent_protocol import AgentMessage, FinalResult, MessageType, Task
+from backend.agents.critic_agent import CriticAgent
+from backend.agents.memory_agent import MemoryAgent
 
 log: structlog.BoundLogger = structlog.get_logger(__name__)
 

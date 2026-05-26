@@ -88,29 +88,6 @@ def _is_objective_llm(message: str) -> bool:
         log.warning("Objective LLM failed — default False")
         return False
 
-_OBJECTIVE_SYSTEM = """\
-Classify if the user message is a HIGH-LEVEL OBJECTIVE (True) or simple request (False).
-
-Objective examples: "Build a full stack app", "Analyze this repo and improve it", "Create a trading dashboard".
-
-Simple: "Explain Python", "Run this code".
-
-Reply ONLY 'True' or 'False'. No prose.\
-"""
-
-def _is_objective_llm(message: str) -> bool:
-    """LLM classify objective. force_local. Fallback False."""
-    messages = [
-        {"role": "system", "content": _OBJECTIVE_SYSTEM},
-        {"role": "user", "content": message},
-    ]
-    try:
-        raw = call_llm(messages, force_local=True)
-        return raw.strip().lower() == 'true'
-    except Exception:
-        log.warning("Objective LLM failed — default False")
-        return False
-
 # ── 3. LLM classification prompt ─────────────────────────────────────────────
 _SYSTEM_PROMPT = """\
 You are an intent classifier for an AI assistant. Classify the user message into EXACTLY ONE of:

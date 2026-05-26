@@ -45,8 +45,8 @@ from typing import Any
 
 import structlog
 
-from services import memory_service as mem
-from services.memory_service import (
+from backend.services import memory_service as mem
+from backend.services.memory_service import (
     save_memory,
     get_relevant_memory,
     set_preference,

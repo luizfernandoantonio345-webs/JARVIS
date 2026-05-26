@@ -44,8 +44,8 @@ from typing import Any, Callable
 
 import structlog
 
-from services.llm_service import call_llm
-from agents.agent_protocol import AgentMessage, MessageType, Task
+from backend.services.llm_service import call_llm
+from backend.agents.agent_protocol import AgentMessage, MessageType, Task
 
 log: structlog.BoundLogger = structlog.get_logger(__name__)
 

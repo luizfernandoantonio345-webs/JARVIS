@@ -12,11 +12,13 @@ log = logging.getLogger(__name__)
 _START_TIME = time.time()
 
 
-async def _check_ollama_fast(url: str, timeout: float = 1.0) -> bool:
+async def _check_ollama_fast(url: str, timeout: float = 0.8) -> bool:
     """Check rápido com timeout curto — não trava o health"""
     try:
         clean_url = url.replace("localhost", "127.0.0.1")
-        async with httpx.AsyncClient(timeout=httpx.Timeout(connect=0.5, read=0.9)) as c:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(timeout, connect=0.3, read=timeout, write=0.5, pool=0.3)
+        ) as c:
             r = await c.get(f"{clean_url}/api/tags")
             return r.status_code == 200
     except Exception:
@@ -38,7 +40,7 @@ async def health_check():
     try:
         ollama_ok = await asyncio.wait_for(
             _check_ollama_fast(cfg.ollama_url),
-            timeout=1.6,
+            timeout=1.2,
         )
     except Exception:
         ollama_ok = False

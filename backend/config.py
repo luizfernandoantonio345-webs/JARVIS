@@ -36,11 +36,11 @@ from pydantic import Field
 class JarvisConfig(BaseSettings):
     # LLM
     ollama_url:      str   = Field(default="http://localhost:11434")
-    model:           str   = Field(default="tinyllama:latest")
-    local_model:     str   = Field(default="tinyllama:latest")
-    fallback_model:  str   = Field(default="tinyllama:latest")
+    model:           str   = Field(default="phi:latest")
+    local_model:     str   = Field(default="phi:latest")
+    fallback_model:  str   = Field(default="phi:latest")
     embedding_model: str   = Field(default="nomic-embed-text")
-    timeout:         int   = Field(default=60)
+    timeout:         int   = Field(default=120)
     max_retries:     int   = Field(default=2)
 
     # External APIs
