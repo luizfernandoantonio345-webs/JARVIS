@@ -70,8 +70,8 @@ class JarvisAIClient:
 
     @staticmethod
     def _normalize_model(model: str) -> str:
-        if model in {"phi", "phi:latest"}:
-            return "tinyllama:latest"
+        # No normalization — use model as specified in config
+        # phi:latest is lightweight (~260MB) and preferred for resource-constrained systems
         return model
 
     def _sleep_before_retry(self, attempt: int) -> None:
@@ -175,7 +175,7 @@ class JarvisAIClient:
                     "prompt": self._messages_to_prompt(messages),
                     "stream": False,
                     "keep_alive": "30m",
-                    "options": {"num_predict": 64, "temperature": 0.3},
+                    "options": {"num_predict": 32, "num_ctx": 512, "temperature": 0.3},
                 },
                 timeout=self.request_timeout,
             )
@@ -215,7 +215,13 @@ class JarvisAIClient:
                 logger.info("Circuit breaker reset — retrying Ollama")
 
         messages = self._compress_for_local(messages)
-        payload = {"model": self.model, "messages": messages, "stream": stream, "keep_alive": "30m", "options": {"num_predict": 64, "temperature": 0.3}}
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "stream": stream,
+            "keep_alive": "30m",
+            "options": {"num_predict": 32, "num_ctx": 512, "temperature": 0.3},
+        }
         for attempt in range(self.max_retries):
             try:
                 content = None
@@ -253,7 +259,13 @@ class JarvisAIClient:
                 _CIRCUIT_OPEN = False
                 logger.info("Circuit breaker reset — retrying Ollama (stream)")
         messages = self._compress_for_local(messages)
-        payload = {"model": self.model, "messages": messages, "stream": True, "keep_alive": "30m", "options": {"num_predict": 64, "temperature": 0.3}}
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "stream": True,
+            "keep_alive": "30m",
+            "options": {"num_predict": 32, "num_ctx": 512, "temperature": 0.3},
+        }
         try:
             if self._chat_supported:
                 response = self._session.post(
@@ -329,7 +341,7 @@ class JarvisAIClient:
             "messages": messages,
             "stream": True,
             "keep_alive": "30m",
-            "options": {"temperature": 0.7, "num_predict": 64}
+            "options": {"temperature": 0.7, "num_predict": 32, "num_ctx": 512}
         }
         full = []
         try:
@@ -360,7 +372,7 @@ class JarvisAIClient:
                     "prompt": self._messages_to_prompt(messages),
                     "stream": True,
                     "keep_alive": "30m",
-                    "options": {"num_predict": 64, "temperature": 0.7},
+                    "options": {"num_predict": 32, "num_ctx": 512, "temperature": 0.7},
                 }
                 async with client.stream("POST", f"{self.ollama_url}/api/generate", json=gen_payload) as gen_resp:
                     async for line in gen_resp.aiter_lines():

@@ -1,0 +1,167 @@
+{
+  "timestamp": "2026-05-28 10:09:18",
+  "tests": [
+    {
+      "name": "Ollama connectivity",
+      "category": "infrastructure",
+      "status": "PASS",
+      "duration_ms": 111.0,
+      "detail": "3 models available"
+    },
+    {
+      "name": "Backend online",
+      "category": "infrastructure",
+      "status": "PASS",
+      "duration_ms": 4652.6,
+      "detail": "degraded"
+    },
+    {
+      "name": "Frontend available",
+      "category": "infrastructure",
+      "status": "PASS",
+      "duration_ms": 2194.3,
+      "detail": "True"
+    },
+    {
+      "name": "GET /status",
+      "category": "endpoints",
+      "status": "FAIL",
+      "duration_ms": 2406.5,
+      "detail": ""
+    },
+    {
+      "name": "GET /jarvis/capabilities",
+      "category": "endpoints",
+      "status": "PASS",
+      "duration_ms": 2339.0,
+      "detail": "0 capabilities listed"
+    },
+    {
+      "name": "GET /jarvis/diagnostics",
+      "category": "endpoints",
+      "status": "PASS",
+      "duration_ms": 2185.6,
+      "detail": "Metrics available: False"
+    },
+    {
+      "name": "Quick response (<1s)",
+      "category": "chat",
+      "status": "PASS",
+      "duration_ms": 7335.5,
+      "detail": "It's currently 10:30 AM in Brazil. How can I assis"
+    },
+    {
+      "name": "LLM response generation",
+      "category": "chat",
+      "status": "PASS",
+      "duration_ms": 5802.5,
+      "detail": "Ol\u00e1! Como posso ajudar voc\u00ea hoje?"
+    },
+    {
+      "name": "Memory persistence",
+      "category": "chat",
+      "status": "PASS",
+      "duration_ms": 2368.2,
+      "detail": "True"
+    },
+    {
+      "name": "TTS generation",
+      "category": "voice",
+      "status": "PASS",
+      "duration_ms": 3450.6,
+      "detail": "Audio: 12816 bytes"
+    },
+    {
+      "name": "Voice dependencies",
+      "category": "voice",
+      "status": "PASS",
+      "duration_ms": 6160.7,
+      "detail": "TTS available"
+    },
+    {
+      "name": "WAL mode enabled",
+      "category": "database",
+      "status": "PASS",
+      "duration_ms": 33.3,
+      "detail": "WAL mode: wal"
+    },
+    {
+      "name": "DB performance",
+      "category": "database",
+      "status": "PASS",
+      "duration_ms": 0.0,
+      "detail": "0.0ms for 10 queries"
+    },
+    {
+      "name": "Enhanced HTML frontend",
+      "category": "frontend",
+      "status": "PASS",
+      "duration_ms": 0.0,
+      "detail": "19644 bytes"
+    },
+    {
+      "name": "Import config",
+      "category": "imports",
+      "status": "PASS",
+      "duration_ms": 0.0,
+      "detail": "<module 'config' from 'C:\\\\Users\\\\cibernetico\\\\JARVIS\\\\backend\\\\config.py'>"
+    },
+    {
+      "name": "Import ai.client",
+      "category": "imports",
+      "status": "PASS",
+      "duration_ms": 0.0,
+      "detail": "<module 'ai' from 'C:\\\\Users\\\\cibernetico\\\\JARVIS\\\\backend\\\\ai\\\\__init__.py'>"
+    },
+    {
+      "name": "Import services.chat_service",
+      "category": "imports",
+      "status": "PASS",
+      "duration_ms": 0.0,
+      "detail": "<module 'services' from 'C:\\\\Users\\\\cibernetico\\\\JARVIS\\\\backend\\\\services\\\\__init__.py'>"
+    },
+    {
+      "name": "Import agents.master_orchestrator",
+      "category": "imports",
+      "status": "PASS",
+      "duration_ms": 0.0,
+      "detail": "<module 'agents' from 'C:\\\\Users\\\\cibernetico\\\\JARVIS\\\\backend\\\\agents\\\\__init__.py'>"
+    },
+    {
+      "name": "Import memory.persistent_memory",
+      "category": "imports",
+      "status": "PASS",
+      "duration_ms": 0.0,
+      "detail": "<module 'memory' from 'C:\\\\Users\\\\cibernetico\\\\JARVIS\\\\backend\\\\memory\\\\__init__.py'>"
+    },
+    {
+      "name": "Import voice_v2.output",
+      "category": "imports",
+      "status": "PASS",
+      "duration_ms": 0.0,
+      "detail": "<module 'voice_v2' from 'C:\\\\Users\\\\cibernetico\\\\JARVIS\\\\backend\\\\voice_v2\\\\__init__.py'>"
+    },
+    {
+      "name": "Import core.event_bus",
+      "category": "imports",
+      "status": "PASS",
+      "duration_ms": 0.0,
+      "detail": "<module 'core' from 'C:\\\\Users\\\\cibernetico\\\\JARVIS\\\\backend\\\\core\\\\__init__.py'>"
+    }
+  ],
+  "summary": {
+    "total": 21,
+    "passed": 20,
+    "failed": 1,
+    "pass_rate": 95.2,
+    "by_category": {
+      "infrastructure": 3,
+      "endpoints": 2,
+      "chat": 3,
+      "voice": 2,
+      "database": 2,
+      "frontend": 1,
+      "imports": 7
+    }
+  }
+}

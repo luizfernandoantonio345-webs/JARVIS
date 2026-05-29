@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 """
 JARVIS v6.0 Production Startup (Stable Mode - No Auto-Reload)
 """

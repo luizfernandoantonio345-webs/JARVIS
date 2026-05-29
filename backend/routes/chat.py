@@ -49,7 +49,7 @@ def chat(request: ChatRequest):
     # Fast-path: skip all expensive work if Ollama is down and no API keys
     from services.llm_service import _ANTHROPIC_KEY, _OPENAI_KEY
     if not _ANTHROPIC_KEY and not _OPENAI_KEY:
-        from ai.client import is_ollama_available
+        from backend.ai.client import is_ollama_available
         if not is_ollama_available():
             cfg = get_config()
             return ChatResponse(
@@ -66,11 +66,29 @@ def chat(request: ChatRequest):
     # This avoids planner/orchestrator overhead that can stall on constrained local setups.
     raw_message = (request.message or "").strip()
     if raw_message and len(raw_message) <= 160 and "```" not in raw_message and "\n" not in raw_message:
+        lower_message = raw_message.lower()
+        if lower_message in {"oi", "ola", "olá", "hello", "hi", "hey"}:
+            return ChatResponse(
+                response="Online, Senhor. Como posso ajudar?",
+                session_id=request.session_id,
+            )
+        if any(term in lower_message for term in ("status", "online", "voce esta funcionando", "você está funcionando")):
+            return ChatResponse(
+                response="Estou online, Senhor. API, chat e Ollama local estao ativos.",
+                session_id=request.session_id,
+            )
         quick_messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {
+                "role": "system",
+                "content": (
+                    "Voce e JARVIS, assistente pessoal do Senhor. "
+                    "Responda em portugues do Brasil, direto, em no maximo uma frase."
+                ),
+            },
             {"role": "user", "content": raw_message},
         ]
-        quick_response = call_llm(quick_messages, force_local=True)
+        from backend.ai.client import get_ai_client
+        quick_response = get_ai_client().call(quick_messages)
         return ChatResponse(response=quick_response, session_id=request.session_id)
 
     t0 = time.monotonic() * 1000

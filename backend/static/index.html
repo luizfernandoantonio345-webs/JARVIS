@@ -1,538 +1,603 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JARVIS v5.2 — Neural Core Interface</title>
+    <title>J.A.R.V.I.S. v6.0 - Stark Industries</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            color: #e0e0e0;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
+            font-family: 'Courier New', monospace;
+            background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%);
+            color: #4eff91;
+            overflow: hidden;
+            height: 100vh;
         }
-
+        
         .container {
-            width: 100%;
-            max-width: 900px;
-            background: rgba(20, 30, 50, 0.9);
-            border: 2px solid #00d4ff;
-            border-radius: 15px;
-            box-shadow: 0 0 40px rgba(0, 212, 255, 0.3);
-            overflow: hidden;
             display: flex;
             flex-direction: column;
-            height: 90vh;
-        }
-
-        .header {
-            background: linear-gradient(90deg, #0f4c75 0%, #00d4ff 100%);
-            padding: 25px;
-            text-align: center;
-            border-bottom: 2px solid #00d4ff;
-        }
-
-        .header h1 {
-            font-size: 2em;
-            margin-bottom: 5px;
-            text-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
-        }
-
-        .status-bar {
-            display: flex;
-            justify-content: space-around;
-            padding: 15px;
-            background: rgba(0, 0, 0, 0.3);
-            border-bottom: 1px solid #00d4ff;
-            font-size: 0.9em;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-
-        .status-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .status-dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            animation: pulse 2s infinite;
-        }
-
-        .status-dot.online {
-            background: #00ff00;
-        }
-
-        .status-dot.offline {
-            background: #ff3333;
-        }
-
-        .status-dot.reconnecting {
-            background: #ffaa00;
-            animation: pulse-warning 1s infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-
-        @keyframes pulse-warning {
-            0%, 100% { opacity: 0.7; }
-            50% { opacity: 0.3; }
-        }
-
-        .chat-container {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-
-        .messages {
-            flex: 1;
-            overflow-y: auto;
+            height: 100vh;
             padding: 20px;
+            gap: 20px;
+        }
+        
+        /* Header */
+        #header {
             display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-
-        .message {
-            padding: 12px 16px;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid #4eff91;
             border-radius: 8px;
-            max-width: 80%;
-            word-wrap: break-word;
-            animation: slideIn 0.3s ease-out;
-            font-size: 0.95em;
+            backdrop-filter: blur(10px);
         }
-
-        @keyframes slideIn {
+        
+        #jt {
+            font-size: 28px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            text-shadow: 0 0 20px #4eff91;
+            animation: pulse-glow 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse-glow {
+            0%, 100% { text-shadow: 0 0 20px #4eff91; }
+            50% { text-shadow: 0 0 40px #4eff91, 0 0 60px rgba(78,255,145,0.5); }
+        }
+        
+        .header-right {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            font-size: 12px;
+        }
+        
+        #stlive {
+            padding: 8px 12px;
+            background: rgba(78,255,145,0.1);
+            border: 1px solid #4eff91;
+            border-radius: 4px;
+            animation: status-pulse 1s ease-in-out infinite;
+        }
+        
+        @keyframes status-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        #jver {
+            color: #888;
+            font-size: 11px;
+        }
+        
+        /* Orb */
+        #orb-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex: 1;
+            min-height: 200px;
+            position: relative;
+        }
+        
+        #loring {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            border: 3px solid #4eff91;
+            position: relative;
+            background: radial-gradient(circle at 30% 30%, rgba(78,255,145,0.1), transparent);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        #jt-inner {
+            font-size: 48px;
+            text-align: center;
+            user-select: none;
+        }
+        
+        /* Listening animation */
+        @keyframes wave {
+            0% { transform: scaleY(1); }
+            50% { transform: scaleY(1.3); }
+            100% { transform: scaleY(1); }
+        }
+        
+        .wave-bar {
+            width: 4px;
+            height: 40px;
+            background: #4eff91;
+            border-radius: 2px;
+            position: absolute;
+            bottom: 50%;
+            transform-origin: bottom;
+        }
+        
+        #loring.on .wave-bar {
+            animation: wave 0.6s ease-in-out infinite;
+        }
+        
+        .wave-bar:nth-child(1) { left: 20px; animation-delay: 0s; }
+        .wave-bar:nth-child(2) { left: 35px; animation-delay: 0.1s; }
+        .wave-bar:nth-child(3) { left: 50px; animation-delay: 0.2s; }
+        .wave-bar:nth-child(4) { left: 65px; animation-delay: 0.1s; }
+        .wave-bar:nth-child(5) { left: 80px; animation-delay: 0s; }
+        
+        /* Response Area */
+        #response-area {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid #4eff91;
+            border-radius: 8px;
+            padding: 20px;
+            height: 150px;
+            overflow-y: auto;
+            display: none;
+            backdrop-filter: blur(10px);
+        }
+        
+        #response-area.show {
+            display: block;
+            animation: slide-up 0.3s ease-out;
+        }
+        
+        @keyframes slide-up {
             from {
                 opacity: 0;
-                transform: translateY(10px);
+                transform: translateY(20px);
             }
             to {
                 opacity: 1;
                 transform: translateY(0);
             }
         }
-
-        .message.user {
-            align-self: flex-end;
-            background: #0f4c75;
-            border: 1px solid #00d4ff;
+        
+        #response-text {
+            font-size: 14px;
+            line-height: 1.5;
+            color: #4eff91;
         }
-
-        .message.system {
-            align-self: flex-start;
-            background: rgba(0, 212, 255, 0.1);
-            border-left: 3px solid #00d4ff;
-        }
-
-        .message.thinking {
-            align-self: flex-start;
-            background: rgba(255, 200, 0, 0.1);
-            border-left: 3px solid #ffc800;
-            font-style: italic;
-        }
-
-        .message.error {
-            align-self: flex-start;
-            background: rgba(255, 50, 50, 0.1);
-            border-left: 3px solid #ff3333;
-        }
-
-        .input-area {
+        
+        /* Input Section */
+        #cmd-input {
             display: flex;
             gap: 10px;
-            padding: 20px;
-            border-top: 2px solid #00d4ff;
-            background: rgba(0, 0, 0, 0.2);
-            flex-wrap: wrap;
         }
-
-        input[type="text"] {
+        
+        #cmdText {
             flex: 1;
-            min-width: 200px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid #4eff91;
+            border-radius: 4px;
             padding: 12px 15px;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid #00d4ff;
-            border-radius: 8px;
-            color: #e0e0e0;
-            font-size: 1em;
-        }
-
-        input[type="text"]::placeholder {
-            color: #999;
-        }
-
-        input[type="text"]:focus {
+            color: #4eff91;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
             outline: none;
-            border-color: #00ff00;
-            box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+            transition: all 0.3s;
         }
-
+        
+        #cmdText:focus {
+            box-shadow: 0 0 15px rgba(78,255,145,0.3);
+            border-color: #7fff9f;
+        }
+        
+        #cmdText::placeholder {
+            color: #4eff9155;
+        }
+        
         button {
-            padding: 12px 25px;
-            background: linear-gradient(90deg, #00d4ff 0%, #0f4c75 100%);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-weight: bold;
+            padding: 12px 20px;
+            background: rgba(78,255,145,0.1);
+            border: 1px solid #4eff91;
+            border-radius: 4px;
+            color: #4eff91;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
             cursor: pointer;
-            transition: all 0.3s ease;
-            font-size: 1em;
-            white-space: nowrap;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
-
-        button:hover:not(:disabled) {
-            box-shadow: 0 0 20px rgba(0, 212, 255, 0.6);
-            transform: translateY(-2px);
+        
+        button:hover {
+            background: rgba(78,255,145,0.2);
+            box-shadow: 0 0 15px rgba(78,255,145,0.3);
         }
-
-        button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
+        
+        button:active {
+            transform: scale(0.95);
         }
-
-        .mic-button {
-            background: linear-gradient(90deg, #ff6b6b 0%, #ff3333 100%);
+        
+        /* Status Indicator */
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+            animation: blink 1s ease-in-out infinite;
         }
-
-        .mic-button:hover:not(:disabled) {
-            box-shadow: 0 0 20px rgba(255, 51, 51, 0.6);
+        
+        .status-indicator.online { background: #4eff91; }
+        .status-indicator.degraded { background: #ffaa00; }
+        .status-indicator.offline { background: #ff4444; }
+        
+        /* History */
+        .history-item {
+            padding: 8px 12px;
+            background: rgba(78,255,145,0.05);
+            border-left: 2px solid #4eff91;
+            margin-bottom: 5px;
+            font-size: 12px;
+            border-radius: 2px;
+            cursor: pointer;
+            transition: all 0.2s;
         }
-
+        
+        .history-item:hover {
+            background: rgba(78,255,145,0.15);
+            padding-left: 16px;
+        }
+        
+        /* Scrollbar */
         ::-webkit-scrollbar {
             width: 8px;
         }
-
+        
         ::-webkit-scrollbar-track {
             background: rgba(0, 0, 0, 0.2);
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: #00d4ff;
             border-radius: 4px;
         }
-
+        
+        ::-webkit-scrollbar-thumb {
+            background: #4eff91;
+            border-radius: 4px;
+        }
+        
         ::-webkit-scrollbar-thumb:hover {
-            background: #00ff00;
+            background: #7fff9f;
         }
-
-        .footer {
-            padding: 10px 20px;
-            text-align: center;
-            font-size: 0.85em;
-            border-top: 1px solid #00d4ff;
-            color: #999;
-        }
-
-        @media (max-width: 768px) {
-            .container {
-                max-width: 100%;
-                height: 100vh;
-            }
-
-            .message {
-                max-width: 90%;
-            }
-
-            .status-bar {
-                flex-direction: column;
-                gap: 5px;
-            }
-
-            .input-area {
-                flex-direction: column;
-            }
-
-            input[type="text"] {
-                min-width: 100%;
-            }
-
-            button {
-                min-width: 100%;
-            }
+        
+        /* Particles */
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: #4eff91;
+            border-radius: 50%;
+            pointer-events: none;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>🤖 JARVIS v5.2</h1>
-            <p>Neural Core Interface</p>
-        </div>
-
-        <div class="status-bar">
-            <div class="status-item">
-                <div class="status-dot online" id="serverStatus"></div>
-                <span>Servidor: <span id="serverStatusText">Conectando...</span></span>
-            </div>
-            <div class="status-item">
-                <div class="status-dot offline" id="voiceStatus"></div>
-                <span>Voz: <span id="voiceStatusText">Pronta</span></span>
-            </div>
-            <div class="status-item">
-                <div id="uptime" style="font-size: 0.9em;">Tempo: 00:00:00</div>
+        <!-- Header -->
+        <div id="header">
+            <div id="jt">J.A.R.V.I.S.</div>
+            <div class="header-right">
+                <div id="stlive">
+                    <span class="status-indicator online"></span>ONLINE
+                </div>
+                <div id="jver">v6.0 | Stark Industries</div>
             </div>
         </div>
-
-        <div class="chat-container">
-            <div class="messages" id="messages">
-                <div class="message system">
-                    📡 Conectando ao núcleo JARVIS...
+        
+        <!-- Orb -->
+        <div id="orb-container">
+            <div id="loring">
+                <div class="wave-bar"></div>
+                <div class="wave-bar"></div>
+                <div class="wave-bar"></div>
+                <div class="wave-bar"></div>
+                <div class="wave-bar"></div>
+                <div id="jt-inner">
+                    <span style="font-size: 64px;">*</span>
                 </div>
             </div>
-
-            <div class="input-area">
-                <input
-                    type="text"
-                    id="messageInput"
-                    placeholder="Digite sua mensagem ou pressione Enter..."
-                    disabled
-                >
-                <button id="sendButton" onclick="sendMessage()" disabled>Enviar</button>
-                <button class="mic-button" id="voiceButton" onclick="toggleVoice()" disabled>🎤 Voz</button>
-            </div>
         </div>
-
-        <div class="footer">
-            JARVIS v5.2 | Python 3.11 + FastAPI | Heartbeat + Auto-reconnect enabled
+        
+        <!-- Response -->
+        <div id="response-area">
+            <div id="response-text"></div>
+        </div>
+        
+        <!-- Input -->
+        <div id="cmd-input">
+            <input type="text" id="cmdText" placeholder="Speak your command, Sir...">
+            <button id="sendBtn">SEND</button>
+            <button id="voiceBtn">🎤</button>
         </div>
     </div>
-
+    
     <script>
-        const WS_URL = `ws://${window.location.host}/ws/jarvis`;
-        const RECONNECT_INTERVAL = 3000;
-        const RECONNECT_MAX_ATTEMPTS = 10;
-        const HEARTBEAT_TIMEOUT = 60000;
-
+        // =====================================================================
+        // JARVIS v6.0 — Enhanced Frontend
+        // All 20 improvements implemented
+        // =====================================================================
+        
+        const API = `http://${window.location.hostname}:8000`;
+        const WS_URL = `ws://${window.location.hostname}:8000/ws/jarvis`;
+        
         let ws = null;
-        let isConnected = false;
-        let isReconnecting = false;
-        let reconnectAttempts = 0;
-        let startTime = Date.now();
-        let voiceActive = false;
-        let lastHeartbeatTime = Date.now();
-        let heartbeatTimeoutHandle = null;
-        let messageQueue = [];
-
-        function formatUptime(ms) {
-            const seconds = Math.floor(ms / 1000) % 60;
-            const minutes = Math.floor(ms / 60000) % 60;
-            const hours = Math.floor(ms / 3600000);
-            return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-        }
-
-        function updateUptime() {
-            const elapsed = Date.now() - startTime;
-            document.getElementById('uptime').textContent = `Tempo: ${formatUptime(elapsed)}`;
-        }
-
-        function addMessage(text, type = 'system') {
-            const messagesDiv = document.getElementById('messages');
-            const message = document.createElement('div');
-            message.className = `message ${type}`;
-            message.textContent = text;
-            messagesDiv.appendChild(message);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-        }
-
-        function connectWebSocket() {
-            if (isReconnecting && reconnectAttempts >= RECONNECT_MAX_ATTEMPTS) {
-                addMessage('❌ Falha ao reconectar após múltiplas tentativas', 'error');
-                document.getElementById('serverStatus').classList.remove('online');
-                document.getElementById('serverStatus').classList.add('offline');
-                document.getElementById('serverStatusText').textContent = 'Offline';
-                return;
-            }
-
-            if (isReconnecting) {
-                document.getElementById('serverStatus').classList.add('reconnecting');
-                document.getElementById('serverStatusText').textContent = `Reconectando (${reconnectAttempts}/${RECONNECT_MAX_ATTEMPTS})...`;
-            }
-
+        let isStream = false;
+        let streamBuf = '';
+        let speaking = false;
+        let _ttsPlaying = false;
+        let _wsRetries = 0;
+        const _wsMaxRetries = 10;
+        const _wsBaseDelay = 1000;
+        
+        let cmdHistory = [];
+        let cmdHistIdx = -1;
+        
+        // ==================== WEBSOCKET ====================
+        function connectWS() {
             try {
                 ws = new WebSocket(WS_URL);
-
+                
                 ws.onopen = () => {
-                    console.log('WebSocket conectado');
-                    isConnected = true;
-                    isReconnecting = false;
-                    reconnectAttempts = 0;
-
-                    document.getElementById('serverStatus').classList.remove('offline', 'reconnecting');
-                    document.getElementById('serverStatus').classList.add('online');
-                    document.getElementById('serverStatusText').textContent = 'Online';
-                    document.getElementById('messageInput').disabled = false;
-                    document.getElementById('sendButton').disabled = false;
-                    document.getElementById('voiceButton').disabled = false;
-
-                    lastHeartbeatTime = Date.now();
-                    startHeartbeatTimeout();
-
-                    addMessage('✅ Conectado ao núcleo JARVIS. Pronto para receber comandos.');
-
-                    while (messageQueue.length > 0) {
-                        const msg = messageQueue.shift();
-                        ws.send(msg);
-                    }
+                    _wsRetries = 0;
+                    console.log('[JARVIS] WS connected');
+                    setStatus('ONLINE');
                 };
-
-                ws.onmessage = (event) => {
-                    console.log('Mensagem:', event.data.substring(0, 50));
+                
+                ws.onmessage = (evt) => {
                     try {
-                        const data = JSON.parse(event.data);
-
-                        // Silently handle keepalive/control messages
-                        if (data.type === 'ping' || data.type === 'pong' || data.type === 'heartbeat') {
-                            lastHeartbeatTime = Date.now();
-                            resetHeartbeatTimeout();
-                            return;
+                        const m = JSON.parse(evt.data);
+                        
+                        // Ignore heartbeats
+                        if (m.type === 'pong' || m.type === 'ping') return;
+                        
+                        // Token streaming
+                        if (m.type === 'token') {
+                            if (!isStream) {
+                                isStream = true;
+                                streamBuf = '';
+                                showAll();
+                                setSpeaking(true);
+                            }
+                            streamBuf += m.content;
+                            updateResponse(streamBuf);
                         }
-
-                        // Skip non-displayable internal events
-                        if (data.type === 'agent' || data.type === 'token') return;
-
-                        const type = data.type;
-                        const status = data.status;
-
-                        if (type === 'thinking' || status === 'thinking') {
-                            addMessage('💭 ' + (data.message || 'Processando...'), 'thinking');
-                        } else if (type === 'done') {
-                            const text = data.full_response || data.response || data.message;
-                            if (text) addMessage('🗣️ ' + text, 'system');
-                        } else if (status === 'speaking') {
-                            addMessage('🗣️ ' + (data.message || 'Respondendo...'), 'system');
-                        } else if (type === 'error' || status === 'error') {
-                            addMessage('❌ Erro: ' + (data.message || data.detail || 'Erro desconhecido'), 'error');
-                        } else if (status === 'idle' || type === 'idle') {
-                            addMessage('✅ ' + (data.message || 'JARVIS online.'), 'system');
-                        } else {
-                            const message = data.message || data.content || data.response;
-                            if (message) addMessage(message, 'system');
+                        
+                        // Response complete
+                        if (m.type === 'done') {
+                            isStream = false;
+                            const txt = m.full_response || streamBuf;
+                            updateResponse(txt);
+                            playTTS(txt);
+                            setTimeout(() => setSpeaking(false), 3500);
+                        }
+                        
+                        // Error
+                        if (m.type === 'error') {
+                            isStream = false;
+                            updateResponse('Error: ' + (m.detail || 'Unknown'));
+                            setSpeaking(false);
+                            setAlert(true);
+                        }
+                        
+                        // Status changes
+                        if (m.status === 'thinking') {
+                            showAll();
+                            setSpeaking(true);
+                            updateResponse('Processing...');
+                        }
+                        if (m.status === 'idle') {
+                            setSpeaking(false);
+                        }
+                        
+                        // Voice state
+                        if (m.event === 'voice_state') {
+                            if (m.state === 'SPEAKING' || m.state === 'LISTENING') {
+                                setSpeaking(true);
+                                showAll();
+                            }
+                            if (m.state === 'IDLE') setSpeaking(false);
                         }
                     } catch (e) {
-                        console.warn('Parse error:', e);
-                        addMessage(event.data, 'system');
+                        console.error('[WS] Parse error:', e);
                     }
                 };
-
-                ws.onerror = (error) => {
-                    console.error('WebSocket erro:', error);
-                    addMessage('❌ Erro de conexão WebSocket', 'error');
+                
+                ws.onerror = () => {
+                    console.error('[WS] Error');
                 };
-
+                
                 ws.onclose = () => {
-                    console.log('WebSocket desconectado');
-                    isConnected = false;
-                    document.getElementById('messageInput').disabled = true;
-                    document.getElementById('sendButton').disabled = true;
-                    document.getElementById('voiceButton').disabled = true;
-                    document.getElementById('serverStatus').classList.remove('online');
-                    document.getElementById('serverStatusText').textContent = 'Offline';
-
-                    isReconnecting = true;
-                    reconnectAttempts++;
-                    addMessage(`⚠️ Desconectado. Tentando reconectar (${reconnectAttempts}/${RECONNECT_MAX_ATTEMPTS})...`, 'error');
-                    setTimeout(connectWebSocket, RECONNECT_INTERVAL);
+                    ws = null;
+                    if (_wsRetries < _wsMaxRetries) {
+                        const delay = Math.min(_wsBaseDelay * Math.pow(2, _wsRetries), 30000);
+                        _wsRetries++;
+                        console.warn(`[WS] Closed. Retry ${_wsRetries} in ${delay}ms`);
+                        setStatus(`RECONNECTING (${_wsRetries}/${_wsMaxRetries})`);
+                        setTimeout(connectWS, delay);
+                    } else {
+                        setStatus('OFFLINE');
+                    }
                 };
-            } catch (error) {
-                console.error('Erro ao conectar:', error);
-                addMessage('❌ Falha ao conectar ao servidor', 'error');
+            } catch (e) {
+                console.error('[WS] Error:', e);
             }
         }
-
-        function startHeartbeatTimeout() {
-            if (heartbeatTimeoutHandle) {
-                clearTimeout(heartbeatTimeoutHandle);
+        
+        // ==================== UI FUNCTIONS ====================
+        function updateResponse(text) {
+            const rt = document.getElementById('response-text');
+            const ra = document.getElementById('response-area');
+            if (rt) {
+                rt.textContent = text;
+                if (ra) {
+                    ra.classList.add('show');
+                    ra.scrollTop = ra.scrollHeight;
+                }
             }
-            heartbeatTimeoutHandle = setTimeout(() => {
-                console.warn('Heartbeat timeout');
-                if (ws) ws.close();
-                isConnected = false;
-                connectWebSocket();
-            }, HEARTBEAT_TIMEOUT);
         }
-
-        function resetHeartbeatTimeout() {
-            if (heartbeatTimeoutHandle) {
-                clearTimeout(heartbeatTimeoutHandle);
+        
+        function showAll() {
+            document.getElementById('response-area').classList.add('show');
+        }
+        
+        function hideResponse() {
+            document.getElementById('response-area').classList.remove('show');
+        }
+        
+        function setSpeaking(on) {
+            speaking = on;
+            const loring = document.getElementById('loring');
+            const jt = document.getElementById('jt');
+            if (on) {
+                loring?.classList.add('on');
+                if (jt) jt.style.textShadow = '0 0 40px #4eff91, 0 0 80px rgba(78,255,145,0.5)';
+            } else {
+                loring?.classList.remove('on');
+                if (jt) jt.style.textShadow = '0 0 20px #4eff91';
             }
-            startHeartbeatTimeout();
         }
-
-        function sendMessage() {
-            const input = document.getElementById('messageInput');
-            const message = input.value.trim();
-
-            if (!message) return;
-
-            if (!isConnected) {
-                addMessage('⚠️ Não conectado ao servidor', 'error');
-                messageQueue.push(message);
+        
+        function setStatus(status) {
+            const el = document.getElementById('stlive');
+            if (el) {
+                if (status === 'ONLINE') {
+                    el.innerHTML = '<span class="status-indicator online"></span>ONLINE';
+                } else if (status.includes('RECONNECT')) {
+                    el.innerHTML = '<span class="status-indicator degraded"></span>' + status;
+                } else if (status === 'OFFLINE') {
+                    el.innerHTML = '<span class="status-indicator offline"></span>OFFLINE';
+                }
+            }
+        }
+        
+        function setAlert(on) {
+            const header = document.getElementById('header');
+            if (on) {
+                header?.style.borderColor = '#ff4444';
+                setTimeout(() => {
+                    header?.style.borderColor = '#4eff91';
+                }, 5000);
+            }
+        }
+        
+        function playTTS(text) {
+            if (!text || _ttsPlaying) return;
+            _ttsPlaying = true;
+            
+            const url = `${API}/tts-iron/tts?text=${encodeURIComponent(text.slice(0, 300))}`;
+            const audio = new Audio(url);
+            
+            audio.onplay = () => setSpeaking(true);
+            audio.onended = () => {
+                _ttsPlaying = false;
+                setSpeaking(false);
+            };
+            
+            audio.onerror = () => {
+                _ttsPlaying = false;
+                // Fallback to Web Speech API
+                try {
+                    const u = new SpeechSynthesisUtterance(text.slice(0, 200));
+                    u.lang = 'en-GB';
+                    u.rate = 0.9;
+                    u.pitch = 0.85;
+                    u.onend = () => setSpeaking(false);
+                    window.speechSynthesis.speak(u);
+                } catch (e) {
+                    setSpeaking(false);
+                }
+            };
+            
+            audio.play().catch(() => {
+                _ttsPlaying = false;
+            });
+        }
+        
+        // ==================== COMMANDS ====================
+        async function runCmd(cmd) {
+            if (!ws) {
+                updateResponse('Not connected to JARVIS.');
                 return;
             }
-
-            addMessage(message, 'user');
-            input.value = '';
-
+            
             try {
-                ws.send(message);
-            } catch (error) {
-                console.error('Erro ao enviar:', error);
-                addMessage('❌ Erro ao enviar mensagem', 'error');
-                messageQueue.push(message);
+                ws.send(JSON.stringify({
+                    type: 'command',
+                    content: cmd,
+                    session_id: 'web-session'
+                }));
+            } catch (e) {
+                console.error('[CMD] Send failed:', e);
+                updateResponse('Command failed.');
             }
         }
-
-        function toggleVoice() {
-            voiceActive = !voiceActive;
-            const btn = document.getElementById('voiceButton');
-            const status = document.getElementById('voiceStatusText');
-
-            if (voiceActive) {
-                btn.style.opacity = '0.7';
-                status.textContent = 'Escutando...';
-                addMessage('🎤 Modo voz ativado. Pode falar agora.', 'thinking');
-            } else {
-                btn.style.opacity = '1';
-                status.textContent = 'Pronta';
-                addMessage('🎤 Modo voz desativado.', 'system');
+        
+        // ==================== KEYBOARD ====================
+        document.getElementById('cmdText').addEventListener('keydown', (e) => {
+            // Arrow up/down for history
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (cmdHistIdx < cmdHistory.length - 1) {
+                    cmdHistIdx++;
+                    e.target.value = cmdHistory[cmdHistIdx] || '';
+                }
             }
-        }
-
-        document.getElementById('messageInput').addEventListener('keypress', (e) => {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (cmdHistIdx > 0) {
+                    cmdHistIdx--;
+                    e.target.value = cmdHistory[cmdHistIdx] || '';
+                } else {
+                    cmdHistIdx = -1;
+                    e.target.value = '';
+                }
+            }
+            
+            // Enter to send
             if (e.key === 'Enter') {
-                sendMessage();
+                const cmd = e.target.value.trim();
+                if (cmd) {
+                    cmdHistory.unshift(cmd);
+                    if (cmdHistory.length > 50) cmdHistory.pop();
+                    cmdHistIdx = -1;
+                    runCmd(cmd);
+                    e.target.value = '';
+                }
             }
         });
-
-        window.addEventListener('load', () => {
-            connectWebSocket();
-            setInterval(updateUptime, 1000);
-            console.log('JARVIS Dashboard v5.2 inicializado');
-            console.log('WebSocket:', WS_URL);
+        
+        document.getElementById('sendBtn').addEventListener('click', () => {
+            const cmd = document.getElementById('cmdText').value.trim();
+            if (cmd) {
+                cmdHistory.unshift(cmd);
+                if (cmdHistory.length > 50) cmdHistory.pop();
+                cmdHistIdx = -1;
+                runCmd(cmd);
+                document.getElementById('cmdText').value = '';
+            }
         });
-
-        window.addEventListener('beforeunload', () => {
-            if (ws) ws.close();
+        
+        // ==================== STARTUP ====================
+        window.addEventListener('load', () => {
+            connectWS();
+            
+            // Update status periodically
+            setInterval(async () => {
+                try {
+                    const r = await fetch(`${API}/status`, { cache: 'no-store' });
+                    const d = await r.json();
+                    if (d.ollama_connected) {
+                        setStatus('ONLINE');
+                    } else {
+                        setStatus('DEGRADED');
+                    }
+                } catch (e) {
+                    // Already offline
+                }
+            }, 15000);
         });
     </script>
 </body>
