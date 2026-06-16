@@ -1,13 +1,13 @@
 @echo off
 title J.A.R.V.I.S. v6.0 — Initializing
 color 0B
-cd /d C:\Users\cibernetico\JARVIS
+cd /d "%~dp0"
 
 echo.
 echo  =============================================
 echo   J.A.R.V.I.S. — Neural Core v6.0
 echo   Just A Rather Very Intelligent System
-echo   PC1 Only  ^|  Ollama Local  ^|  FastAPI
+echo   Ollama Local  ^|  FastAPI
 echo  =============================================
 echo.
 
@@ -53,7 +53,7 @@ timeout /t 1 /nobreak >nul
 
 :: [4] Iniciar backend
 echo [..] Starting JARVIS backend...
-start "JARVIS-Backend" cmd /k "cd /d C:\Users\cibernetico\JARVIS && set KMP_DUPLICATE_LIB_OK=TRUE && set OMP_NUM_THREADS=1 && set OLLAMA_HOST=127.0.0.1:11434 && venv311\Scripts\python.exe -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --log-level warning"
+start "JARVIS-Backend" cmd /k "cd /d "%~dp0" && set KMP_DUPLICATE_LIB_OK=TRUE && set OMP_NUM_THREADS=1 && set OLLAMA_HOST=127.0.0.1:11434 && venv311\Scripts\python.exe -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --log-level warning"
 
 :: Aguardar backend
 timeout /t 8 /nobreak >nul
@@ -76,7 +76,6 @@ echo  =============================================
 echo   JARVIS ONLINE — Good day, Sir.
 echo.
 echo   Local  : http://localhost:8000
-echo   Remote : http://100.110.105.46:8000
 echo.
 echo   Model pre-warming in background...
 echo   First response ready in ~20s.

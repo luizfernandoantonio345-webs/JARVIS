@@ -1,1 +1,0 @@
-Erro Ollama: [WinError 10061] Nenhuma conexão pôde ser feita porque a máquina de destino as recusou ativamente

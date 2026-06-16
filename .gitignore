@@ -2,6 +2,10 @@
 # JARVIS — .gitignore
 # =============================================================================
 
+# Diretórios legados / lixo (não enviar ao GitHub)
+_legacy/
+_lixo/
+
 # Python
 __pycache__/
 *.py[cod]
