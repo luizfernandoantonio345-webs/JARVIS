@@ -1,7 +1,10 @@
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 import asyncio, tempfile, uuid, os, logging
-from backend.config import get_config
+try:
+    from backend.config import get_config
+except ImportError:
+    from config import get_config
 
 router = APIRouter()
 log = logging.getLogger("jarvis.tts")

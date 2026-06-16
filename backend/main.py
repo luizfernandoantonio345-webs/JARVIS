@@ -82,9 +82,10 @@ manager = ConnectionManager()
 
 def _mount_routers():
     cfg_map = [
-        ('routes.health',    '',          True),
-        ('routes.chat',      '/chat',     True),
-        ('routes.agents',    '/agents',   False),
+        ('routes.health',    '',              True),
+        ('routes.chat',      '/chat',         True),
+        ('routes.agents',    '/agents',       False),
+        ('routes.jarvis_tts', '/tts-iron',   False),
     ]
     for module, prefix, required in cfg_map:
         try:

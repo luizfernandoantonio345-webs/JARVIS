@@ -38,6 +38,53 @@ def _with_memory_context(message: str) -> str:
     return message
 
 
+def _try_instant_agent(message: str) -> str | None:
+    """Handle time/math/system/file queries instantly without LLM."""
+    msg = message.lower()
+
+    time_kw = ["que horas", "what time", "hora atual", "data de hoje", "que dia", "what day"]
+    if any(k in msg for k in time_kw):
+        from datetime import datetime
+        now = datetime.now()
+        pt = any(w in msg for w in ["hora", "dia", "data"])
+        if pt:
+            return f"São {now.strftime('%H:%M')} de {now.strftime('%d/%m/%Y')}, Senhor."
+        return f"It's {now.strftime('%I:%M %p')}, {now.strftime('%B %d, %Y')}, Sir."
+
+    math_kw = ["calcule", "calculate", "quanto é", "quanto vale", "compute", "resultado de"]
+    if any(k in msg for k in math_kw):
+        import re
+        try:
+            expr = re.sub(r'[^0-9+\-*/().,% ]', '', message).replace(',', '.')
+            stripped = expr.strip()
+            if stripped:
+                result = eval(stripped, {"__builtins__": {}}, {})
+                return f"The result is {result}, Sir."
+        except Exception:
+            pass
+
+    sys_kw = ["cpu", "ram", "memória do sistema", "desempenho", "performance do sistema",
+              "uso de memória", "processos"]
+    if any(k in msg for k in sys_kw):
+        try:
+            import psutil
+            cpu = psutil.cpu_percent(interval=0.5)
+            ram = psutil.virtual_memory()
+            return (f"CPU at {cpu:.0f}%, RAM at {ram.percent:.0f}% "
+                    f"({ram.used // 1024 // 1024 // 1024:.1f}GB used), Sir.")
+        except Exception:
+            pass
+
+    file_kw = ["listar arquivos", "list files", "o que tem na pasta", "arquivos no diretório"]
+    if any(k in msg for k in file_kw):
+        import pathlib
+        files = [f.name for f in pathlib.Path('.').iterdir()
+                 if not f.name.startswith('.')][:10]
+        return f"Current directory contains: {', '.join(files)}, Sir."
+
+    return None
+
+
 @router.post("", response_model=ChatResponse)
 def chat(request: ChatRequest):
     if env_flag("JARVIS_TEST_MODE"):
@@ -49,7 +96,7 @@ def chat(request: ChatRequest):
     # Fast-path: skip all expensive work if Ollama is down and no API keys
     from services.llm_service import _ANTHROPIC_KEY, _OPENAI_KEY
     if not _ANTHROPIC_KEY and not _OPENAI_KEY:
-        from backend.ai.client import is_ollama_available
+        from ai.client import is_ollama_available
         if not is_ollama_available():
             cfg = get_config()
             return ChatResponse(
@@ -59,6 +106,11 @@ def chat(request: ChatRequest):
                 ),
                 session_id=request.session_id,
             )
+
+    # Instant agents: time/math/system/file — no LLM needed
+    instant = _try_instant_agent(request.message)
+    if instant:
+        return ChatResponse(response=instant, session_id=request.session_id)
 
     enriched_message = _with_memory_context(request.message)
 
@@ -87,7 +139,7 @@ def chat(request: ChatRequest):
             },
             {"role": "user", "content": raw_message},
         ]
-        from backend.ai.client import get_ai_client
+        from ai.client import get_ai_client
         quick_response = get_ai_client().call(quick_messages)
         return ChatResponse(response=quick_response, session_id=request.session_id)
 

@@ -8,8 +8,17 @@ class MasterOrchestrator:
         "code_agent":     ["código", "code", "programa", "script",
                            "python", "javascript", "bug", "erro",
                            "função", "classe", "debug", "fix"],
+        "time_agent":     ["que horas", "what time", "hora atual",
+                           "data de hoje", "que dia", "what day"],
+        "math_agent":     ["calcule", "calculate", "quanto é",
+                           "quanto vale", "compute", "resultado de"],
+        "system_agent":   ["cpu", "ram", "memória do sistema", "desempenho",
+                           "performance do sistema", "uso de memória",
+                           "temperatura", "processos"],
+        "file_agent":     ["listar arquivos", "list files",
+                           "o que tem na pasta", "arquivos no diretório"],
         "computer_agent": ["abrir", "fechar", "executar", "terminal",
-                           "arquivo", "pasta", "navegador", "chrome",
+                           "pasta", "navegador", "chrome",
                            "youtube", "spotify", "vscode", "app"],
         "memory_agent":   ["lembra", "memoria", "histórico", "contexto",
                            "salva", "anota", "remember", "anterior"],
@@ -42,6 +51,14 @@ class MasterOrchestrator:
             return await self._memory_agent(message, session_id)
         elif agent == "research_agent":
             return await self._research_agent(message, session_id, on_token)
+        elif agent == "time_agent":
+            return await self._time_agent(message, session_id, on_token)
+        elif agent == "math_agent":
+            return await self._math_agent(message, session_id, on_token)
+        elif agent == "system_agent":
+            return await self._system_agent(message, session_id, on_token)
+        elif agent == "file_agent":
+            return await self._file_agent(message, session_id, on_token)
         else:
             return await self._chat_agent(message, session_id, on_token)
 
@@ -139,6 +156,61 @@ class MasterOrchestrator:
         if on_token:
             return await get_ai_client().stream_chat(messages, on_token)
         return get_ai_client().call(messages)
+
+    async def _time_agent(self, message, session_id, on_token):
+        from datetime import datetime
+        now = datetime.now()
+        pt = any(w in message.lower() for w in ["hora", "dia", "data"])
+        if pt:
+            resp = (f"São {now.strftime('%H:%M')} de "
+                    f"{now.strftime('%d/%m/%Y')}, Senhor.")
+        else:
+            resp = (f"It's {now.strftime('%I:%M %p')}, "
+                    f"{now.strftime('%B %d, %Y')}, Sir.")
+        if on_token:
+            await on_token(resp)
+        return resp
+
+    async def _math_agent(self, message, session_id, on_token):
+        import re
+        try:
+            expr = re.sub(r'[^0-9+\-*/().,% ]', '', message).replace(',', '.')
+            stripped = expr.strip()
+            if stripped:
+                result = eval(stripped, {"__builtins__": {}}, {})
+                resp = f"The result is {result}, Sir."
+                if on_token:
+                    await on_token(resp)
+                return resp
+        except Exception:
+            pass
+        return await self._llm_fallback(message, session_id, on_token)
+
+    async def _system_agent(self, message, session_id, on_token):
+        try:
+            import psutil
+            cpu = psutil.cpu_percent(interval=0.5)
+            ram = psutil.virtual_memory()
+            resp = (f"CPU at {cpu:.0f}%, RAM at {ram.percent:.0f}% "
+                    f"({ram.used // 1024 // 1024 // 1024:.1f}GB used), Sir.")
+            if on_token:
+                await on_token(resp)
+            return resp
+        except Exception:
+            return await self._llm_fallback(message, session_id, on_token)
+
+    async def _file_agent(self, message, session_id, on_token):
+        import pathlib
+        files = [f.name for f in pathlib.Path('.').iterdir()
+                 if not f.name.startswith('.')][:10]
+        resp = f"Current directory contains: {', '.join(files)}, Sir."
+        if on_token:
+            await on_token(resp)
+        return resp
+
+    async def _llm_fallback(self, message, session_id, on_token):
+        return await self._chat_agent(message, session_id, on_token)
+
 
 _orch = None
 def get_orchestrator() -> MasterOrchestrator:
