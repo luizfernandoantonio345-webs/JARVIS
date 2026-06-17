@@ -1,7 +1,11 @@
+
 """
 Integration tests for JARVIS file operations.
 Tests reading, writing, directory constraints with security validation.
 """
+import pytest
+pytestmark = pytest.mark.integration
+
 import pytest
 from fastapi.testclient import TestClient
 

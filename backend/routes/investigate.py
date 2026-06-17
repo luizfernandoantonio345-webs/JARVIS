@@ -353,11 +353,11 @@ async def investigate(req: InvestigateRequest):
     if inv_type == "phone":
         return _investigate_phone(target)
     elif inv_type == "ip":
-        return _investigate_ip(target)
+        result = _investigate_ip(target)
     elif inv_type == "email":
-        return _investigate_email(target)
+        result = _investigate_email(target)
     elif inv_type == "domain":
-        return _investigate_domain(target)
+        result = _investigate_domain(target)
     else:
         # LLM-assisted investigation
         from ai.client import get_ai_client
@@ -372,3 +372,112 @@ async def investigate(req: InvestigateRequest):
             "display_type": "text_result",
             "data": {"target": target, "analysis": text},
         }
+
+    # Attach threat score to result data
+    if isinstance(result, dict) and "data" in result:
+        result["data"]["threat_score"] = _compute_threat_score(result["data"], inv_type)
+    return result
+
+
+def _compute_threat_score(data: dict, inv_type: str) -> dict:
+    """Calcula um threat score 0-100 baseado nos dados recolhidos."""
+    score = 0
+    reasons: list[str] = []
+    if inv_type == "ip":
+        if data.get("is_private"):
+            return {"score": 0, "level": "safe", "reasons": ["IP privado — sem risco externo"]}
+        # Indicators
+        if data.get("country") in ("RU", "CN", "KP", "IR"):
+            score += 25
+            reasons.append(f"País de alto risco: {data.get('country')}")
+        if data.get("org", "").lower() in ("tor", "vpn", "proxy", "hosting"):
+            score += 20
+            reasons.append("ASN associado a VPN/Proxy/Tor")
+        if not data.get("hostname"):
+            score += 5
+            reasons.append("Sem hostname reverso")
+        if data.get("abuse_score", 0) > 50:
+            score += 30
+            reasons.append(f"AbuseIPDB score: {data.get('abuse_score')}")
+    elif inv_type == "email":
+        if not data.get("mx_valid"):
+            score += 40
+            reasons.append("Domínio sem MX válido — possível falso")
+        if data.get("is_disposable"):
+            score += 35
+            reasons.append("Email descartável/temporário")
+        if data.get("breach_count", 0) > 0:
+            score += min(data["breach_count"] * 10, 30)
+            reasons.append(f"Encontrado em {data['breach_count']} breach(es)")
+    elif inv_type == "domain":
+        age_days = data.get("domain_age_days", 365)
+        if age_days < 30:
+            score += 30
+            reasons.append(f"Domínio recente ({age_days} dias)")
+        elif age_days < 90:
+            score += 15
+            reasons.append(f"Domínio jovem ({age_days} dias)")
+    score = min(score, 100)
+    level = "critical" if score >= 75 else "high" if score >= 50 else "medium" if score >= 25 else "low" if score >= 10 else "safe"
+    return {"score": score, "level": level, "reasons": reasons or ["Sem indicadores de ameaça"]}
+
+
+# ── /investigate/bulk — Investigar múltiplos alvos ───────────────────────────
+class BulkInvestigateRequest(BaseModel):
+    targets: list[str]
+    type: str = "auto"
+
+
+@router.post("/bulk")
+async def bulk_investigate(req: BulkInvestigateRequest):
+    """Investiga múltiplos alvos em sequência (máx 10)."""
+    if len(req.targets) > 10:
+        req.targets = req.targets[:10]
+
+    results = []
+    for target in req.targets:
+        try:
+            single_req = InvestigateRequest(target=target, type=req.type)
+            result = await investigate(single_req)
+            results.append({"target": target, "result": result, "error": None})
+        except Exception as e:
+            results.append({"target": target, "result": None, "error": str(e)})
+
+    success = sum(1 for r in results if r["error"] is None)
+    return {
+        "voice_response": f"Investigação em lote concluída, Senhor. {success}/{len(req.targets)} alvos analisados.",
+        "display_type": "bulk_osint",
+        "data": {"results": results, "total": len(req.targets), "success": success},
+    }
+
+
+# ── /investigate/history — Histórico de investigações ────────────────────────
+_INVESTIGATION_HISTORY: list[dict] = []
+_MAX_HISTORY = 50
+
+
+def _save_to_history(target: str, inv_type: str, result: dict) -> None:
+    import time
+    _INVESTIGATION_HISTORY.insert(0, {
+        "target": target, "type": inv_type,
+        "ts": time.time(), "voice_response": result.get("voice_response", "")[:200],
+    })
+    if len(_INVESTIGATION_HISTORY) > _MAX_HISTORY:
+        _INVESTIGATION_HISTORY.pop()
+
+
+@router.get("/history")
+async def get_investigation_history(limit: int = 20):
+    """Retorna histórico das últimas investigações OSINT."""
+    import time
+    history = _INVESTIGATION_HISTORY[:limit]
+    for entry in history:
+        entry["age_minutes"] = round((time.time() - entry["ts"]) / 60, 1)
+    return {"count": len(history), "history": history}
+
+
+@router.delete("/history")
+async def clear_investigation_history():
+    """Limpa o histórico de investigações."""
+    _INVESTIGATION_HISTORY.clear()
+    return {"message": "Histórico OSINT limpo, Senhor.", "cleared": True}

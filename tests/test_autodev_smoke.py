@@ -1,3 +1,4 @@
+
 """
 TESTE 1 — AutoDev básico (smoke test)
 
@@ -13,6 +14,9 @@ Validações:
 Run: pytest tests/test_autodev_smoke.py -v
 """
 from __future__ import annotations
+import pytest
+pytestmark = pytest.mark.integration
+
 
 import os
 from pathlib import Path

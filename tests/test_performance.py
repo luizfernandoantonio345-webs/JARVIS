@@ -1,3 +1,4 @@
+
 """
 JARVIS v6.0 — Performance Test Suite
 
@@ -11,6 +12,9 @@ Baselines:
 
 Run: pytest tests/test_performance.py -v --tb=short
 """
+
+import pytest
+pytestmark = pytest.mark.integration
 
 import pytest
 import httpx

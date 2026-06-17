@@ -33,9 +33,25 @@ class ChatResponse(BaseModel):
 
 def _with_memory_context(message: str) -> str:
     memory_context = load_user_memory()
-    if memory_context:
-        return f"{memory_context}\n\n{message}"
+    rag_context = _get_rag_context_sync(message)
+    parts = [p for p in [rag_context, memory_context] if p]
+    if parts:
+        return "\n\n".join(parts) + "\n\n" + message
     return message
+
+
+def _get_rag_context_sync(query: str) -> str:
+    """Busca contexto RAG de forma síncrona (non-blocking fallback)."""
+    try:
+        import asyncio
+        from services.rag_service import get_rag_context
+        loop = asyncio.new_event_loop()
+        try:
+            return loop.run_until_complete(get_rag_context(query))
+        finally:
+            loop.close()
+    except Exception:
+        return ""
 
 
 def _try_instant_agent(message: str) -> str | None:
@@ -224,6 +240,37 @@ def chat_stream(request: ChatRequest):
 def model_info():
     """Return which LLM providers are configured and active thresholds."""
     return get_model_info()
+
+
+# ── RAG endpoints ─────────────────────────────────────────────────────────────
+
+class RAGIndexRequest(BaseModel):
+    content: str
+    source: str = "manual"
+    doc_type: str = "text"
+
+
+@router.post("/rag/index")
+async def rag_index(req: RAGIndexRequest):
+    """Indexa conteúdo na base RAG do JARVIS."""
+    from services.rag_service import index_document
+    count = await index_document(req.content, {"source": req.source, "type": req.doc_type})
+    return {"status": "ok", "chunks_indexed": count, "source": req.source}
+
+
+@router.get("/rag/stats")
+async def rag_stats_route():
+    """Retorna estatísticas da base RAG."""
+    from services.rag_service import rag_stats
+    return await rag_stats()
+
+
+@router.get("/rag/search")
+async def rag_search(q: str, top_k: int = 5):
+    """Busca na base RAG — útil para debug e inspeção."""
+    from services.rag_service import get_rag_context
+    context = await get_rag_context(q, top_k=top_k)
+    return {"query": q, "context": context, "found": bool(context)}
 
 
 @router.get("/memory/{session_id}")

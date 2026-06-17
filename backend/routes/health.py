@@ -1,4 +1,4 @@
-"""Rotas de health check e métricas do sistema."""
+"""Rotas de health check, métricas e capacidades — JARVIS v8.0."""
 import logging
 import time
 
@@ -9,6 +9,7 @@ router = APIRouter()
 log = logging.getLogger(__name__)
 
 _START_TIME = time.time()
+_JARVIS_VERSION = "8.0"
 
 
 async def _check_ollama(url: str, timeout: float = 1.0) -> tuple[bool, list[str]]:
@@ -213,6 +214,185 @@ async def security_status():
     }
 
 
+@router.get("/network/info")
+async def network_info():
+    """
+    Retorna os IPs locais do PC para o utilizador conectar o celular.
+    O celular acede a http://[IP]:8000 no mesmo WiFi.
+    """
+    import socket
+    hostname = socket.gethostname()
+    ips: list[str] = []
+
+    # Método 1: getaddrinfo
+    try:
+        for info in socket.getaddrinfo(hostname, None):
+            ip = info[4][0]
+            if ip and not ip.startswith("127.") and ":" not in ip:
+                if ip not in ips:
+                    ips.append(ip)
+    except Exception:
+        pass
+
+    # Método 2: UDP trick (mais confiável para achar o IP da rede ativa)
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        primary = s.getsockname()[0]
+        s.close()
+        if primary and primary not in ips and not primary.startswith("127."):
+            ips.insert(0, primary)
+    except Exception:
+        pass
+
+    primary_ip = ips[0] if ips else "—"
+    port = 8000
+
+    return {
+        "hostname": hostname,
+        "primary_ip": primary_ip,
+        "all_ips": ips,
+        "port": port,
+        "jarvis_url": f"http://{primary_ip}:{port}",
+        "qr_hint": f"Abra http://{primary_ip}:{port} no celular (mesmo WiFi)",
+    }
+
+
 def os_env(key: str, default: str = "") -> str:
     import os
     return os.getenv(key, default)
+
+
+@router.get("/ping")
+async def ping():
+    """Ultra-leve liveness check — responde em <1ms."""
+    return {"pong": True, "ts": time.time(), "version": _JARVIS_VERSION}
+
+
+@router.get("/ready")
+async def ready():
+    """Readiness probe — verifica se Ollama está acessível."""
+    from fastapi.responses import JSONResponse
+    from config import get_config
+    cfg = get_config()
+    ollama_ok, _ = await _check_ollama(cfg.ollama_url, timeout=2.0)
+    return JSONResponse(
+        content={"ready": ollama_ok, "ollama": "up" if ollama_ok else "down", "version": _JARVIS_VERSION},
+        status_code=200 if ollama_ok else 503,
+    )
+
+
+@router.get("/capabilities")
+async def get_capabilities():
+    """Lista todas as capacidades do JARVIS v8.0 — endpoints, agentes, power modes."""
+    import os
+    model = os_env("JARVIS_MODEL", "qwen2:0.5b")
+    return {
+        "version": _JARVIS_VERSION,
+        "model": model,
+        "uptime_seconds": round(time.time() - _START_TIME),
+        "endpoints": {
+            "chat": ["POST /chat", "POST /chat/stream", "GET /chat/history", "DELETE /chat/{session_id}"],
+            "voice": ["POST /voice/command", "GET /voice/tts", "GET /voice/status"],
+            "osint": ["POST /investigate"],
+            "analysis": ["POST /analyze"],
+            "architect": ["POST /architect"],
+            "generation": [
+                "POST /generate/code", "POST /generate/tests", "POST /generate/docs",
+                "POST /generate/regex", "POST /generate/diagram", "POST /generate/api",
+                "POST /generate/docker", "POST /generate/readme", "POST /generate/refactor",
+                "POST /generate/convert", "POST /generate/explain", "POST /generate/fix",
+                "POST /generate/review", "POST /generate/optimize", "POST /generate/summarize",
+            ],
+            "tasks": ["POST /tasks", "GET /tasks", "GET /tasks/{id}", "DELETE /tasks/{id}", "POST /tasks/{id}/retry"],
+            "agents": ["GET /agents", "POST /agents/{role}/run", "POST /agents/run"],
+            "memory": ["GET /memory/search", "POST /memory/semantic", "GET /memory/stats"],
+            "system": ["GET /health", "GET /status", "GET /metrics", "GET /system/info", "GET /ping", "GET /ready", "GET /network/info"],
+        },
+        "power_modes": {
+            "F2": "OSINT Investigation — /investigate",
+            "F3": "Code Analysis — /analyze",
+            "F4": "System Architect — /architect",
+            "F5": "Code Generator — /generate/code (v8.0)",
+            "F6": "Summarizer — /generate/summarize (v8.0)",
+        },
+        "languages_supported": [
+            "Python", "JavaScript", "TypeScript", "Java", "Go", "Rust", "PHP",
+            "Ruby", "Swift", "Kotlin", "Dart/Flutter", "C#", "C++", "C",
+            "SQL", "Shell", "PowerShell", "YAML", "HTML", "CSS", "Terraform",
+        ],
+        "agent_roles": [
+            "dev", "security", "architect", "qa", "devops", "ml", "osint",
+            "hacker", "pentest", "cloud", "mobile", "fullstack",
+        ],
+    }
+
+
+@router.get("/disk")
+async def disk_info():
+    """Informações detalhadas de disco."""
+    try:
+        import psutil, sys
+        path = "C:\\" if sys.platform == "win32" else "/"
+        disk = psutil.disk_usage(path)
+        partitions = []
+        for p in psutil.disk_partitions(all=False):
+            try:
+                usage = psutil.disk_usage(p.mountpoint)
+                partitions.append({
+                    "device": p.device,
+                    "mountpoint": p.mountpoint,
+                    "fstype": p.fstype,
+                    "total_gb": round(usage.total / 1024**3, 1),
+                    "used_gb": round(usage.used / 1024**3, 1),
+                    "free_gb": round(usage.free / 1024**3, 1),
+                    "percent": usage.percent,
+                })
+            except Exception:
+                pass
+        return {
+            "primary_total_gb": round(disk.total / 1024**3, 1),
+            "primary_used_gb": round(disk.used / 1024**3, 1),
+            "primary_free_gb": round(disk.free / 1024**3, 1),
+            "primary_percent": disk.percent,
+            "partitions": partitions,
+        }
+    except ImportError:
+        return {"error": "psutil não instalado"}
+
+
+@router.get("/processes")
+async def top_processes(limit: int = 10):
+    """Top processos por uso de CPU e memória."""
+    try:
+        import psutil
+        procs = []
+        for p in psutil.process_iter(["pid", "name", "cpu_percent", "memory_percent", "status"]):
+            try:
+                info = p.info
+                if info["cpu_percent"] is not None:
+                    procs.append(info)
+            except Exception:
+                pass
+        procs.sort(key=lambda x: x.get("cpu_percent", 0) or 0, reverse=True)
+        return {
+            "count": len(procs),
+            "top_cpu": procs[:limit],
+            "top_memory": sorted(procs, key=lambda x: x.get("memory_percent", 0) or 0, reverse=True)[:limit],
+        }
+    except ImportError:
+        return {"error": "psutil não instalado"}
+
+
+@router.get("/env")
+async def safe_env():
+    """Variáveis de ambiente JARVIS (sem secrets) — para diagnóstico."""
+    import os
+    safe_keys = [
+        "JARVIS_MODEL", "JARVIS_OLLAMA_URL", "JARVIS_HOST", "JARVIS_PORT",
+        "JARVIS_DEBUG", "JARVIS_VOICE_ENABLED", "JARVIS_AUTONOMY_ENABLED",
+        "JARVIS_SAFE_MODE", "JARVIS_TTS_VOICE", "JARVIS_CORS_ORIGINS",
+        "JARVIS_LOG_LEVEL", "JARVIS_TURBO_MODE_ENABLED", "JARVIS_NIGHT_MODE_ENABLED",
+        "OLLAMA_HOST", "OLLAMA_KEEP_ALIVE", "OMP_NUM_THREADS",
+    ]
+    return {k: os.getenv(k, "—") for k in safe_keys}

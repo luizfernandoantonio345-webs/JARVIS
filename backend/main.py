@@ -1,4 +1,4 @@
-"""JARVIS Backend — FastAPI v6.0"""
+"""JARVIS Backend — FastAPI v8.0"""
 import asyncio
 import logging
 import os
@@ -14,13 +14,16 @@ if BACKEND_DIR not in sys.path:
 LOG_DIR = os.path.join(BACKEND_DIR, 'logs')
 os.makedirs(LOG_DIR, exist_ok=True)
 
+from logging.handlers import RotatingFileHandler as _RFH
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler(
+        _RFH(
             os.path.join(LOG_DIR, 'jarvis.log'),
+            maxBytes=10 * 1024 * 1024,  # 10 MB por arquivo
+            backupCount=5,
             encoding='utf-8'
         ),
     ]
@@ -45,7 +48,13 @@ CORS_ORIGINS: List[str] = (
     else [o.strip() for o in _raw_origins.split(",") if o.strip()]
 )
 
-app = FastAPI(title='JARVIS v6.0', version='6.0.0')
+app = FastAPI(
+    title='JARVIS v8.0',
+    version='8.0.0',
+    description='J.A.R.V.I.S. — Just A Rather Very Intelligent System. Personal AI Backend.',
+    docs_url='/docs',
+    redoc_url='/redoc',
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -55,6 +64,18 @@ app.add_middleware(
     allow_headers=['*'],
 )
 app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+# ── Request-ID + Timing middleware ─────────────────────────────────────────────
+@app.middleware("http")
+async def _request_id_timing(request: Request, call_next):
+    req_id = request.headers.get("X-Request-ID") or f"j{uuid.uuid4().hex[:10]}"
+    t0 = time.monotonic()
+    response = await call_next(request)
+    elapsed_ms = round((time.monotonic() - t0) * 1000)
+    response.headers["X-Request-ID"] = req_id
+    response.headers["X-Response-Time"] = f"{elapsed_ms}ms"
+    response.headers["X-JARVIS-Version"] = "8.0"
+    return response
 
 # ── Security Middleware Stack ──────────────────────────────────────────────────
 try:
@@ -94,8 +115,15 @@ if _API_KEY:
 
     @app.middleware("http")
     async def _auth(request: Request, call_next):
-        if request.url.path in _PUBLIC_PATHS or request.url.path.startswith("/ws"):
+        if request.url.path in _PUBLIC_PATHS:
             return await call_next(request)
+        # WebSocket: aceita token via query param ?token=...
+        if request.url.path.startswith("/ws"):
+            ws_token = request.query_params.get("token", "")
+            if ws_token == _API_KEY:
+                return await call_next(request)
+            # Sem token → recusa (retorna 401; o WS client verá onclose)
+            return JSONResponse({"detail": "Unauthorized"}, status_code=401)
         auth = request.headers.get("Authorization", "")
         if not auth.startswith("Bearer ") or auth[7:] != _API_KEY:
             return JSONResponse({"detail": "Unauthorized"}, status_code=401)
@@ -157,6 +185,9 @@ def _mount_routers():
         ('routes.investigate',  '/investigate',   False),  # OSINT: phone/IP/email
         ('routes.analyze',      '/analyze',       False),  # Code analysis + errors
         ('routes.architect',    '/architect',     False),  # System architecture planner
+        # ── JARVIS v8.0: Generation + Task queue ───────────────────────────
+        ('routes.generate',     '/generate',      False),  # Code/docs/diagrams/tests generation
+        ('routes.tasks',        '/tasks',         False),  # Background task queue
     ]
     for module, prefix, required in cfg_map:
         try:
@@ -176,7 +207,7 @@ def _mount_routers():
 @app.on_event('startup')
 async def startup():
     log.info('=' * 50)
-    log.info('JARVIS v6.0 iniciando...')
+    log.info('JARVIS v8.0 iniciando...')
     log.info('Ollama: %s', _cfg.ollama_url)
 
     # Seleciona modelo por RAM (JARVIS_MODEL manual sempre tem prioridade)
@@ -236,6 +267,25 @@ async def _init_headset_pipeline():
         log.info('[HEADSET_PIPELINE] Hands-free mode active')
     except Exception as e:
         log.warning('[HEADSET_PIPELINE] Could not start: %s', e)
+
+    # ── Wake word engine ─────────────────────────────────────────────────────
+    if os.getenv('JARVIS_WAKE_WORD_ENABLED', 'true').lower() == 'true':
+        await asyncio.sleep(2)
+        try:
+            from voice_v2.wake_word import start_wake_word
+            from voice_v2.voice_pipeline_v3 import get_voice_pipeline as _gvp
+
+            _pipeline = _gvp()
+
+            async def _on_wake(audio):
+                """Callback: processa áudio capturado após wake word."""
+                await _pipeline._on_audio(audio)
+
+            loop = asyncio.get_event_loop()
+            start_wake_word(on_wake=_on_wake, loop=loop)
+            log.info('[WAKE_WORD] Engine ativo — diga "Hey JARVIS" para ativar')
+        except Exception as e:
+            log.warning('[WAKE_WORD] Não foi possível iniciar: %s', e)
 
 
 async def _speak_boot():
@@ -424,10 +474,114 @@ async def status():
         uptime = 0
     return {
         'jarvis': 'online',
+        'version': '8.0',
         'model': os.getenv('JARVIS_MODEL', 'qwen2:0.5b'),
         'uptime_seconds': uptime,
         'voice': os.getenv('JARVIS_VOICE_ENABLED', 'true') == 'true',
     }
+
+
+@app.get('/ping', include_in_schema=False)
+async def ping():
+    """Ultra-lightweight liveness probe — returns in <1ms."""
+    return {'pong': True, 'ts': time.time()}
+
+
+@app.get('/ready', include_in_schema=False)
+async def ready():
+    """Readiness probe — checks if Ollama is reachable."""
+    from config import get_config
+    cfg = get_config()
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=1.5) as c:
+            r = await c.get(f"{cfg.ollama_url}/api/tags")
+            ollama_ok = r.status_code == 200
+    except Exception:
+        ollama_ok = False
+    status_code = 200 if ollama_ok else 503
+    return JSONResponse(
+        content={'ready': ollama_ok, 'ollama': 'up' if ollama_ok else 'down'},
+        status_code=status_code,
+    )
+
+
+@app.get('/capabilities', include_in_schema=False)
+async def capabilities():
+    """Lists all JARVIS v8.0 capabilities and endpoints."""
+    return {
+        'version': '8.0',
+        'features': {
+            'chat': 'POST /chat — conversação inteligente com streaming SSE',
+            'websocket': 'WS /ws/jarvis — chat em tempo real bidirecional',
+            'voice': 'POST /voice/command — STT → LLM → TTS pipeline completo',
+            'osint': 'POST /investigate — investigação OSINT (phone/IP/email/domain)',
+            'code_analysis': 'POST /analyze — análise de código com 25+ linguagens',
+            'architect': 'POST /architect — plano arquitetural completo com tech stack',
+            'generate': {
+                'code': 'POST /generate/code — gerar código a partir de descrição',
+                'tests': 'POST /generate/tests — gerar suite de testes',
+                'docs': 'POST /generate/docs — gerar documentação',
+                'regex': 'POST /generate/regex — gerar + explicar regex',
+                'diagram': 'POST /generate/diagram — gerar diagrama Mermaid',
+                'api': 'POST /generate/api — gerar especificação REST API',
+                'docker': 'POST /generate/docker — gerar Dockerfile + docker-compose',
+                'readme': 'POST /generate/readme — gerar README.md profissional',
+                'refactor': 'POST /generate/refactor — refatorar código',
+                'convert': 'POST /generate/convert — converter entre linguagens',
+                'explain': 'POST /generate/explain — explicar código/conceito',
+                'fix': 'POST /generate/fix — corrigir código com erro',
+                'review': 'POST /generate/review — code review profissional',
+                'optimize': 'POST /generate/optimize — otimizar performance/legibilidade',
+                'summarize': 'POST /generate/summarize — resumir texto/código/documento',
+            },
+            'tasks': 'POST /tasks — criar tarefa background + GET /tasks/{id} para status',
+            'memory': 'GET /memory/search?q=... — busca semântica na memória',
+            'agents': 'POST /agents/{role}/run — invocar agente especializado',
+            'metrics': 'GET /metrics — métricas do sistema (CPU/RAM/disco/rede)',
+            'health': 'GET /health — health check + Ollama status',
+            'network': 'GET /network/info — IP local para conectar celular',
+        },
+        'power_modes': {
+            'F2': 'OSINT Investigation',
+            'F3': 'Code Analysis',
+            'F4': 'System Architect',
+            'F5': 'Generate Code (novo v8.0)',
+            'F6': 'Summarize (novo v8.0)',
+        },
+        'agents': [
+            'Master Orchestrator', 'Dev Senior', 'Security/OSINT', 'Architect',
+            'QA/Testing', 'DevOps/Cloud', 'AI/ML', 'Project Manager', 'Critic',
+        ],
+    }
+
+
+# ── Global error handlers ──────────────────────────────────────────────────────
+@app.exception_handler(404)
+async def not_found_handler(request: Request, exc):
+    return JSONResponse(
+        status_code=404,
+        content={
+            'error': 'Not Found',
+            'message': f"Rota '{request.url.path}' não existe, Senhor.",
+            'available_docs': '/docs',
+            'capabilities': '/capabilities',
+        },
+    )
+
+
+@app.exception_handler(500)
+async def server_error_handler(request: Request, exc: Exception):
+    req_id = request.headers.get("X-Request-ID", "unknown")
+    log.error('[500] %s %s — req_id=%s — %s', request.method, request.url.path, req_id, exc)
+    return JSONResponse(
+        status_code=500,
+        content={
+            'error': 'Internal Server Error',
+            'message': 'Erro interno, Senhor. Verifique os logs.',
+            'request_id': req_id,
+        },
+    )
 
 
 if __name__ == '__main__':

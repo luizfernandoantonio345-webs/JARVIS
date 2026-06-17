@@ -1,3 +1,4 @@
+
 """
 TESTE 3 — WebSocket stream
 
@@ -13,6 +14,9 @@ Run: pytest tests/test_autodev_ws.py -v
 Note: requires websockets package (pip install websockets)
 """
 from __future__ import annotations
+import pytest
+pytestmark = pytest.mark.integration
+
 
 import json
 import os

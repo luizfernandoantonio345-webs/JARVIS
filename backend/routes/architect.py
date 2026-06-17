@@ -249,16 +249,158 @@ Regras:
     hours = plan.get("estimated_hours", 0)
     sprints = plan.get("estimated_sprints", 0)
 
+    # Generate Mermaid ERD from database tables
+    tables = plan.get("database_tables", [])
+    mermaid_erd = _generate_mermaid_erd(tables)
+    plan["mermaid_erd"] = mermaid_erd
+
+    # Generate Mermaid flowchart from modules
+    mermaid_flow = _generate_mermaid_flow(plan)
+    plan["mermaid_flow"] = mermaid_flow
+
+    # Cost estimate
+    hourly_rates = {"startup": 80, "medium": 120, "enterprise": 200}
+    rate = hourly_rates.get(req.budget, 80)
+    cost_estimate = {
+        "solo_dev_usd": hours * rate,
+        "small_team_usd": round(hours * rate * 0.75),  # team efficiency
+        "hourly_rate_usd": rate,
+        "breakdown_brl": {
+            "solo_dev": f"R${hours * rate * 5.1:,.0f}",
+            "small_team": f"R${hours * rate * 5.1 * 0.75:,.0f}",
+        },
+    }
+    plan["cost_estimate"] = cost_estimate
+
     voice = (
         f"Plano arquitetural gerado para '{plan.get('title', req.description)}', Senhor. "
         f"Sistema {plan.get('complexity', '')} — {len(screens)} telas, {len(modules)} módulos. "
         f"Stack: {tech.get('frontend', '?')} + {tech.get('backend', '?')}. "
-        f"Estimativa: {hours} horas ({sprints} sprints). "
-        f"Aguardando confirmação para iniciar o desenvolvimento."
+        f"Estimativa: {hours} horas ({sprints} sprints) — ~R${hours * rate * 5:,.0f}. "
+        f"Diagramas ERD e fluxo gerados. Aguardando confirmação para iniciar."
     )
 
     return {
         "voice_response": voice,
         "display_type": "architect_plan",
         "data": plan,
+    }
+
+
+def _generate_mermaid_erd(tables: list) -> str:
+    """Generate Mermaid ER diagram from database_tables list."""
+    if not tables:
+        return ""
+    lines = ["erDiagram"]
+    for table in tables[:10]:  # limit to avoid huge diagrams
+        name = table.get("name", "table").upper()
+        fields = table.get("main_fields", [])
+        if fields:
+            lines.append(f"  {name} {{")
+            for field in fields[:6]:
+                field_type = "string"
+                if "id" in field.lower():
+                    field_type = "int"
+                elif "at" in field.lower() or "date" in field.lower() or "time" in field.lower():
+                    field_type = "datetime"
+                elif "count" in field.lower() or "num" in field.lower() or "amount" in field.lower():
+                    field_type = "float"
+                elif "bool" in field.lower() or "is_" in field.lower() or "has_" in field.lower():
+                    field_type = "boolean"
+                lines.append(f"    {field_type} {field}")
+            lines.append("  }")
+    # Add some basic relationships
+    for i, table in enumerate(tables[:6]):
+        if i < len(tables) - 1:
+            t1 = table.get("name", "").upper()
+            t2 = tables[i + 1].get("name", "").upper()
+            if t1 and t2:
+                lines.append(f'  {t1} ||--o{{ {t2} : "has"')
+    return "\n".join(lines)
+
+
+def _generate_mermaid_flow(plan: dict) -> str:
+    """Generate a system architecture flowchart from the plan."""
+    tech = plan.get("tech_stack", {})
+    lines = ["flowchart TD"]
+    lines.append(f'  U["👤 Usuário"]')
+
+    frontend = tech.get("frontend", "Frontend")
+    backend = tech.get("backend", "Backend")
+    database = tech.get("database", "Database")
+    cache = tech.get("cache", "")
+    auth = tech.get("auth", "Auth")
+    deploy = tech.get("deploy", "")
+
+    lines.append(f'  FE["{frontend}"]')
+    lines.append(f'  BE["{backend}"]')
+    lines.append(f'  DB[("{database}")]')
+    lines.append(f'  AUTH["{auth}"]')
+    if cache:
+        lines.append(f'  CACHE["{cache}"]')
+    if deploy:
+        lines.append(f'  DEPLOY["☁ {deploy}"]')
+
+    lines.append("  U --> FE")
+    lines.append("  FE --> AUTH")
+    lines.append("  AUTH --> BE")
+    lines.append("  BE --> DB")
+    if cache:
+        lines.append("  BE --> CACHE")
+    if deploy:
+        lines.append("  BE --> DEPLOY")
+
+    lines.append("  style U fill:#1a1a2e,stroke:#00e5ff,color:#fff")
+    lines.append("  style FE fill:#16213e,stroke:#4eff91,color:#fff")
+    lines.append("  style BE fill:#0f3460,stroke:#00e5ff,color:#fff")
+    lines.append("  style DB fill:#533483,stroke:#d4a820,color:#fff")
+    lines.append("  style AUTH fill:#e94560,stroke:#fff,color:#fff")
+
+    return "\n".join(lines)
+
+
+# ── /architect/review — Revisar arquitetura existente ─────────────────────────
+class ArchitectReviewReq(BaseModel):
+    current_stack: str
+    pain_points: list[str] = []
+    goals: list[str] = []
+    team_size: str = "1 dev solo"
+    budget: str = "startup"
+
+
+@router.post("/review")
+async def review_architecture(req: ArchitectReviewReq):
+    from ai.client import get_ai_client
+    from core.jarvis_persona import _build_identity
+
+    pain_hint = "\n".join(f"- {p}" for p in req.pain_points) if req.pain_points else ""
+    goals_hint = "\n".join(f"- {g}" for g in req.goals) if req.goals else ""
+
+    system = f"""{_build_identity()}
+MODO: ARQUITETO DE SISTEMAS SÊNIOR fazendo revisão de arquitetura existente.
+Stack atual do Senhor: {req.current_stack}
+Time: {req.team_size} | Budget: {req.budget}
+{f'Problemas atuais:\n{pain_hint}' if pain_hint else ''}
+{f'Objetivos:\n{goals_hint}' if goals_hint else ''}
+
+Retorne JSON: {{"health_score": <0-100>, "critical_issues": [{{"issue": "<problema>", "impact": "high|medium|low", "fix": "<solução>"}}], "strengths": ["<ponto positivo>"], "migration_path": [{{"phase": 1, "action": "<ação>", "effort": "<estimativa horas>", "benefit": "<benefício>"}}], "recommended_changes": [{{"area": "<área>", "current": "<atual>", "recommended": "<recomendado>", "reason": "<por quê>"}}], "quick_wins": ["<melhoria rápida que pode fazer hoje>"], "verdict": "<parágrafo de avaliação geral>"}}
+Sem markdown, JSON válido."""
+
+    try:
+        raw = get_ai_client().call([
+            {"role": "system", "content": system},
+            {"role": "user", "content": f"Revise esta arquitetura: {req.current_stack}"},
+        ])
+        data = _parse_llm_json(raw)
+        if not data:
+            data = {"health_score": 50, "critical_issues": [], "strengths": [], "migration_path": [], "quick_wins": [raw[:200]]}
+    except Exception as e:
+        data = {"health_score": 0, "verdict": f"Erro na revisão: {e}"}
+
+    score = data.get("health_score", 0)
+    issues = len(data.get("critical_issues", []))
+    return {
+        "voice_response": f"Revisão arquitetural concluída, Senhor. Score de saúde: {score}/100. {issues} problema{'s' if issues != 1 else ''} crítico{'s' if issues != 1 else ''} identificado{'s' if issues != 1 else ''}.",
+        "display_type": "architect_review",
+        "data": data,
     }

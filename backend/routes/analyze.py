@@ -236,3 +236,173 @@ Regras:
             "raw_preview": code[:300] + "..." if len(code) > 300 else code,
         },
     }
+
+
+# ── /analyze/explain — Explicar código sem análise de bugs ───────────────────
+class ExplainCodeReq(BaseModel):
+    file_path: str = ""
+    code_snippet: str = ""
+    language: str = ""
+    question: str = ""
+    level: str = "intermediate"  # beginner | intermediate | senior
+
+
+@router.post("/explain")
+async def explain_code(req: ExplainCodeReq):
+    from ai.client import get_ai_client
+    from core.jarvis_persona import _build_identity
+
+    code = req.code_snippet
+    if not code and req.file_path:
+        fpath, err = _resolve_file(req.file_path)
+        if err:
+            return {"voice_response": f"Arquivo não encontrado: {req.file_path}", "display_type": "text_result", "data": {}}
+        code = fpath.read_text(encoding="utf-8", errors="replace")[:4000]
+
+    if not code:
+        return {"voice_response": "Forneça código para explicar, Senhor.", "display_type": "text_result", "data": {}}
+
+    lang = req.language or _detect_language(req.file_path)
+    level_desc = {
+        "beginner": "como se o utilizador nunca tivesse programado",
+        "intermediate": "para um developer júnior com alguma experiência",
+        "senior": "para um engenheiro sênior, com foco em trade-offs e padrões",
+    }.get(req.level, "para um developer com experiência moderada")
+
+    question_hint = f"\nPergunta específica do Senhor: {req.question}" if req.question else ""
+
+    system = f"""{_build_identity()}
+Explique o código {question_hint}
+Nível: {level_desc}.
+Retorne JSON: {{"title": "<nome do código>", "purpose": "<o que faz em 1 frase>", "how_it_works": "<explicação passo-a-passo>", "key_concepts": ["<conceito 1>", ...], "design_patterns": ["<padrão usado>"], "data_flow": "<como os dados fluem>", "gotchas": ["<armadilha ou detalhe não óbvio>"], "example_use": "<exemplo de uso>"}}
+Sem markdown, JSON válido."""
+
+    try:
+        raw = get_ai_client().call([
+            {"role": "system", "content": system},
+            {"role": "user", "content": f"Explique este {lang}:\n\n```\n{code[:3000]}\n```"},
+        ])
+        data = _parse_llm_json(raw)
+        if not data:
+            data = {"purpose": raw[:200], "how_it_works": raw, "key_concepts": [], "design_patterns": [], "gotchas": []}
+    except Exception as e:
+        data = {"purpose": "Erro na explicação", "how_it_works": str(e), "key_concepts": [], "design_patterns": [], "gotchas": []}
+
+    return {
+        "voice_response": f"Explicação pronta, Senhor. {data.get('purpose', '')[:120]}",
+        "display_type": "code_explanation",
+        "data": {**data, "language": lang, "code_preview": code[:200]},
+    }
+
+
+# ── /analyze/security — Scan focado em segurança ─────────────────────────────
+class SecurityScanReq(BaseModel):
+    file_path: str = ""
+    code_snippet: str = ""
+    language: str = ""
+
+
+@router.post("/security")
+async def security_scan(req: SecurityScanReq):
+    from ai.client import get_ai_client
+    from core.jarvis_persona import _build_identity
+
+    code = req.code_snippet
+    if not code and req.file_path:
+        fpath, err = _resolve_file(req.file_path)
+        if err:
+            return {"voice_response": f"Arquivo não encontrado: {req.file_path}", "display_type": "text_result", "data": {}}
+        code = fpath.read_text(encoding="utf-8", errors="replace")[:5000]
+
+    if not code:
+        return {"voice_response": "Forneça código para scan de segurança, Senhor.", "display_type": "text_result", "data": {}}
+
+    lang = req.language or _detect_language(req.file_path)
+
+    system = f"""{_build_identity()}
+MODO: PENETRATION TESTER + SECURITY AUDITOR SÊNIOR (OWASP Top 10, CWE, CVSS).
+Analise rigorosamente em busca de: SQL Injection, XSS, CSRF, RCE, IDOR, Path Traversal, XXE, SSRF, Hardcoded Secrets, Insecure Dependencies, Auth Bypass, Data Exposure.
+Retorne JSON: {{"risk_score": <0-10>, "risk_level": "critical|high|medium|low|minimal", "vulnerabilities": [{{"cwe": "CWE-XXX", "owasp": "A1-A10", "severity": "critical|high|medium|low", "line": <n or null>, "description": "<vuln>", "exploit": "<como seria explorada>", "fix": "<código seguro>", "references": ["<cve ou link>"]}}], "secure_coding_score": <0-100>, "recommendations": ["<recomendação de segurança>"], "compliance_notes": {{"owasp": "<conformidade>", "pci_dss": "<se aplicável>", "gdpr": "<se aplicável>"}}}}
+Sem markdown, JSON válido."""
+
+    try:
+        raw = get_ai_client().call([
+            {"role": "system", "content": system},
+            {"role": "user", "content": f"Faça security scan deste {lang}:\n\n```\n{code[:4000]}\n```"},
+        ])
+        data = _parse_llm_json(raw)
+        if not data:
+            data = {"risk_score": 5, "risk_level": "medium", "vulnerabilities": [], "recommendations": [raw[:200]], "secure_coding_score": 50}
+    except Exception as e:
+        data = {"risk_score": 0, "risk_level": "unknown", "vulnerabilities": [], "recommendations": [f"Erro: {e}"], "secure_coding_score": 0}
+
+    vulns = data.get("vulnerabilities", [])
+    critical_v = sum(1 for v in vulns if v.get("severity") == "critical")
+    high_v = sum(1 for v in vulns if v.get("severity") == "high")
+    risk_level = data.get("risk_level", "unknown")
+    risk_score = data.get("risk_score", 0)
+
+    voice = (
+        f"Security scan concluído, Senhor. "
+        f"Risco: {risk_level.upper()} ({risk_score}/10). "
+        f"{len(vulns)} vulnerabilidade{'s' if len(vulns) != 1 else ''} detectada{'s' if len(vulns) != 1 else ''}. "
+        f"{f'{critical_v} crítica' + ('s' if critical_v != 1 else '') + '. ' if critical_v else ''}"
+        f"{f'{high_v} alta' + ('s' if high_v != 1 else '') + '.' if high_v else ''}"
+    )
+
+    return {
+        "voice_response": voice,
+        "display_type": "security_scan",
+        "data": {**data, "language": lang, "lines_scanned": code.count('\n') + 1},
+    }
+
+
+# ── /analyze/complexity — Métricas de complexidade ───────────────────────────
+class ComplexityReq(BaseModel):
+    file_path: str = ""
+    code_snippet: str = ""
+    language: str = ""
+
+
+@router.post("/complexity")
+async def analyze_complexity(req: ComplexityReq):
+    from ai.client import get_ai_client
+    from core.jarvis_persona import _build_identity
+
+    code = req.code_snippet
+    if not code and req.file_path:
+        fpath, err = _resolve_file(req.file_path)
+        if err:
+            return {"voice_response": f"Arquivo não encontrado, Senhor.", "display_type": "text_result", "data": {}}
+        code = fpath.read_text(encoding="utf-8", errors="replace")[:5000]
+
+    if not code:
+        return {"voice_response": "Forneça código para análise de complexidade, Senhor.", "display_type": "text_result", "data": {}}
+
+    lang = req.language or _detect_language(req.file_path)
+    lines = code.count('\n') + 1
+
+    system = f"""{_build_identity()}
+MODO: ENGENHEIRO DE QUALIDADE DE SOFTWARE.
+Analise métricas de complexidade do código.
+Retorne JSON: {{"cyclomatic_complexity": <número>, "cognitive_complexity": <número>, "lines_of_code": {lines}, "comment_ratio": "<x%>", "function_count": <n>, "class_count": <n>, "max_nesting_depth": <n>, "avg_function_length": <n>, "maintainability_index": <0-100>, "technical_debt": "<estimativa ex: 2h>", "hotspots": [{{"location": "<função/classe>", "issue": "<problema>", "priority": "high|medium|low"}}], "refactoring_suggestions": ["<sugestão>"]}}
+Sem markdown, JSON válido."""
+
+    try:
+        raw = get_ai_client().call([
+            {"role": "system", "content": system},
+            {"role": "user", "content": f"Analise complexidade deste {lang}:\n\n```\n{code[:4000]}\n```"},
+        ])
+        data = _parse_llm_json(raw)
+        if not data:
+            data = {"cyclomatic_complexity": 0, "maintainability_index": 50, "hotspots": [], "refactoring_suggestions": [raw[:200]]}
+    except Exception as e:
+        data = {"error": str(e), "cyclomatic_complexity": 0, "maintainability_index": 0}
+
+    mi = data.get("maintainability_index", 0)
+    cc = data.get("cyclomatic_complexity", 0)
+    return {
+        "voice_response": f"Análise de complexidade concluída, Senhor. Índice de manutenibilidade: {mi}/100. Complexidade ciclomática: {cc}.",
+        "display_type": "complexity_report",
+        "data": {**data, "language": lang, "lines_of_code": lines},
+    }

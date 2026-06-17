@@ -1,8 +1,12 @@
+
 """
 WebSocket contract tests.
 Ensures backend schema matches frontend TypeScript types.
 """
 from __future__ import annotations
+import pytest
+pytestmark = pytest.mark.integration
+
 
 import os
 import re

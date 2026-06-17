@@ -1,7 +1,11 @@
+
 """
 Integration tests for JARVIS browser control actions.
 Tests URL validation, navigation, form filling with security checks.
 """
+import pytest
+pytestmark = pytest.mark.integration
+
 import pytest
 from fastapi.testclient import TestClient
 

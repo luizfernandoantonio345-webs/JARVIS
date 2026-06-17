@@ -1,7 +1,11 @@
+
 """
 Integration tests for JARVIS computer control actions.
 Tests mouse movement, clicks, keyboard input with validation.
 """
+import pytest
+pytestmark = pytest.mark.integration
+
 import pytest
 from fastapi.testclient import TestClient
 

@@ -1,3 +1,4 @@
+
 """
 JARVIS v6.0 — Security Validation Tests
 
@@ -11,6 +12,9 @@ Coverage:
 
 Run: pytest tests/test_security_complete.py -v --tb=short
 """
+
+import pytest
+pytestmark = pytest.mark.integration
 
 import pytest
 import httpx

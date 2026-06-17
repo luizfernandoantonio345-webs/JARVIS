@@ -1,7 +1,11 @@
+
 """
 End-to-end voice integration tests
 Tests complete voice pipeline: Audio Input -> STT -> LLM -> TTS -> Audio Output
 """
+import pytest
+pytestmark = pytest.mark.integration
+
 import asyncio
 import pytest
 import sys

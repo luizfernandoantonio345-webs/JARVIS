@@ -1,3 +1,4 @@
+
 """
 JARVIS v6.0 — E2E Test Suite (End-to-End Integration Tests)
 
@@ -15,6 +16,9 @@ Coverage:
 
 Run: pytest tests/test_e2e_complete.py -v --tb=short
 """
+
+import pytest
+pytestmark = pytest.mark.integration
 
 import asyncio
 import json

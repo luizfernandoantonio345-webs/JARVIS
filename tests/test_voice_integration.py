@@ -1,3 +1,4 @@
+
 """
 JARVIS v6.0 — Voice Integration Tests
 
@@ -17,6 +18,9 @@ Note: These tests require:
   - Faster-Whisper installed (STT)
   - Edge-TTS installed (TTS)
 """
+
+import pytest
+pytestmark = pytest.mark.integration
 
 import pytest
 import asyncio

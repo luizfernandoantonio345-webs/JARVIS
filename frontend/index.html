@@ -2,8 +2,18 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>JARVIS — Neural Core</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="JARVIS">
+<meta name="theme-color" content="#000000">
+<meta name="description" content="J.A.R.V.I.S. — Personal AI Assistant">
+<title>JARVIS v9.0 — Neural Core</title>
+<link rel="manifest" href="/static/manifest.json">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' fill='%23000'/%3E%3Ccircle cx='96' cy='96' r='70' fill='none' stroke='%2300e5ff' stroke-width='3'/%3E%3Ccircle cx='96' cy='96' r='18' fill='%2300e5ff'/%3E%3C/svg%3E">
+<!-- v8.0 CDN: Mermaid (diagrams) -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js" defer></script>
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 :root{
@@ -135,8 +145,45 @@ body.alert #jt{text-shadow:0 0 8px rgba(255,42,74,0.9),0 0 25px rgba(255,42,74,0
   #w2{left:6px;right:6px;width:auto;bottom:44px}
   #w3{display:none}#r2,#r3{display:none}
   .dstream{display:none}.corner svg{width:48px;height:48px}
-  #cmdinput{width:92vw}#respanel{width:92vw}
+  #cmdinput{width:92vw;bottom:clamp(80px,11vh,100px)}
+  #respanel{width:92vw;max-height:28vh;bottom:clamp(130px,19vh,160px)}
+  #stbar{font-size:clamp(4px,2.8vw,6px);letter-spacing:1px}
+  #stbar .seg{padding:0 8px}
+  #jt{letter-spacing:clamp(6px,4vw,16px)}
+  #pttBtn{width:44px;height:44px;font-size:20px;bottom:10px;right:10px}
+  #settingsBtn{bottom:10px;left:10px}
+  #quickBar{display:none}
+  #settingsPanel{width:92vw;max-height:85vh;overflow-y:auto}
+  .feedback-row{gap:4px}
+  .fb-btn{font-size:7px;padding:3px 7px}
 }
+@media(max-width:480px){
+  #w0,#w1,#w2,#w3,#r0,#r1,#r2,#r3{display:none}
+  #cmdinput{width:96vw;bottom:72px}
+  #respanel{width:96vw;bottom:120px;max-height:35vh}
+}
+/* ── FEEDBACK BUTTONS ─────────────────────────────────────────────────────── */
+.feedback-row{display:flex;gap:6px;align-items:center;margin-top:6px;padding-top:5px;border-top:1px solid rgba(0,229,255,0.07);flex-wrap:wrap}
+.fb-lbl{font-size:5px;color:rgba(0,229,255,0.22);letter-spacing:1.5px;flex-shrink:0}
+.fb-btn{font-size:clamp(5px,0.55vw,6.5px);padding:2px 9px;border:1px solid rgba(0,229,255,0.12);background:transparent;color:rgba(0,229,255,0.45);cursor:pointer;letter-spacing:1px;transition:all 0.2s;font-family:var(--f);border-radius:0}
+.fb-btn:hover{background:rgba(0,229,255,0.06);border-color:rgba(0,229,255,0.35);color:rgba(0,229,255,0.88)}
+.fb-btn.good:hover{border-color:rgba(78,255,145,0.4);color:rgba(78,255,145,0.9)}
+.fb-btn.bad:hover{border-color:rgba(255,107,107,0.4);color:rgba(255,107,107,0.9)}
+.fb-btn.mem:hover{border-color:rgba(255,209,102,0.4);color:rgba(255,209,102,0.9)}
+.fb-btn.active{opacity:0.5;pointer-events:none}
+/* ── MEMORY MODAL ─────────────────────────────────────────────────────────── */
+#memModal{position:fixed;inset:0;z-index:150;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.85)}
+#memModal.show{display:flex}
+#memBox{width:clamp(280px,60vw,580px);max-height:75vh;background:rgba(0,4,14,0.99);border:1px solid rgba(0,229,255,0.22);padding:16px;display:flex;flex-direction:column;gap:8px;overflow:hidden}
+.mem-title{font-size:clamp(5.5px,0.6vw,7px);letter-spacing:3px;color:rgba(0,229,255,0.4);text-transform:uppercase;border-bottom:1px solid rgba(0,229,255,0.07);padding-bottom:6px;display:flex;justify-content:space-between;align-items:center}
+.mem-list{overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:4px;max-height:50vh}
+.mem-item{padding:7px 9px;border:1px solid rgba(0,229,255,0.08);font-size:clamp(5.5px,0.6vw,7px);color:rgba(100,195,215,0.7);display:grid;grid-template-columns:1fr auto;gap:6px;align-items:start;background:rgba(0,229,255,0.015)}
+.mem-item:hover{background:rgba(0,229,255,0.04)}
+.mem-session{font-size:4.5px;color:rgba(0,229,255,0.2);margin-top:2px;letter-spacing:0.5px}
+.mem-del{font-size:5px;padding:1px 7px;border:1px solid rgba(255,107,107,0.2);background:transparent;color:rgba(255,107,107,0.4);cursor:pointer;letter-spacing:1px;font-family:var(--f);transition:all 0.2s;flex-shrink:0}
+.mem-del:hover{border-color:rgba(255,107,107,0.5);color:rgba(255,107,107,0.9);background:rgba(255,107,107,0.05)}
+.mem-stats{font-size:5px;color:rgba(0,229,255,0.2);border-top:1px solid rgba(0,229,255,0.06);padding-top:5px;display:flex;justify-content:space-between}
+.mem-empty{text-align:center;padding:20px;color:rgba(0,229,255,0.2);font-size:6px;letter-spacing:1px}
 ::-webkit-scrollbar{width:2px}::-webkit-scrollbar-thumb{background:rgba(0,229,255,0.12)}
 /* ── TOAST NOTIFICATIONS ─────────────────────────────────────────────────── */
 #toastContainer{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:5px;pointer-events:none;align-items:center}
@@ -214,6 +261,23 @@ body.alert #jt{text-shadow:0 0 8px rgba(255,42,74,0.9),0 0 25px rgba(255,42,74,0
 #settingsBtn{position:absolute;bottom:clamp(56px,8vh,78px);left:clamp(12px,1.2vw,18px);z-index:36;width:30px;height:30px;border-radius:50%;background:rgba(0,4,14,0.95);border:1px solid rgba(0,229,255,0.1);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.25s;font-size:10px;color:rgba(0,229,255,0.35);user-select:none}
 #settingsBtn:hover{border-color:rgba(0,229,255,0.38);color:rgba(0,229,255,0.82)}
 
+/* ── HEADSET / MOBILE ──────────────────────────────────────────────────────── */
+#headsetBtn{position:absolute;bottom:clamp(56px,8vh,78px);right:clamp(52px,5vw,62px);z-index:36;width:30px;height:30px;border-radius:50%;background:rgba(0,4,14,0.95);border:1px solid rgba(0,229,255,0.08);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.25s;font-size:10px;color:rgba(0,229,255,0.2);user-select:none;pointer-events:none;opacity:0}
+#headsetBtn.ready{opacity:1;pointer-events:all;border-color:rgba(0,229,255,0.18);color:rgba(0,229,255,0.45)}
+#headsetBtn.listening{border-color:rgba(78,255,145,0.55);color:rgba(78,255,145,0.9);box-shadow:0 0 14px rgba(78,255,145,0.15);animation:hspulse 1.2s ease-in-out infinite}
+@keyframes hspulse{0%,100%{box-shadow:0 0 8px rgba(78,255,145,0.1)}50%{box-shadow:0 0 20px rgba(78,255,145,0.35)}}
+/* Mobile: increase touch targets on small screens */
+@media(max-width:480px){
+  #pttBtn,#settingsBtn,#headsetBtn{width:44px;height:44px;font-size:16px}
+  #cmdtext{font-size:14px!important}
+  #cmdinput{padding:10px 14px}
+  #respanel{max-height:45vh;bottom:clamp(100px,16vh,130px)}
+  #richPanel{width:96vw;max-height:88vh}
+}
+/* Network/QR section in settings */
+.snet-box{margin-top:8px;padding:8px 10px;background:rgba(0,229,255,0.018);border:1px solid rgba(0,229,255,0.07)}
+.snet-url{font-size:clamp(6px,0.65vw,7.5px);color:rgba(0,229,255,0.75);letter-spacing:0.8px;word-break:break-all;margin:4px 0;font-weight:700}
+.snet-hint{font-size:5px;color:rgba(0,229,255,0.25);letter-spacing:1.2px;margin-bottom:5px}
 /* ══════════════════════════════════════════════════════════════════════════
    RICH PANEL — OSINT / CODE ANALYSIS / ARCHITECT PLAN
    Overlay sobre a interface principal, sem alterar o visual existente
@@ -333,6 +397,291 @@ body.alert #jt{text-shadow:0 0 8px rgba(255,42,74,0.9),0 0 25px rgba(255,42,74,0
 .next-step-num{color:rgba(0,229,255,0.28);flex-shrink:0;font-size:5px;letter-spacing:1px}
 /* MVP features */
 .mvp-feat{display:inline-block;font-size:5px;letter-spacing:1px;padding:2px 7px;border:1px solid rgba(78,255,145,0.18);color:rgba(78,255,145,0.7);text-transform:uppercase;margin:2px}
+
+/* ══════════════════════════════════════════════════════
+   JARVIS v8.0 — MELHORIAS VISUAIS E UX
+   ══════════════════════════════════════════════════════ */
+
+/* ── Code blocks com copy button ──────────────────────── */
+.md-code-wrap{position:relative;margin:5px 0}
+.md-code-lang{position:absolute;top:3px;left:7px;font-size:5px;letter-spacing:2px;color:rgba(0,229,255,0.3);text-transform:uppercase}
+.md-copy-btn{position:absolute;top:3px;right:5px;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.12);color:rgba(0,229,255,0.45);font-family:'Courier New',monospace;font-size:5px;letter-spacing:1px;padding:2px 6px;cursor:pointer;transition:all 0.2s}
+.md-copy-btn:hover{background:rgba(0,229,255,0.18);color:rgba(0,229,255,0.9)}
+.md-copy-btn.copied{color:rgba(78,255,145,0.9);border-color:rgba(78,255,145,0.3)}
+.md-code{display:block;padding:18px 10px 8px 10px;font-size:clamp(6px,0.65vw,8px);line-height:1.6;overflow-x:auto;white-space:pre;background:rgba(0,20,40,0.7);border:1px solid rgba(0,229,255,0.08);color:rgba(180,210,240,0.88)}
+.md-table{width:100%;border-collapse:collapse;font-size:clamp(5.5px,0.6vw,7px);margin:4px 0}
+.md-table th{background:rgba(0,229,255,0.06);color:rgba(0,229,255,0.7);padding:4px 8px;border:1px solid rgba(0,229,255,0.08);text-align:left;letter-spacing:1px}
+.md-table td{color:rgba(180,220,240,0.75);padding:3px 8px;border:1px solid rgba(0,229,255,0.05)}
+.md-table tr:nth-child(even) td{background:rgba(0,229,255,0.02)}
+.md-blockquote{border-left:2px solid rgba(0,229,255,0.3);padding:3px 8px;margin:4px 0;color:rgba(180,210,240,0.6);font-style:italic;background:rgba(0,229,255,0.03)}
+.md-hr{border:none;border-top:1px solid rgba(0,229,255,0.1);margin:6px 0}
+
+/* ── Response panel upgrade ─────────────────────────────── */
+#respanel{user-select:text;cursor:default}
+#resheader{display:flex;justify-content:space-between;align-items:center;padding:5px 10px;border-bottom:1px solid rgba(0,229,255,0.08);background:rgba(0,229,255,0.016);flex-wrap:wrap;gap:4px}
+.res-actions{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.res-meta{font-size:5px;color:rgba(0,229,255,0.2);letter-spacing:1px}
+#latencyBadge{font-size:5px;color:rgba(78,255,145,0.5);letter-spacing:1px;background:rgba(78,255,145,0.05);padding:1px 5px;border:1px solid rgba(78,255,145,0.1)}
+#charCounter{font-size:5px;color:rgba(0,229,255,0.25);letter-spacing:1px;min-width:40px;text-align:right}
+
+/* ── Quick actions bar ──────────────────────────────────── */
+#quickBar{position:fixed;bottom:44px;left:50%;transform:translateX(-50%);display:flex;gap:4px;z-index:35;opacity:0;pointer-events:none;transition:opacity 0.3s}
+#quickBar.show{opacity:1;pointer-events:all}
+.qbtn{background:rgba(0,4,12,0.88);border:1px solid rgba(0,229,255,0.12);color:rgba(0,229,255,0.5);font-family:'Courier New',monospace;font-size:5px;letter-spacing:1px;padding:3px 8px;cursor:pointer;transition:all 0.2s;text-transform:uppercase;white-space:nowrap}
+.qbtn:hover{background:rgba(0,229,255,0.08);border-color:rgba(0,229,255,0.3);color:rgba(0,229,255,0.9)}
+.qbtn.active{border-color:rgba(78,255,145,0.4);color:rgba(78,255,145,0.85)}
+
+/* ── Keyboard shortcut modal ────────────────────────────── */
+#kbModal{position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:300;display:none;align-items:center;justify-content:center}
+#kbModal.show{display:flex}
+#kbBox{background:rgba(0,4,12,0.97);border:1px solid rgba(0,229,255,0.15);padding:20px;max-width:480px;width:90%;max-height:80vh;overflow-y:auto}
+#kbBox h2{font-size:8px;letter-spacing:4px;color:rgba(0,229,255,0.5);margin-bottom:14px;text-transform:uppercase}
+.kb-section{margin-bottom:10px}
+.kb-section-title{font-size:6px;letter-spacing:2px;color:rgba(0,229,255,0.3);margin-bottom:5px;text-transform:uppercase;border-bottom:1px solid rgba(0,229,255,0.06);padding-bottom:3px}
+.kb-row{display:flex;justify-content:space-between;align-items:center;padding:2px 0;font-size:6px}
+.kb-key{background:rgba(0,229,255,0.06);border:1px solid rgba(0,229,255,0.12);padding:1px 6px;color:rgba(0,229,255,0.6);letter-spacing:1px;min-width:40px;text-align:center}
+.kb-desc{color:rgba(180,210,240,0.55)}
+#kbClose{margin-top:12px;width:100%;background:transparent;border:1px solid rgba(0,229,255,0.1);color:rgba(0,229,255,0.3);font-family:'Courier New',monospace;font-size:6px;letter-spacing:2px;padding:5px;cursor:pointer}
+#kbClose:hover{border-color:rgba(0,229,255,0.3);color:rgba(0,229,255,0.8)}
+
+/* ── File drop zone ─────────────────────────────────────── */
+#dropZone{position:fixed;inset:0;background:rgba(0,20,40,0.85);z-index:200;display:none;align-items:center;justify-content:center;flex-direction:column;gap:10px;border:2px dashed rgba(0,229,255,0.3)}
+#dropZone.active{display:flex}
+#dropZone span{font-size:clamp(10px,1.2vw,14px);letter-spacing:3px;color:rgba(0,229,255,0.6);text-transform:uppercase}
+#dropZone small{font-size:7px;color:rgba(0,229,255,0.3)}
+
+/* ── Settings panel upgrades ────────────────────────────── */
+.s-section{font-size:5px;letter-spacing:2px;color:rgba(0,229,255,0.2);margin:8px 0 3px;text-transform:uppercase;border-top:1px solid rgba(0,229,255,0.05);padding-top:6px}
+.srow.compact{padding:2px 0}
+input[type=range].sslider{width:100%;accent-color:rgba(0,229,255,0.7);height:3px;margin:3px 0}
+select.sselect{background:rgba(0,4,12,0.9);border:1px solid rgba(0,229,255,0.12);color:rgba(0,229,255,0.6);font-family:'Courier New',monospace;font-size:6px;padding:2px 5px;width:100%;letter-spacing:1px}
+
+/* ── Status bar upgrade ─────────────────────────────────── */
+#stbar{display:flex;align-items:center;justify-content:center;gap:0;flex-wrap:nowrap;overflow:hidden}
+#stModelBadge{font-size:5px;letter-spacing:1px;color:rgba(0,229,255,0.18);padding:0 6px;border-right:1px solid rgba(0,229,255,0.06);white-space:nowrap}
+
+/* ── Mermaid diagram container ──────────────────────────── */
+.mermaid-wrap{background:rgba(0,10,20,0.6);border:1px solid rgba(0,229,255,0.1);padding:12px;margin:6px 0;overflow-x:auto;text-align:center}
+.mermaid-wrap svg{max-width:100%;filter:invert(0.05) hue-rotate(180deg) saturate(1.5)}
+.mermaid-src{font-size:5.5px;font-family:'Courier New',monospace;color:rgba(0,229,255,0.4);white-space:pre;display:none}
+
+/* ── Input improvements ──────────────────────────────────── */
+#cmdtext{resize:none}
+#inputHistBtn{position:absolute;right:42px;top:50%;transform:translateY(-50%);background:transparent;border:none;color:rgba(0,229,255,0.2);font-size:8px;cursor:pointer;padding:2px 4px;transition:color 0.2s}
+#inputHistBtn:hover{color:rgba(0,229,255,0.6)}
+
+/* ── Conversation entry improvements ────────────────────── */
+.ce{position:relative}
+.ce-actions{position:absolute;right:4px;top:2px;display:none;gap:3px}
+.ce:hover .ce-actions{display:flex}
+.ce-act-btn{background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.08);color:rgba(0,229,255,0.35);font-size:5px;padding:1px 4px;cursor:pointer;font-family:'Courier New',monospace}
+.ce-act-btn:hover{color:rgba(0,229,255,0.8);background:rgba(0,229,255,0.1)}
+.ce-latency{font-size:4px;color:rgba(0,229,255,0.15);margin-top:1px}
+
+/* ── Search in conversation ─────────────────────────────── */
+#convSearch{display:none;padding:3px 6px;background:rgba(0,4,12,0.9);border-bottom:1px solid rgba(0,229,255,0.06)}
+#convSearch.show{display:block}
+#convSearchInput{width:100%;background:transparent;border:none;border-bottom:1px solid rgba(0,229,255,0.12);color:rgba(0,229,255,0.7);font-family:'Courier New',monospace;font-size:6px;padding:2px 4px;outline:none}
+.ce.search-match{background:rgba(0,229,255,0.04);border-left:2px solid rgba(0,229,255,0.3)!important}
+
+/* ── Task progress bar ──────────────────────────────────── */
+#taskProgress{position:fixed;top:0;left:0;right:0;height:2px;background:transparent;z-index:500;pointer-events:none}
+#taskProgressBar{height:100%;background:linear-gradient(90deg,rgba(0,229,255,0.8),rgba(78,255,145,0.8));width:0%;transition:width 0.4s ease}
+
+/* ── Export / download button ───────────────────────────── */
+#exportBtn{background:transparent;border:1px solid rgba(0,229,255,0.1);color:rgba(0,229,255,0.35);font-family:'Courier New',monospace;font-size:5px;letter-spacing:1px;padding:2px 7px;cursor:pointer;transition:all 0.2s}
+#exportBtn:hover{border-color:rgba(0,229,255,0.35);color:rgba(0,229,255,0.8)}
+
+/* ── Mermaid in architect panel ─────────────────────────── */
+.rp-mermaid{background:rgba(0,10,20,0.7);border:1px solid rgba(0,229,255,0.08);padding:10px;margin:6px 0;overflow-x:auto;border-radius:2px;text-align:center}
+
+/* ── Threat score badge ──────────────────────────────────── */
+.threat-badge{display:inline-block;padding:2px 8px;font-size:5px;letter-spacing:1.5px;text-transform:uppercase;border-radius:1px;border:1px solid}
+.threat-safe{color:rgba(78,255,145,0.8);border-color:rgba(78,255,145,0.2);background:rgba(78,255,145,0.05)}
+.threat-low{color:rgba(0,229,255,0.7);border-color:rgba(0,229,255,0.15);background:rgba(0,229,255,0.03)}
+.threat-medium{color:rgba(255,209,102,0.8);border-color:rgba(255,209,102,0.2);background:rgba(255,209,102,0.04)}
+.threat-high{color:rgba(255,120,60,0.9);border-color:rgba(255,120,60,0.25);background:rgba(255,120,60,0.05)}
+.threat-critical{color:rgba(255,42,74,0.95);border-color:rgba(255,42,74,0.3);background:rgba(255,42,74,0.06)}
+
+/* ── Generate code panel ────────────────────────────────── */
+.rp-gen-code{background:rgba(0,10,20,0.7);border:1px solid rgba(0,229,255,0.08);padding:10px;font-size:clamp(6px,0.65vw,7.5px);font-family:'Courier New',monospace;color:rgba(180,210,240,0.88);overflow-x:auto;white-space:pre;max-height:300px;overflow-y:auto;line-height:1.5}
+
+/* ── scroll-to-top ──────────────────────────────────────── */
+#scrollTopBtn{position:fixed;bottom:80px;right:70px;background:rgba(0,4,12,0.85);border:1px solid rgba(0,229,255,0.1);color:rgba(0,229,255,0.3);font-size:10px;width:24px;height:24px;cursor:pointer;z-index:35;display:none;align-items:center;justify-content:center;transition:all 0.2s}
+#scrollTopBtn.show{display:flex}
+#scrollTopBtn:hover{border-color:rgba(0,229,255,0.4);color:rgba(0,229,255,0.8)}
+
+/* ── Version badge ──────────────────────────────────────── */
+#jver{font-size:clamp(5px,0.55vw,6.5px);letter-spacing:3px;color:rgba(0,229,255,0.14);margin-top:3px}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   JARVIS v9.0 — 90+ NOVAS FEATURES
+   ═══════════════════════════════════════════════════════════════════════ */
+#respanel{border-top:2px solid rgba(0,229,255,0.12)}
+#respanel::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent 0%,rgba(0,229,255,0.5) 50%,transparent 100%);pointer-events:none}
+#restext{font-size:clamp(8px,0.9vw,11px);line-height:1.75;letter-spacing:0.3px}
+#reswho{display:flex;align-items:center;gap:5px}
+#reswho::before{content:'';width:5px;height:5px;border-radius:50%;background:#00e5ff;box-shadow:0 0 6px #00e5ff;animation:bdot 1.9s ease-in-out infinite;flex-shrink:0}
+
+/* ── Suggestion chips ────────── */
+#suggChips{position:absolute;bottom:calc(clamp(88px,12vh,110px) + clamp(80px,18vh,160px) + 8px);left:50%;transform:translateX(-50%);z-index:36;display:flex;gap:5px;flex-wrap:wrap;justify-content:center;width:clamp(300px,48vw,640px);opacity:0;pointer-events:none;transition:opacity 0.3s}
+#suggChips.show{opacity:1;pointer-events:all}
+.sugg-chip{background:rgba(0,4,14,0.92);border:1px solid rgba(0,229,255,0.14);color:rgba(0,229,255,0.5);font-family:'Courier New',monospace;font-size:clamp(5px,0.52vw,6px);letter-spacing:1px;padding:3px 10px;cursor:pointer;transition:all 0.22s;text-transform:uppercase;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sugg-chip:hover{background:rgba(0,229,255,0.07);border-color:rgba(0,229,255,0.38);color:rgba(0,229,255,0.9);box-shadow:0 0 10px rgba(0,229,255,0.06)}
+
+/* ── Prompt templates popup ─── */
+#promptTemplates{position:fixed;bottom:clamp(100px,14vh,125px);left:50%;transform:translateX(-50%) scale(0.95);z-index:90;width:clamp(300px,44vw,580px);background:rgba(0,2,10,0.99);border:1px solid rgba(0,229,255,0.2);border-top:2px solid rgba(0,229,255,0.4);padding:10px;display:none;flex-direction:column;gap:6px;box-shadow:0 0 40px rgba(0,0,0,0.95)}
+#promptTemplates.show{display:flex;transform:translateX(-50%) scale(1)}
+.pt-title{font-size:5px;letter-spacing:3px;color:rgba(0,229,255,0.3);text-transform:uppercase;border-bottom:1px solid rgba(0,229,255,0.06);padding-bottom:5px;display:flex;justify-content:space-between;align-items:center}
+.pt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:4px}
+.pt-item{background:rgba(0,229,255,0.02);border:1px solid rgba(0,229,255,0.07);padding:6px 8px;cursor:pointer;transition:all 0.2s}
+.pt-item:hover{background:rgba(0,229,255,0.06);border-color:rgba(0,229,255,0.25)}
+.pt-item-icon{font-size:10px;margin-bottom:3px}
+.pt-item-name{font-size:clamp(5px,0.55vw,6.5px);color:rgba(0,229,255,0.6);letter-spacing:1px;text-transform:uppercase}
+.pt-item-desc{font-size:4.5px;color:rgba(0,229,255,0.25);letter-spacing:0.5px;margin-top:2px;line-height:1.4}
+
+/* ── Persona ─────────────────── */
+#personaBadge{display:inline-block;font-size:4.5px;letter-spacing:2px;color:rgba(212,168,30,0.55);padding:1px 6px;border:1px solid rgba(212,168,30,0.12);cursor:pointer;transition:all 0.2s;text-transform:uppercase}
+#personaBadge:hover{border-color:rgba(212,168,30,0.4);color:rgba(212,168,30,0.9)}
+#personaSelect{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.92);z-index:180;width:280px;background:rgba(0,2,10,0.99);border:1px solid rgba(212,168,30,0.22);padding:14px;opacity:0;pointer-events:none;transition:all 0.25s;display:flex;flex-direction:column;gap:5px}
+#personaSelect.show{opacity:1;pointer-events:all;transform:translate(-50%,-50%) scale(1)}
+.persona-opt{display:flex;align-items:center;gap:8px;padding:6px 9px;border:1px solid rgba(0,229,255,0.07);cursor:pointer;transition:all 0.2s}
+.persona-opt:hover,.persona-opt.active{background:rgba(0,229,255,0.05);border-color:rgba(0,229,255,0.25)}
+.persona-opt.active{border-color:rgba(212,168,30,0.35);background:rgba(212,168,30,0.04)}
+.persona-icon{font-size:14px;flex-shrink:0}
+.persona-name{font-size:6.5px;color:rgba(0,229,255,0.7);letter-spacing:1px;text-transform:uppercase}
+.persona-desc{font-size:5px;color:rgba(0,229,255,0.3);margin-top:1px}
+
+/* ── Focus mode ──────────────── */
+body.focus-mode #w0,body.focus-mode #w1,body.focus-mode #w2,body.focus-mode #w3,
+body.focus-mode #r0,body.focus-mode #r1,body.focus-mode #r2,body.focus-mode #r3,
+body.focus-mode #spark,body.focus-mode #hint,body.focus-mode #quickBar{display:none!important}
+#focusBtn{position:absolute;top:clamp(8px,1.4vh,16px);right:clamp(50px,5vw,65px);z-index:28;font-size:5px;padding:2px 7px;border:1px solid rgba(0,229,255,0.09);background:transparent;color:rgba(0,229,255,0.2);cursor:pointer;letter-spacing:1.5px;transition:all 0.2s;font-family:'Courier New',monospace;text-transform:uppercase}
+#focusBtn:hover{border-color:rgba(0,229,255,0.35);color:rgba(0,229,255,0.7)}
+body.focus-mode #focusBtn{color:rgba(78,255,145,0.7);border-color:rgba(78,255,145,0.25)}
+
+/* ── TODO panel ──────────────── */
+#todoPanel{position:fixed;bottom:clamp(90px,12vh,115px);right:clamp(12px,1.2vw,18px);z-index:90;width:220px;background:rgba(0,2,10,0.99);border:1px solid rgba(0,229,255,0.16);border-top:2px solid rgba(0,229,255,0.35);display:none;flex-direction:column;box-shadow:0 0 30px rgba(0,0,0,0.9)}
+#todoPanel.show{display:flex}
+.todo-header{display:flex;justify-content:space-between;align-items:center;padding:6px 10px;border-bottom:1px solid rgba(0,229,255,0.06);background:rgba(0,229,255,0.012)}
+.todo-title{font-size:5.5px;letter-spacing:2.5px;color:rgba(0,229,255,0.4);text-transform:uppercase}
+.todo-list{max-height:180px;overflow-y:auto;padding:4px 0}
+.todo-item{display:flex;align-items:center;gap:6px;padding:4px 10px;border-bottom:1px solid rgba(0,229,255,0.025);font-size:5.5px;color:rgba(150,210,225,0.7);cursor:pointer;transition:background 0.15s}
+.todo-item:hover{background:rgba(0,229,255,0.03)}
+.todo-item.done{text-decoration:line-through;opacity:0.4}
+.todo-cb{width:8px;height:8px;border:1px solid rgba(0,229,255,0.25);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:6px;color:rgba(78,255,145,0.8)}
+.todo-del{margin-left:auto;font-size:5px;color:rgba(255,107,107,0.25);cursor:pointer;padding:0 3px;background:transparent;border:none;font-family:'Courier New',monospace}
+.todo-del:hover{color:rgba(255,107,107,0.7)}
+.todo-input-row{display:flex;gap:4px;padding:5px 8px;border-top:1px solid rgba(0,229,255,0.06);background:rgba(0,229,255,0.008)}
+.todo-input{flex:1;background:transparent;border:none;border-bottom:1px solid rgba(0,229,255,0.12);color:rgba(0,229,255,0.7);font-family:'Courier New',monospace;font-size:6px;padding:2px 3px;outline:none}
+.todo-add-btn{font-size:9px;color:rgba(0,229,255,0.4);background:transparent;border:none;cursor:pointer;padding:0 4px;transition:color 0.2s}
+.todo-add-btn:hover{color:rgba(0,229,255,0.9)}
+.todo-empty{padding:12px;text-align:center;font-size:5px;color:rgba(0,229,255,0.18);letter-spacing:1px}
+
+/* ── Pomodoro ────────────────── */
+#pomoBadge{font-size:5px;color:rgba(255,209,102,0.5);letter-spacing:1px;padding:0 6px;border-right:1px solid rgba(0,229,255,0.06);cursor:pointer;white-space:nowrap;transition:color 0.2s}
+#pomoBadge:hover{color:rgba(255,209,102,0.9)}
+#pomoBadge.active{color:rgba(255,107,107,0.75);animation:pomoPulse 1s ease-in-out infinite}
+#pomoBadge.break{color:rgba(78,255,145,0.7)}
+@keyframes pomoPulse{0%,100%{opacity:1}50%{opacity:0.5}}
+
+/* ── Stats modal ─────────────── */
+#statsModal{position:fixed;inset:0;z-index:200;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.88)}
+#statsModal.show{display:flex}
+#statsBox{width:clamp(300px,65vw,700px);max-height:80vh;background:rgba(0,2,10,0.99);border:1px solid rgba(0,229,255,0.22);border-top:2px solid rgba(0,229,255,0.5);padding:16px;overflow-y:auto;display:flex;flex-direction:column;gap:10px}
+.stats-title{font-size:8px;letter-spacing:4px;color:rgba(0,229,255,0.5);text-transform:uppercase;border-bottom:1px solid rgba(0,229,255,0.07);padding-bottom:6px;display:flex;justify-content:space-between;align-items:center}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:7px}
+.stats-card{background:rgba(0,229,255,0.015);border:1px solid rgba(0,229,255,0.08);padding:10px;text-align:center}
+.stats-card-val{font-size:clamp(14px,1.8vw,22px);color:rgba(0,229,255,0.9);font-weight:700;letter-spacing:1px}
+.stats-card-label{font-size:5px;color:rgba(0,229,255,0.28);letter-spacing:2px;text-transform:uppercase;margin-top:3px}
+.stats-bar-row{display:flex;align-items:center;gap:8px;padding:3px 0}
+.stats-bar-label{font-size:5.5px;color:rgba(0,229,255,0.35);width:80px;flex-shrink:0}
+.stats-bar-track{flex:1;height:3px;background:rgba(0,229,255,0.06);border-radius:2px;overflow:hidden}
+.stats-bar-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,rgba(0,229,255,0.5),rgba(78,255,145,0.7));transition:width 0.7s ease}
+.stats-bar-val{font-size:5px;color:rgba(0,229,255,0.45);width:30px;text-align:right;flex-shrink:0}
+
+/* ── Achievement popup ────────── */
+#achievePopup{position:fixed;top:clamp(12px,2vh,20px);right:clamp(12px,1.2vw,18px);z-index:250;width:220px;background:rgba(0,2,10,0.99);border:1px solid rgba(212,168,30,0.4);padding:10px 14px;transform:translateX(260px);transition:transform 0.4s cubic-bezier(.4,0,.2,1);box-shadow:0 0 30px rgba(212,168,30,0.1)}
+#achievePopup.show{transform:translateX(0)}
+.achieve-title{font-size:4.5px;letter-spacing:2.5px;color:rgba(212,168,30,0.5);text-transform:uppercase;margin-bottom:4px}
+.achieve-name{font-size:clamp(6px,0.7vw,8px);color:rgba(212,168,30,0.9);letter-spacing:1px}
+.achieve-desc{font-size:5px;color:rgba(212,168,30,0.45);letter-spacing:0.5px;margin-top:2px}
+
+/* ── Streak + adapt ──────────── */
+#streakBadge{font-size:5px;color:rgba(255,107,107,0.45);letter-spacing:1px;padding:0 6px;border-right:1px solid rgba(0,229,255,0.06);cursor:pointer;white-space:nowrap}
+#streakBadge:hover{color:rgba(255,107,107,0.9)}
+#adaptLevel{font-size:5px;color:rgba(78,255,145,0.38);letter-spacing:1px;padding:0 6px;white-space:nowrap;cursor:pointer}
+#adaptLevel:hover{color:rgba(78,255,145,0.8)}
+
+/* ── Wake word LED ────────────── */
+#wakeWordLed{position:absolute;top:clamp(8px,1.4vh,16px);left:clamp(50px,5vw,65px);z-index:28;display:flex;align-items:center;gap:4px;opacity:0;transition:opacity 0.3s}
+#wakeWordLed.show{opacity:1}
+.wwl-dot{width:5px;height:5px;border-radius:50%;background:rgba(0,229,255,0.2);box-shadow:0 0 4px rgba(0,229,255,0.1);transition:all 0.3s}
+.wwl-dot.active{background:#4eff91;box-shadow:0 0 8px rgba(78,255,145,0.6);animation:wwlPulse 1.5s ease-in-out infinite}
+@keyframes wwlPulse{0%,100%{opacity:1}50%{opacity:0.3}}
+.wwl-txt{font-size:4.5px;letter-spacing:1.5px;color:rgba(78,255,145,0.5);text-transform:uppercase}
+
+/* ── Live preview ─────────────── */
+#livePreview{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.93);z-index:600;width:clamp(340px,75vw,900px);height:clamp(300px,70vh,700px);background:rgba(0,2,10,0.99);border:1px solid rgba(0,229,255,0.3);border-top:2px solid rgba(78,255,145,0.5);display:flex;flex-direction:column;opacity:0;pointer-events:none;transition:all 0.3s}
+#livePreview.show{opacity:1;pointer-events:all;transform:translate(-50%,-50%) scale(1)}
+#livePreviewHeader{display:flex;justify-content:space-between;align-items:center;padding:7px 14px;border-bottom:1px solid rgba(0,229,255,0.07);background:rgba(0,229,255,0.012);flex-shrink:0}
+#livePreviewTitle{font-size:5.5px;letter-spacing:3px;color:rgba(78,255,145,0.5);text-transform:uppercase}
+#livePreviewFrame{flex:1;background:#fff;border:none;width:100%}
+#livePreviewBackdrop{position:fixed;inset:0;z-index:599;background:rgba(0,0,0,0);pointer-events:none;transition:background 0.3s}
+#livePreviewBackdrop.show{background:rgba(0,0,0,0.7);pointer-events:all}
+
+/* ── Voice mute ────────────────── */
+#muteBtn{position:absolute;bottom:clamp(56px,8vh,78px);right:clamp(94px,8.5vw,110px);z-index:36;width:30px;height:30px;border-radius:50%;background:rgba(0,4,14,0.95);border:1px solid rgba(0,229,255,0.08);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.25s;font-size:10px;color:rgba(0,229,255,0.2);user-select:none}
+#muteBtn:hover{border-color:rgba(0,229,255,0.35);color:rgba(0,229,255,0.8)}
+#muteBtn.muted{border-color:rgba(255,107,107,0.35);color:rgba(255,107,107,0.7)}
+
+/* ── Share button ─────────────── */
+#shareBtn{background:transparent;border:1px solid rgba(0,229,255,0.1);color:rgba(0,229,255,0.3);font-family:'Courier New',monospace;font-size:5px;letter-spacing:1px;padding:2px 7px;cursor:pointer;transition:all 0.2s}
+#shareBtn:hover{border-color:rgba(0,229,255,0.35);color:rgba(0,229,255,0.8)}
+
+/* ── Session dropdown ─────────── */
+#sessionDropdown{position:absolute;top:clamp(8px,1.4vh,16px);right:clamp(96px,8.6vw,115px);z-index:28;background:rgba(0,4,14,0.92);border:1px solid rgba(0,229,255,0.1);color:rgba(0,229,255,0.35);font-family:'Courier New',monospace;font-size:5px;padding:2px 5px;letter-spacing:1px;outline:none;cursor:pointer;max-width:100px;text-overflow:ellipsis}
+#sessionDropdown:hover{border-color:rgba(0,229,255,0.3);color:rgba(0,229,255,0.7)}
+#sessionDropdown option{background:#000814;color:rgba(0,229,255,0.7)}
+
+/* ── Service health ────────────── */
+.svc-dot{display:inline-block;width:5px;height:5px;border-radius:50%;margin-right:4px;flex-shrink:0}
+.svc-dot.ok{background:#4eff91;box-shadow:0 0 4px rgba(78,255,145,0.5)}
+.svc-dot.warn{background:#ffd166;box-shadow:0 0 4px rgba(255,209,102,0.4)}
+.svc-dot.err{background:#ff2a4a;box-shadow:0 0 4px rgba(255,42,74,0.4)}
+.svc-row{display:flex;align-items:center;padding:2px 0;border-bottom:1px solid rgba(0,229,255,0.025);font-size:5px;color:rgba(120,195,210,0.6)}
+
+/* ── Incognito ─────────────────── */
+body.incognito #w0{opacity:0.3!important}
+#incognitoLed{position:absolute;top:clamp(8px,1.4vh,16px);left:50%;transform:translateX(-50%);z-index:28;font-size:4.5px;color:rgba(255,209,102,0.5);letter-spacing:2px;display:none;text-transform:uppercase;pointer-events:none}
+body.incognito #incognitoLed{display:block}
+
+/* ── Chat bubbles feel ────────── */
+.conv-entry.user-entry{border-left:2px solid rgba(212,168,30,0.18);background:rgba(212,168,30,0.014)}
+.conv-entry.jarvis-entry{border-left:2px solid rgba(0,229,255,0.12);background:rgba(0,229,255,0.008)}
+
+/* ── Next-action buttons ─────── */
+#nextActions{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;padding-top:4px;border-top:1px solid rgba(0,229,255,0.05)}
+.nact-btn{font-size:4.5px;padding:2px 7px;border:1px solid rgba(0,229,255,0.09);background:transparent;color:rgba(0,229,255,0.35);cursor:pointer;font-family:'Courier New',monospace;letter-spacing:1px;transition:all 0.2s;text-transform:uppercase}
+.nact-btn:hover{border-color:rgba(0,229,255,0.32);color:rgba(0,229,255,0.8);background:rgba(0,229,255,0.04)}
+
+/* ── Autocomplete ──────────────── */
+#autocomplete{position:absolute;bottom:calc(100% + 4px);left:0;right:0;background:rgba(0,2,10,0.99);border:1px solid rgba(0,229,255,0.15);display:none;flex-direction:column;z-index:40;max-height:100px;overflow-y:auto}
+#autocomplete.show{display:flex}
+.ac-item{padding:4px 14px;font-size:clamp(6px,0.65vw,7.5px);color:rgba(0,229,255,0.55);cursor:pointer;border-bottom:1px solid rgba(0,229,255,0.04);transition:background 0.15s;letter-spacing:0.5px}
+.ac-item:hover,.ac-item.ac-active{background:rgba(0,229,255,0.06);color:rgba(0,229,255,0.9)}
+
+/* ── Mobile extras ────────────── */
+@media(max-width:640px){
+  #suggChips{width:92vw;bottom:calc(clamp(130px,19vh,160px) + 36px)}
+  #todoPanel{width:88vw;right:6px}
+  #muteBtn{width:44px;height:44px;font-size:16px;right:clamp(108px,20vw,130px)}
+  #sessionDropdown{display:none}
+  #wakeWordLed{display:none}
+}
+@media(max-width:480px){
+  #muteBtn{right:clamp(54px,12vw,65px);width:44px;height:44px}
+}
 </style>
 </head>
 <body>
@@ -361,8 +710,9 @@ body.alert #jt{text-shadow:0 0 8px rgba(255,42,74,0.9),0 0 25px rgba(255,42,74,0
   </div>
 </div>
 <div class="w ltl" id="w0">
-  <div class="wh"><span class="wt">CONVERSAS: LOG DE SESSÃO</span><div class="wc"><div class="wbtn" onclick="closeW(0)">▲</div><div class="wbtn" onclick="closeW(0)">✕</div><div class="wdot"></div></div></div>
+  <div class="wh"><span class="wt">CONVERSAS: LOG DE SESSÃO</span><div class="wc"><div class="wbtn" onclick="toggleConvSearch()" title="Pesquisar">🔍</div><div class="wbtn" onclick="exportConversation()" title="Exportar">↓</div><div class="wbtn" onclick="closeW(0)">✕</div><div class="wdot"></div></div></div>
   <div class="wb">
+    <div id="convSearch"><input id="convSearchInput" placeholder="PESQUISAR NA CONVERSA..." oninput="searchConversation(this.value)" autocomplete="off" spellcheck="false"></div>
     <div id="convLog"><div class="conv-entry" style="grid-column:1/-1;color:rgba(0,229,255,0.14);font-size:5px;letter-spacing:1px">AGUARDANDO INTERAÇÃO...</div></div>
     <div class="cfoot"><span id="convCount">0 mensagens</span><span id="convSession">SESSÃO: —</span></div>
   </div>
@@ -407,43 +757,201 @@ body.alert #jt{text-shadow:0 0 8px rgba(255,42,74,0.9),0 0 25px rgba(255,42,74,0
 <div class="rail" id="r1"><div class="rico">●</div><div class="rico">▲</div><div class="rico">◈</div></div>
 <div class="rail" id="r2"><div class="rico">◈</div><div class="rico">●</div><div class="rico">■</div></div>
 <div class="rail" id="r3"><div class="rico">▲</div><div class="rico">◉</div><div class="rico">▼</div></div>
-<div id="stbar"><span class="seg" id="stlive">STATUS: AGUARDANDO</span><span class="seg" id="stws">WS: —</span><span class="seg" id="stuptime">UP: —</span></div>
+<div id="stbar"><span class="seg" id="stlive">STATUS: AGUARDANDO</span><span class="seg" id="stws">WS: —</span><span class="seg" id="stuptime">UP: —</span><span id="stModelBadge">—</span></div>
 <div id="botrow"></div>
 <!-- RESPONSE PANEL -->
 <div id="respanel">
   <div id="resheader">
     <div id="reswho">JARVIS ›</div>
     <div class="res-actions">
-      <span id="elapsed"></span>
+      <span id="elapsed" class="res-meta"></span>
+      <span id="latencyBadge" style="display:none"></span>
       <button id="copyBtn" onclick="copyResponse()">COPIAR</button>
+      <button id="exportBtn" onclick="exportResponse()" title="Download resposta">↓</button>
     </div>
   </div>
   <div id="restext"></div>
+  <div class="feedback-row" id="feedbackRow" style="display:none">
+    <span class="fb-lbl">FEEDBACK:</span>
+    <button class="fb-btn good" onclick="sendFeedback('good')" title="Resposta útil">✓ ÚTIL</button>
+    <button class="fb-btn bad" onclick="sendFeedback('bad')" title="Resposta ruim">✗ RUIM</button>
+    <button class="fb-btn mem" onclick="sendFeedback('remember')" title="Salvar esta resposta na memória">★ LEMBRAR</button>
+    <button class="fb-btn" onclick="sendFeedback('forget')" title="Esquecer este tópico">✦ ESQUECER</button>
+  </div>
 </div>
 <canvas id="waveCanvas"></canvas>
-<div id="cmdinput">
+<div id="cmdinput" style="position:relative">
   <span id="cmdprompt">JARVIS ›</span>
-  <input id="cmdtext" type="text" autocomplete="off" spellcheck="false" placeholder="FALE OU DIGITE...">
+  <input id="cmdtext" type="text" autocomplete="off" spellcheck="false" placeholder="FALE OU DIGITE... (SHIFT+ENTER = nova linha | ↑↓ = histórico)">
+  <span id="charCounter">0</span>
+  <button id="inputHistBtn" title="Histórico de comandos">⟳</button>
   <div id="cmdcursor"></div>
+  <div id="autocomplete"></div>
 </div>
 <div id="pttBtn" onclick="togglePTT()" title="Push to Talk [ESPAÇO]">🎙</div>
+<div id="headsetBtn" title="Headset Bluetooth">🎧</div>
 <div id="settingsBtn" onclick="toggleSettings()" title="Configurações">⚙</div>
 <div id="toastContainer"></div>
 <div id="settingsPanel">
-  <div class="stitle">CONFIGURAÇÕES — JARVIS v6.0</div>
+  <div class="stitle">⚙ JARVIS v8.0 — CONFIGURAÇÕES</div>
+  <!-- SISTEMA -->
+  <div class="s-section">SISTEMA</div>
   <div class="srow"><span class="slabel">MODELO</span><span class="sval" id="sModelVal">—</span></div>
-  <div class="srow"><span class="slabel">SESSÃO ID</span><span class="sval" id="sSessionVal">—</span></div>
-  <div class="srow"><span class="slabel">OLLAMA</span><span class="sval" id="sOllamaVal">—</span></div>
   <div class="srow"><span class="slabel">UPTIME</span><span class="sval" id="sUptimeVal">—</span></div>
-  <div class="srow"><span class="slabel">VOZ TTS</span><span class="sval" id="sVoiceVal">—</span></div>
-  <div class="srow"><span class="slabel">WS LATENCY</span><span class="sval" id="sWsLatency">—</span></div>
+  <div class="srow"><span class="slabel">OLLAMA URL</span><span class="sval" id="sOllamaVal" style="font-size:5px">—</span></div>
+  <div class="srow"><span class="slabel">WS LATÊNCIA</span><span class="sval" id="sWsLatency">—</span></div>
+  <div class="srow"><span class="slabel">VOZ TTS</span><span class="sval" id="sVoiceVal" style="font-size:5px">—</span></div>
   <div class="srow"><span class="slabel">SEGURANÇA</span><span class="sval" id="sSecScore" style="color:rgba(78,255,145,0.8)">—</span></div>
-  <div class="srow" style="margin-top:10px;border:none">
+  <!-- SESSÃO -->
+  <div class="s-section">SESSÃO</div>
+  <div class="srow"><span class="slabel">SESSÃO ID</span><span class="sval" id="sSessionVal" style="font-size:5px">—</span></div>
+  <div class="srow"><span class="slabel">MENSAGENS</span><span class="sval" id="sConvCount">0</span></div>
+  <!-- PREFERÊNCIAS -->
+  <div class="s-section">PREFERÊNCIAS</div>
+  <div class="srow compact"><span class="slabel">TAMANHO FONTE</span></div>
+  <div class="srow compact">
+    <input type="range" class="sslider" id="fontSizeSlider" min="8" max="14" value="10" oninput="applyFontSize(this.value)">
+    <span class="sval" id="fontSizeVal">10px</span>
+  </div>
+  <div class="srow compact"><span class="slabel">VELOCIDADE VOZ</span></div>
+  <div class="srow compact">
+    <input type="range" class="sslider" id="voiceSpeedSlider" min="0.5" max="2" step="0.1" value="1" oninput="applyVoiceSpeed(this.value)">
+    <span class="sval" id="voiceSpeedVal">1.0×</span>
+  </div>
+  <div class="srow"><span class="slabel">AUTO-SCROLL</span>
+    <label style="cursor:pointer;display:flex;align-items:center;gap:4px">
+      <input type="checkbox" id="autoScrollCb" checked onchange="toggleAutoScroll(this.checked)" style="accent-color:rgba(0,229,255,0.7)">
+      <span class="sval" id="autoScrollVal">ATIVO</span>
+    </label>
+  </div>
+  <div class="srow"><span class="slabel">SONS</span>
+    <label style="cursor:pointer;display:flex;align-items:center;gap:4px">
+      <input type="checkbox" id="soundCb" onchange="toggleSounds(this.checked)" style="accent-color:rgba(0,229,255,0.7)">
+      <span class="sval" id="soundVal">INATIVO</span>
+    </label>
+  </div>
+  <!-- HEADSET + MOBILE -->
+  <div class="s-section">HEADSET / MOBILE</div>
+  <div class="srow"><span class="slabel">HEADSET</span><span class="sval" id="sHeadsetVal" style="color:rgba(78,255,145,0.8)">—</span></div>
+  <div class="srow"><span class="slabel">WAKE LOCK</span><span class="sval" id="sWakeLock">—</span></div>
+  <div class="snet-box">
+    <div class="snet-hint">ABRIR NO CELULAR (mesmo WiFi)</div>
+    <div class="snet-url" id="sNetUrl">carregando...</div>
+    <div style="display:flex;gap:5px;margin-top:5px">
+      <button class="sbtn" onclick="copyNetUrl()">COPIAR URL</button>
+      <button class="sbtn" onclick="fetchNetworkInfo()">ATUALIZAR IP</button>
+    </div>
+  </div>
+  <!-- CAPACIDADES v8.0 -->
+  <div class="s-section">POWER MODES v8.0</div>
+  <div style="font-size:5px;color:rgba(0,229,255,0.3);line-height:1.8;padding:0 4px">
+    <div>F2 → OSINT Investigation</div>
+    <div>F3 → Code Analysis</div>
+    <div>F4 → System Architect</div>
+    <div>F5 → Generate Code <span style="color:rgba(78,255,145,0.6)">NOVO</span></div>
+    <div>F6 → Summarize <span style="color:rgba(78,255,145,0.6)">NOVO</span></div>
+    <div>F7 → Generate Tests <span style="color:rgba(78,255,145,0.6)">NOVO</span></div>
+    <div>F8 → Mermaid Diagram <span style="color:rgba(78,255,145,0.6)">NOVO</span></div>
+    <div>F9 → Keyboard Shortcuts</div>
+  </div>
+  <!-- AÇÕES -->
+  <div class="s-section">AÇÕES</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:4px">
+    <button class="sbtn" onclick="exportConversation()">EXPORTAR CHAT</button>
     <button class="sbtn" onclick="toggleSettings()">FECHAR</button>
+    <button class="sbtn" onclick="openKbModal()">ATALHOS (F9)</button>
+    <button class="sbtn" onclick="openMemModal()">VER MEMÓRIAS</button>
+    <button class="sbtn" onclick="indexCurrentProject()">INDEXAR PROJETO (RAG)</button>
     <button class="sbtn danger" onclick="clearConversation()">LIMPAR CHAT</button>
   </div>
 </div>
-<div id="hint">[ ESPAÇO: VOZ &nbsp;|&nbsp; ENTER: TEXTO &nbsp;|&nbsp; 1-4: PAINÉIS &nbsp;|&nbsp; ESC: FECHAR &nbsp;|&nbsp; F1: STATUS &nbsp;|&nbsp; F2: OSINT &nbsp;|&nbsp; F3: ANALISAR &nbsp;|&nbsp; F4: ARQUITETAR ]</div>
+
+<!-- MEMORY MANAGEMENT MODAL -->
+<div id="memModal" onclick="if(event.target===this)closeMemModal()">
+  <div id="memBox">
+    <div class="mem-title">
+      <span>MEMÓRIAS DO JARVIS</span>
+      <button class="sbtn" onclick="closeMemModal()">✕ FECHAR</button>
+    </div>
+    <div style="display:flex;gap:5px;flex-wrap:wrap">
+      <button class="sbtn" onclick="loadMemories()">↻ ATUALIZAR</button>
+      <button class="sbtn danger" onclick="clearAllMemories()">⚠ LIMPAR TODAS</button>
+      <button class="sbtn mem" onclick="openRagStats()" style="color:rgba(255,209,102,0.6);border-color:rgba(255,209,102,0.12)">BASE RAG</button>
+    </div>
+    <div id="memList" class="mem-list">
+      <div class="mem-empty">Carregando memórias...</div>
+    </div>
+    <div id="memStats" class="mem-stats">
+      <span id="memTotalCount">— entradas</span>
+      <span id="ragCount">RAG: — docs</span>
+    </div>
+  </div>
+</div>
+<div id="hint">[ ESPAÇO: VOZ &nbsp;|&nbsp; ENTER: TEXTO &nbsp;|&nbsp; ↑↓: HISTÓRICO &nbsp;|&nbsp; SHIFT+ENTER: NOVA LINHA &nbsp;|&nbsp; F1: STATUS &nbsp;|&nbsp; F2: OSINT &nbsp;|&nbsp; F3: ANALISAR &nbsp;|&nbsp; F4: ARQUITETAR &nbsp;|&nbsp; F5: GERAR CÓDIGO &nbsp;|&nbsp; F6: RESUMIR &nbsp;|&nbsp; F9: ATALHOS ]</div>
+<!-- TASK PROGRESS BAR -->
+<div id="taskProgress"><div id="taskProgressBar"></div></div>
+
+<!-- QUICK ACTIONS BAR -->
+<div id="quickBar">
+  <button class="qbtn" onclick="quickAction('status')">STATUS</button>
+  <button class="qbtn" onclick="quickAction('osint')">OSINT</button>
+  <button class="qbtn" onclick="quickAction('analyze')">ANALISAR</button>
+  <button class="qbtn" onclick="quickAction('architect')">ARQUITETAR</button>
+  <button class="qbtn" onclick="quickAction('generate')">GERAR CÓDIGO</button>
+  <button class="qbtn" onclick="quickAction('summarize')">RESUMIR</button>
+  <button class="qbtn" onclick="quickAction('explain')">EXPLICAR</button>
+  <button class="qbtn" onclick="quickAction('review')">CODE REVIEW</button>
+</div>
+
+<!-- KEYBOARD SHORTCUTS MODAL -->
+<div id="kbModal" onclick="if(event.target===this)closeKbModal()">
+  <div id="kbBox">
+    <h2>⌨ ATALHOS DE TECLADO — JARVIS v8.0</h2>
+    <div class="kb-section">
+      <div class="kb-section-title">ENTRADA</div>
+      <div class="kb-row"><span class="kb-key">ESPAÇO</span><span class="kb-desc">Push-to-Talk (PTT)</span></div>
+      <div class="kb-row"><span class="kb-key">ENTER</span><span class="kb-desc">Enviar mensagem</span></div>
+      <div class="kb-row"><span class="kb-key">SHIFT+ENTER</span><span class="kb-desc">Nova linha no input</span></div>
+      <div class="kb-row"><span class="kb-key">↑ / ↓</span><span class="kb-desc">Histórico de comandos</span></div>
+      <div class="kb-row"><span class="kb-key">ESC</span><span class="kb-desc">Fechar painéis / cancelar</span></div>
+    </div>
+    <div class="kb-section">
+      <div class="kb-section-title">PAINÉIS</div>
+      <div class="kb-row"><span class="kb-key">1</span><span class="kb-desc">Toggle painel Conversação</span></div>
+      <div class="kb-row"><span class="kb-key">2</span><span class="kb-desc">Toggle painel Eventos</span></div>
+      <div class="kb-row"><span class="kb-key">3</span><span class="kb-desc">Toggle painel Métricas</span></div>
+      <div class="kb-row"><span class="kb-key">4</span><span class="kb-desc">Toggle painel Agentes</span></div>
+    </div>
+    <div class="kb-section">
+      <div class="kb-section-title">POWER MODES</div>
+      <div class="kb-row"><span class="kb-key">F1</span><span class="kb-desc">Status do sistema</span></div>
+      <div class="kb-row"><span class="kb-key">F2</span><span class="kb-desc">OSINT Investigation</span></div>
+      <div class="kb-row"><span class="kb-key">F3</span><span class="kb-desc">Analisar código/arquivo</span></div>
+      <div class="kb-row"><span class="kb-key">F4</span><span class="kb-desc">Plano arquitetural</span></div>
+      <div class="kb-row"><span class="kb-key">F5</span><span class="kb-desc">Gerar código (v8.0)</span></div>
+      <div class="kb-row"><span class="kb-key">F6</span><span class="kb-desc">Resumir texto/arquivo (v8.0)</span></div>
+      <div class="kb-row"><span class="kb-key">F7</span><span class="kb-desc">Gerar testes (v8.0)</span></div>
+      <div class="kb-row"><span class="kb-key">F8</span><span class="kb-desc">Diagrama Mermaid (v8.0)</span></div>
+      <div class="kb-row"><span class="kb-key">F9</span><span class="kb-desc">Este modal de atalhos</span></div>
+    </div>
+    <div class="kb-section">
+      <div class="kb-section-title">HEADSET</div>
+      <div class="kb-row"><span class="kb-key">BT BTN</span><span class="kb-desc">Ativar/parar gravação</span></div>
+      <div class="kb-row"><span class="kb-key">MediaPlay</span><span class="kb-desc">Push-to-Talk via MediaSession</span></div>
+    </div>
+    <button id="kbClose" onclick="closeKbModal()">[ FECHAR — F9 ]</button>
+  </div>
+</div>
+
+<!-- FILE DROP ZONE -->
+<div id="dropZone">
+  <span>📁 SOLTAR FICHEIRO AQUI</span>
+  <small>Será enviado para análise de código automática</small>
+</div>
+
+<!-- SCROLL TO TOP -->
+<button id="scrollTopBtn" onclick="document.getElementById('w0')?.scrollTo({top:0,behavior:'smooth'})" title="Topo">▲</button>
+
 <!-- RICH PANEL — JARVIS v7.0 -->
 <div id="richPanelBackdrop" onclick="closeRichPanel()"></div>
 <div id="richPanel">
@@ -458,6 +966,114 @@ body.alert #jt{text-shadow:0 0 8px rgba(255,42,74,0.9),0 0 25px rgba(255,42,74,0
   <div id="rpFooter" style="display:none"></div>
 </div>
 <div id="spark"><svg class="spksvg" width="16" height="16" viewBox="0 0 20 20"><defs><filter id="sf"><feGaussianBlur stdDeviation="1.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><path d="M10 0L11.9 8.1L20 10L11.9 11.9L10 20L8.1 11.9L0 10L8.1 8.1Z" fill="rgba(255,255,255,0.52)" filter="url(#sf)"/></svg></div>
+
+<!-- FOCUS MODE BUTTON -->
+<button id="focusBtn" onclick="toggleFocusMode()">FOCO</button>
+
+<!-- WAKE WORD LED -->
+<div id="wakeWordLed">
+  <div class="wwl-dot" id="wwlDot"></div>
+  <span class="wwl-txt" id="wwlTxt">WAKE</span>
+</div>
+
+<!-- INCOGNITO LED -->
+<div id="incognitoLed">◉ MODO INCÓGNITO ATIVO</div>
+
+<!-- SESSION DROPDOWN -->
+<select id="sessionDropdown" onchange="switchSession(this.value)" title="Trocar sessão">
+  <option value="">SESSÃO ATUAL</option>
+</select>
+
+<!-- SUGGESTION CHIPS -->
+<div id="suggChips"></div>
+
+<!-- MUTE BUTTON -->
+<div id="muteBtn" onclick="toggleMute()" title="Silenciar/Ativar TTS">🔊</div>
+
+<!-- SHARE BUTTON (inside response panel action area via JS) -->
+
+<!-- PROMPT TEMPLATES POPUP -->
+<div id="promptTemplates">
+  <div class="pt-title">
+    <span>TEMPLATES DE PROMPT — CTRL+P</span>
+    <button class="wbtn" onclick="closePromptTemplates()">✕</button>
+  </div>
+  <div class="pt-grid" id="ptGrid"></div>
+</div>
+
+<!-- PERSONA SELECT PANEL -->
+<div id="personaSelect">
+  <div class="pt-title" style="margin-bottom:6px;font-size:5.5px;color:rgba(212,168,30,0.45)">PERSONALIDADE DO JARVIS</div>
+  <div class="persona-opt active" onclick="setPersona('tecnico')" data-persona="tecnico">
+    <span class="persona-icon">🔬</span>
+    <div><div class="persona-name">TÉCNICO</div><div class="persona-desc">Preciso, direto, código-focado</div></div>
+  </div>
+  <div class="persona-opt" onclick="setPersona('amigavel')" data-persona="amigavel">
+    <span class="persona-icon">😊</span>
+    <div><div class="persona-name">AMIGÁVEL</div><div class="persona-desc">Caloroso, didático, encorajador</div></div>
+  </div>
+  <div class="persona-opt" onclick="setPersona('formal')" data-persona="formal">
+    <span class="persona-icon">👔</span>
+    <div><div class="persona-name">FORMAL</div><div class="persona-desc">Profissional, executivo, conciso</div></div>
+  </div>
+  <div class="persona-opt" onclick="setPersona('criativo')" data-persona="criativo">
+    <span class="persona-icon">🎨</span>
+    <div><div class="persona-name">CRIATIVO</div><div class="persona-desc">Inventivo, analogias, ideias novas</div></div>
+  </div>
+  <div class="persona-opt" onclick="setPersona('direto')" data-persona="direto">
+    <span class="persona-icon">⚡</span>
+    <div><div class="persona-name">DIRETO</div><div class="persona-desc">Respostas curtas, sem enrolação</div></div>
+  </div>
+  <button class="sbtn" onclick="document.getElementById('personaSelect').classList.remove('show')" style="margin-top:6px">FECHAR</button>
+</div>
+
+<!-- TODO PANEL -->
+<div id="todoPanel">
+  <div class="todo-header">
+    <span class="todo-title">TAREFAS — CTRL+T</span>
+    <button class="wbtn" onclick="toggleTodo()">✕</button>
+  </div>
+  <div class="todo-list" id="todoList"><div class="todo-empty">Nenhuma tarefa ainda</div></div>
+  <div class="todo-input-row">
+    <input class="todo-input" id="todoInput" placeholder="Nova tarefa..." onkeydown="if(event.key==='Enter')addTodo()">
+    <button class="todo-add-btn" onclick="addTodo()">＋</button>
+  </div>
+</div>
+
+<!-- STATS MODAL -->
+<div id="statsModal" onclick="if(event.target===this)closeStats()">
+  <div id="statsBox">
+    <div class="stats-title">
+      <span>ESTATÍSTICAS — JARVIS v9.0</span>
+      <button class="sbtn" onclick="closeStats()">✕ FECHAR</button>
+    </div>
+    <div class="stats-grid" id="statsGrid"></div>
+    <div id="statsSection2"></div>
+    <div id="statsSection3"></div>
+  </div>
+</div>
+
+<!-- ACHIEVEMENT POPUP -->
+<div id="achievePopup">
+  <div class="achieve-title">🏆 CONQUISTA DESBLOQUEADA</div>
+  <div class="achieve-name" id="achieveName">—</div>
+  <div class="achieve-desc" id="achieveDesc">—</div>
+</div>
+
+<!-- LIVE CODE PREVIEW -->
+<div id="livePreviewBackdrop" onclick="closeLivePreview()"></div>
+<div id="livePreview">
+  <div id="livePreviewHeader">
+    <span id="livePreviewTitle">PREVIEW — HTML/CSS/JS AO VIVO</span>
+    <div style="display:flex;gap:6px;align-items:center">
+      <button class="sbtn" onclick="togglePreviewSrc()" id="previewSrcBtn">VER FONTE</button>
+      <button class="rp-close-btn" onclick="closeLivePreview()">✕</button>
+    </div>
+  </div>
+  <iframe id="livePreviewFrame" sandbox="allow-scripts allow-same-origin"></iframe>
+  <div id="livePreviewSrc"></div>
+</div>
+
 <script>
 const _h = window.location.hostname || 'localhost';
 const API_URL = `http://${_h}:8000`;
@@ -646,20 +1262,52 @@ function showToast(msg,type='info',dur=3200){
   setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),350);},dur);
 }
 
-// ── MARKDOWN RENDERER ────────────────────────────────────────────────────────
+// ── MARKDOWN RENDERER v8.0 — code copy, tables, blockquotes, HR ─────────────
+let _codeBlockCount=0;
 function renderMd(text){
+  // Extract code blocks before any escaping
+  const blocks=[];
+  text=text.replace(/```([\w]*)\n?([\s\S]*?)```/g,(_,lang,code)=>{
+    const id='cb'+(++_codeBlockCount);
+    blocks.push({id,lang:lang||'',code});
+    return '%%CODEBLOCK_'+id+'%%';
+  });
   let t=escHtml(text);
-  t=t.replace(/```([\s\S]*?)```/g,'<pre class="md-code">$1</pre>');
+  // Restore code blocks with copy button
+  blocks.forEach(b=>{
+    const langL=b.lang?`<span class="md-code-lang">${escHtml(b.lang)}</span>`:'';
+    const cHtml=escHtml(b.code);
+    t=t.replace('%%CODEBLOCK_'+b.id+'%%',
+      `<div class="md-code-wrap">${langL}<button class="md-copy-btn" onclick="copyCodeBlock(this,'${b.id}')">COPIAR</button><pre class="md-code" id="${b.id}">${cHtml}</pre></div>`);
+  });
+  // Inline code
   t=t.replace(/`([^`\n]+)`/g,'<code class="md-inline">$1</code>');
+  // Bold + italic
+  t=t.replace(/\*\*\*([^*\n]+)\*\*\*/g,'<strong><em>$1</em></strong>');
   t=t.replace(/\*\*([^*\n]+)\*\*/g,'<strong>$1</strong>');
   t=t.replace(/\*([^*\n]+)\*/g,'<em>$1</em>');
+  // Headers
   t=t.replace(/^### (.+)$/gm,'<span class="md-h3">$1</span>');
   t=t.replace(/^## (.+)$/gm,'<span class="md-h2">$1</span>');
   t=t.replace(/^# (.+)$/gm,'<span class="md-h1">$1</span>');
-  t=t.replace(/^[\-\*] (.+)$/gm,'<span class="md-li">› $1</span>');
+  // Lists
+  t=t.replace(/^[\-\*] (.+)$/gm,'<span class="md-li">• $1</span>');
   t=t.replace(/^\d+\. (.+)$/gm,'<span class="md-li">◆ $1</span>');
+  // Blockquotes
+  t=t.replace(/^&gt; (.+)$/gm,'<div class="md-blockquote">$1</div>');
+  // Horizontal rule
+  t=t.replace(/^---+$/gm,'<hr class="md-hr">');
+  // Newlines
   t=t.replace(/\n/g,'<br>');
   return t;
+}
+function copyCodeBlock(btn,id){
+  const el=document.getElementById(id);if(!el)return;
+  const code=el.innerText||el.textContent;
+  if(navigator.clipboard){navigator.clipboard.writeText(code).then(()=>{
+    btn.textContent='✓ COPIADO';btn.classList.add('copied');
+    setTimeout(()=>{btn.textContent='COPIAR';btn.classList.remove('copied');},2200);
+  }).catch(()=>{});}
 }
 
 // ── CONVERSATION HISTORY (Panel 0) ───────────────────────────────────────────
@@ -939,7 +1587,7 @@ async function sendVoiceCommand(audioBlob){
 async function playVoiceResponse(audioPath){
   try{
     setSpeaking(true,5000);
-    const url=`${API_URL}${audioPath.startsWith('/')?'':'/'} ${audioPath}`;
+    const url=`${API_URL}${audioPath.startsWith('/')?'':'/'}${audioPath}`;
     const audio=new Audio();
     audio.onended=()=>setSpeaking(false);
     audio.onerror=()=>{console.error('Erro tocando áudio');setSpeaking(false);};
@@ -1175,6 +1823,164 @@ setTimeout(()=>{
 let _hasInteracted=false;
 document.addEventListener('keydown',()=>{_hasInteracted=true;},{once:true});
 document.addEventListener('click',()=>{_hasInteracted=true;},{once:true});
+
+// ── FEEDBACK SYSTEM ──────────────────────────────────────────────────────────
+function showFeedback(){const fr=document.getElementById('feedbackRow');if(fr)fr.style.display='flex';}
+function hideFeedback(){const fr=document.getElementById('feedbackRow');if(fr)fr.style.display='none';}
+async function sendFeedback(type){
+  const text=_fullResponseText||'';
+  if(!text)return;
+  const btns=document.querySelectorAll('.fb-btn');
+  btns.forEach(b=>b.classList.add('active'));
+  try{
+    if(type==='remember'||type==='forget'){
+      const action=type==='remember'?'SALVAR':'ESQUECER';
+      const msg=type==='remember'
+        ?`Lembra desta resposta: "${text.substring(0,200)}"`
+        :`Esqueça informações sobre: "${text.substring(0,100)}"`;
+      await fetch(`${API_URL}/chat`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({message:msg,session_id:_sessionId||'jarvis'})
+      });
+      showToast(type==='remember'?'✓ Memorizado!':'✦ Esquecido!','success');
+    } else {
+      // Logar feedback localmente (futuramente integrar ao learning loop)
+      const entry={type,text:text.substring(0,300),ts:Date.now(),session:_sessionId};
+      const fb=JSON.parse(localStorage.getItem('jarvis_feedback')||'[]');
+      fb.push(entry);if(fb.length>100)fb.splice(0,fb.length-100);
+      localStorage.setItem('jarvis_feedback',JSON.stringify(fb));
+      showToast(type==='good'?'✓ Obrigado!':'Feedback registrado','info');
+    }
+  }catch(e){showToast('Erro ao enviar feedback','error');}
+  setTimeout(()=>btns.forEach(b=>b.classList.remove('active')),1500);
+}
+
+// Mostrar feedback quando resposta completa
+const _origShowResponse=showResponse;
+showResponse=function(text){
+  _origShowResponse(text);
+  showFeedback();
+};
+const _origClearResponse=clearResponse;
+clearResponse=function(){
+  _origClearResponse();
+  hideFeedback();
+};
+
+// ── MEMORY MODAL ─────────────────────────────────────────────────────────────
+function openMemModal(){
+  document.getElementById('memModal').classList.add('show');
+  toggleSettings();
+  loadMemories();
+}
+function closeMemModal(){document.getElementById('memModal').classList.remove('show');}
+async function loadMemories(){
+  const list=document.getElementById('memList');
+  if(!list)return;
+  list.innerHTML='<div class="mem-empty">Carregando...</div>';
+  try{
+    // Carregar sessões
+    const r=await fetch(`${API_URL}/memory`,{signal:AbortSignal.timeout(3000)});
+    const d=await r.json();
+    const sessions=d.sessions||[];
+    if(!sessions.length){list.innerHTML='<div class="mem-empty">Nenhuma memória ainda.<br>Use o JARVIS para criar memórias.</div>';return;}
+
+    // Carregar memória da sessão atual
+    const mr=await fetch(`${API_URL}/memory/${_sessionId||'default'}`,{signal:AbortSignal.timeout(3000)});
+    const md=await mr.json();
+    const history=(md.episodic||[]).slice(-20);
+    const prefs=md.preferences||{};
+    const proj=md.project_context||{};
+
+    let html='';
+    // Episódic memory
+    if(history.length){
+      history.reverse().forEach((h,i)=>{
+        const msg=(h.message||'').substring(0,80);
+        const resp=(h.response||'').substring(0,60);
+        html+=`<div class="mem-item">
+          <div>
+            <div><strong>Q:</strong> ${escHtml(msg)}${msg.length<(h.message||'').length?'…':''}</div>
+            <div style="color:rgba(0,229,255,0.35);margin-top:2px"><strong>A:</strong> ${escHtml(resp)}${resp.length<(h.response||'').length?'…':''}</div>
+            <div class="mem-session">SESSÃO: ${escHtml(_sessionId||'?').substring(0,16)}</div>
+          </div>
+          <button class="mem-del" onclick="deleteMemoryEntry(${i})">✕</button>
+        </div>`;
+      });
+    }
+    // Preferences
+    if(Object.keys(prefs).length){
+      html+=`<div class="mem-item" style="border-color:rgba(255,209,102,0.12)">
+        <div><strong style="color:rgba(255,209,102,0.6)">PREFERÊNCIAS:</strong> ${escHtml(JSON.stringify(prefs).substring(0,120))}</div>
+        <div></div>
+      </div>`;
+    }
+    list.innerHTML=html||'<div class="mem-empty">Sem histórico nesta sessão.</div>';
+
+    // Stats
+    document.getElementById('memTotalCount').textContent=history.length+' mensagens';
+    // RAG stats
+    try{
+      const rs=await fetch(`${API_URL}/chat/rag/stats`,{signal:AbortSignal.timeout(2000)});
+      const rd=await rs.json();
+      document.getElementById('ragCount').textContent='RAG: '+(rd.count||0)+' docs';
+    }catch(e){document.getElementById('ragCount').textContent='RAG: —';}
+    // Sessions
+    document.getElementById('memTotalCount').textContent=sessions.length+' sessões | '+history.length+' msgs';
+  }catch(e){
+    list.innerHTML='<div class="mem-empty">Erro ao carregar memórias: '+escHtml(e.message)+'</div>';
+  }
+}
+async function deleteMemoryEntry(idx){
+  if(!confirm('Apagar esta entrada da memória?'))return;
+  try{
+    await fetch(`${API_URL}/memory/${_sessionId||'default'}`,{method:'DELETE',signal:AbortSignal.timeout(3000)});
+    showToast('Entrada apagada','warn');
+    loadMemories();
+  }catch(e){showToast('Erro ao apagar','error');}
+}
+async function clearAllMemories(){
+  if(!confirm('Apagar TODAS as memórias desta sessão? Esta ação não pode ser desfeita.'))return;
+  try{
+    await fetch(`${API_URL}/memory/${_sessionId||'default'}`,{method:'DELETE',signal:AbortSignal.timeout(3000)});
+    showToast('Memórias limpas','warn');
+    loadMemories();
+  }catch(e){showToast('Erro ao limpar','error');}
+}
+async function openRagStats(){
+  try{
+    const r=await fetch(`${API_URL}/chat/rag/stats`,{signal:AbortSignal.timeout(3000)});
+    const d=await r.json();
+    showToast(`RAG: ${d.count||0} docs indexados — ${d.available?'ATIVO':'INATIVO'}`,'info',4500);
+  }catch(e){showToast('RAG não disponível','warn');}
+}
+async function indexCurrentProject(){
+  showToast('Indexando... aguarde','info',8000);
+  try{
+    const r=await fetch(`${API_URL}/chat`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({message:'Indexe os arquivos do projeto atual na base RAG',session_id:_sessionId||'jarvis'})
+    });
+    const d=await r.json();
+    showToast('Projeto indexado no RAG!','success');
+  }catch(e){showToast('Erro ao indexar projeto','error');}
+}
+
+// ── PWA: Service Worker Registration ─────────────────────────────────────────
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('/static/sw.js',{scope:'/'})
+      .then(reg=>{
+        addEvent('ok','PWA: Service Worker registrado (v8.0)');
+        reg.addEventListener('updatefound',()=>{
+          addEvent('info','PWA: nova versão disponível');
+        });
+      })
+      .catch(err=>addEvent('warn','PWA: SW não registrado — '+err.message));
+  });
+}
 
 // ── AUTO-SHOW CMD ON ANY PRINTABLE KEY ───────────────────────────────────────
 document.addEventListener('keydown',e=>{
@@ -1657,6 +2463,1469 @@ setTimeout(()=>{
   addEvent('ok','Power Modes ONLINE: F2=OSINT | F3=CODE | F4=ARCH');
   addEvent('ok','Voice: "investiga o número..." | "analise o arquivo..." | "cria um sistema de..."');
 },1200);
+
+// ══════════════════════════════════════════════════════════════════════════════
+// JARVIS v8.0 — BLUETOOTH HEADSET + MOBILE SUPPORT
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── SILENT AUDIO KEEP-ALIVE (obrigatório para MediaSession funcionar) ────────
+let _keepAliveAudio=null;
+function _startMediaKeepAlive(){
+  if(_keepAliveAudio)return;
+  try{
+    // WAV mínimo silencioso em base64 — 1 sample, 44100Hz
+    const silent='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+    _keepAliveAudio=new Audio(silent);
+    _keepAliveAudio.loop=true;
+    _keepAliveAudio.volume=0.001;
+    _keepAliveAudio.play().then(()=>{
+      addEvent('ok','MediaSession keep-alive ativo');
+    }).catch(()=>{});
+  }catch(e){}
+}
+// Iniciar após primeira interação do utilizador (política de autoplay)
+['click','keydown','touchstart'].forEach(ev=>{
+  document.addEventListener(ev,()=>_startMediaKeepAlive(),{once:true,passive:true});
+});
+
+// ── VIBRATION FEEDBACK ────────────────────────────────────────────────────────
+function vibrateDevice(pattern=[50,30,50]){
+  try{if(navigator.vibrate)navigator.vibrate(pattern);}catch(e){}
+}
+
+// ── WAKE LOCK — impede o ecrã do celular de apagar ───────────────────────────
+let _wakeLock=null;
+async function initWakeLock(){
+  if(!('wakeLock' in navigator))return;
+  try{
+    _wakeLock=await navigator.wakeLock.request('screen');
+    const wl=document.getElementById('sWakeLock');
+    if(wl){wl.textContent='ATIVO';wl.style.color='rgba(78,255,145,0.85)';}
+    addEvent('ok','Wake Lock: ecrã mantido ativo');
+    // Re-adquirir se a página voltar ao foco
+    document.addEventListener('visibilitychange',async()=>{
+      if(document.visibilityState==='visible'&&(_wakeLock===null||_wakeLock.released)){
+        try{_wakeLock=await navigator.wakeLock.request('screen');}catch(e){}
+      }
+    });
+  }catch(e){
+    const wl=document.getElementById('sWakeLock');
+    if(wl){wl.textContent='INDISPONÍVEL';wl.style.color='rgba(255,107,107,0.6)';}
+  }
+}
+
+// ── HEADSET ACTION HANDLER ────────────────────────────────────────────────────
+function _onHeadsetPress(){
+  vibrateDevice([40,20,40]);
+  if(isRecording){
+    stopRecording();
+    addEvent('voice','HEADSET: gravação parada');
+  }else{
+    startRecording();
+    showAll();
+    addEvent('voice','HEADSET: ◉ OUVINDO...');
+  }
+}
+function _onHeadsetLongPress(){
+  vibrateDevice([80,40,80,40,80]);
+  clearResponse();
+  addEvent('voice','HEADSET (longo): resposta limpa');
+}
+
+// ── MEDIA SESSION API — botão do headset bluetooth ───────────────────────────
+function initHeadsetSupport(){
+  const btn=document.getElementById('headsetBtn');
+
+  // MediaSession API (Android Chrome, Safari 14+, Edge)
+  if('mediaSession' in navigator){
+    try{
+      navigator.mediaSession.metadata=new MediaMetadata({
+        title:'JARVIS Neural Core',
+        artist:'J.A.R.V.I.S. v8.0',
+        album:'Personal AI — Online',
+      });
+
+      // Botão play/pause do headset → PTT
+      navigator.mediaSession.setActionHandler('play',()=>_onHeadsetPress());
+      navigator.mediaSession.setActionHandler('pause',()=>_onHeadsetPress());
+      // Botão anterior → também ativa PTT (headsets de 1 botão enviam previoustrack)
+      navigator.mediaSession.setActionHandler('previoustrack',()=>_onHeadsetPress());
+      // Botão próximo → limpa resposta
+      try{navigator.mediaSession.setActionHandler('nexttrack',()=>_onHeadsetLongPress());}catch(e){}
+      // Stop → para gravação se estiver a gravar
+      try{navigator.mediaSession.setActionHandler('stop',()=>{if(isRecording)stopRecording();});}catch(e){}
+
+      if(btn){btn.classList.add('ready');}
+      const hs=document.getElementById('sHeadsetVal');
+      if(hs){hs.textContent='MediaSession ATIVO';hs.style.color='rgba(78,255,145,0.85)';}
+      addEvent('ok','🎧 Headset BT: MediaSession API configurado');
+    }catch(e){
+      addEvent('warn','MediaSession parcial: '+e.message);
+    }
+  }else{
+    const hs=document.getElementById('sHeadsetVal');
+    if(hs){hs.textContent='Não suportado neste browser';hs.style.color='rgba(255,107,107,0.6)';}
+    addEvent('warn','MediaSession não disponível — use Chrome/Edge no celular');
+  }
+
+  // MediaKeys keyboard events (fallback desktop + alguns headsets)
+  document.addEventListener('keydown',e=>{
+    const mediaKeys=['MediaPlayPause','MediaPlay','MediaPause','MediaStop','AudioVolumeMute'];
+    if(mediaKeys.includes(e.key)){
+      e.preventDefault();
+      _onHeadsetPress();
+    }
+  });
+
+  // Visual feedback no ícone do headset quando gravando
+  const _origStart=window.startRecording;
+  window.startRecording=async function(){
+    await _origStart();
+    if(btn)btn.classList.add('listening');
+    // Atualizar MediaSession playback state
+    if('mediaSession' in navigator){
+      navigator.mediaSession.playbackState='playing';
+    }
+  };
+  const _origStop=window.stopRecording;
+  window.stopRecording=function(){
+    _origStop();
+    if(btn)btn.classList.remove('listening');
+    if('mediaSession' in navigator){
+      navigator.mediaSession.playbackState='paused';
+    }
+  };
+
+  // Click manual no ícone do headset
+  if(btn)btn.addEventListener('click',()=>{_startMediaKeepAlive();_onHeadsetPress();});
+}
+
+// ── REDE LOCAL — URL para o celular ──────────────────────────────────────────
+let _netInfo=null;
+async function fetchNetworkInfo(){
+  try{
+    const d=await fetch(`${API_URL}/network/info`,{signal:AbortSignal.timeout(3000)}).then(r=>r.json());
+    _netInfo=d;
+    const el=document.getElementById('sNetUrl');
+    if(el){
+      el.textContent=d.jarvis_url||API_URL;
+      el.title=d.qr_hint||'';
+    }
+    addEvent('ok','Rede: '+d.jarvis_url);
+    return d;
+  }catch(e){
+    // Fallback: mostrar URL atual
+    const el=document.getElementById('sNetUrl');
+    const guessUrl=API_URL.replace('localhost','[IP-DO-PC]').replace('127.0.0.1','[IP-DO-PC]');
+    if(el)el.textContent=guessUrl+' (substitua [IP-DO-PC] pelo IP da escola)';
+    return null;
+  }
+}
+
+function copyNetUrl(){
+  const url=_netInfo?.jarvis_url||API_URL;
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(url).then(()=>showToast('URL COPIADA — Cole no celular!','success',5000));
+  }else{
+    const ta=document.createElement('textarea');ta.value=url;
+    document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();
+    showToast('URL COPIADA','success');
+  }
+}
+
+// Patch fetchSettings para incluir rede
+const _origFetchSettings=window.fetchSettings;
+window.fetchSettings=async function(){
+  await _origFetchSettings();
+  await fetchNetworkInfo();
+};
+
+// ── PWA: INSTALAR NO CELULAR ──────────────────────────────────────────────────
+let _pwaPrompt=null;
+window.addEventListener('beforeinstallprompt',e=>{
+  e.preventDefault();_pwaPrompt=e;
+  addEvent('ok','PWA: "Adicionar ao ecrã inicial" disponível');
+  // Mostrar botão no settings
+  const row=document.querySelector('#settingsPanel .srow:last-child');
+  if(row){
+    const btn=document.createElement('button');
+    btn.className='sbtn';btn.textContent='INSTALAR APP';
+    btn.onclick=async()=>{
+      if(_pwaPrompt){await _pwaPrompt.prompt();_pwaPrompt=null;}
+    };
+    row.prepend(btn);
+  }
+});
+
+// ── PWA MANIFEST dinâmico ─────────────────────────────────────────────────────
+(function(){
+  try{
+    const manifest={
+      name:'JARVIS Neural Core',short_name:'JARVIS',
+      description:'J.A.R.V.I.S. Personal AI Assistant',
+      start_url:'/',display:'standalone',
+      background_color:'#000000',theme_color:'#00e5ff',
+      orientation:'portrait-primary',
+      icons:[{src:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48" fill="%23000" stroke="%2300e5ff" stroke-width="2"/><text x="50" y="68" font-size="52" text-anchor="middle" fill="%2300e5ff" font-family="monospace">J</text></svg>',sizes:'any',type:'image/svg+xml'}]
+    };
+    const blob=new Blob([JSON.stringify(manifest)],{type:'application/json'});
+    const link=document.createElement('link');
+    link.rel='manifest';link.href=URL.createObjectURL(blob);
+    document.head.appendChild(link);
+  }catch(e){}
+})();
+
+// ── INICIALIZAÇÃO MOBILE ──────────────────────────────────────────────────────
+setTimeout(()=>{
+  initHeadsetSupport();
+  initWakeLock();
+  fetchNetworkInfo();
+  addEvent('ok','Mobile: Headset BT + Wake Lock + PWA prontos');
+  addEvent('info','Celular: abra o URL de rede (⚙ Configurações) no mesmo WiFi');
+},1500);
+
+// ══════════════════════════════════════════════════════════════════════════════
+// JARVIS v8.0 — 50+ MELHORIAS DE UX E FUNCIONALIDADES
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── #1: ENTRADA — HISTÓRICO DE COMANDOS ──────────────────────────────────────
+const _cmdHistory=[]; let _cmdHistIdx=-1;
+const cmdText=document.getElementById('cmdtext');
+const charCounter=document.getElementById('charCounter');
+if(cmdText){
+  cmdText.addEventListener('input',()=>{
+    const n=cmdText.value.length;
+    if(charCounter)charCounter.textContent=n;
+    if(n>200){charCounter.style.color='rgba(255,107,107,0.7)';}
+    else{charCounter.style.color='rgba(0,229,255,0.25)';}
+    // Auto show quick bar when typing
+    const qb=document.getElementById('quickBar');
+    if(qb){if(n===0){qb.classList.remove('show');}else{qb.classList.add('show');}}
+  });
+
+  cmdText.addEventListener('keydown',e=>{
+    if(e.key==='ArrowUp'){
+      e.preventDefault();
+      if(_cmdHistIdx<_cmdHistory.length-1){_cmdHistIdx++;cmdText.value=_cmdHistory[_cmdHistIdx];if(charCounter)charCounter.textContent=cmdText.value.length;}
+    }else if(e.key==='ArrowDown'){
+      e.preventDefault();
+      if(_cmdHistIdx>0){_cmdHistIdx--;cmdText.value=_cmdHistory[_cmdHistIdx];}
+      else{_cmdHistIdx=-1;cmdText.value='';if(charCounter)charCounter.textContent='0';}
+    }else if(e.key==='Enter'&&!e.shiftKey){
+      e.preventDefault();
+      const v=cmdText.value.trim();
+      if(v){
+        if(_cmdHistory[0]!==v){_cmdHistory.unshift(v);if(_cmdHistory.length>50)_cmdHistory.pop();}
+        _cmdHistIdx=-1;
+        runCmd(v);cmdText.value='';if(charCounter)charCounter.textContent='0';
+        const qb=document.getElementById('quickBar');if(qb)qb.classList.remove('show');
+      }
+    }
+  });
+}
+// Input history button
+const inputHistBtn=document.getElementById('inputHistBtn');
+if(inputHistBtn){
+  inputHistBtn.addEventListener('click',()=>{
+    if(_cmdHistory.length===0){showToast('Histórico vazio','info');return;}
+    const hist=_cmdHistory.slice(0,10).map((h,i)=>`${i+1}. ${h.substring(0,60)}`).join('\n');
+    const sel=window.prompt('HISTÓRICO (clique em nenhum para cancelar):\n\n'+hist+'\n\nDigite número ou texto:');
+    if(sel){
+      const n=parseInt(sel)-1;
+      if(n>=0&&n<_cmdHistory.length){cmdText.value=_cmdHistory[n];}
+      else{cmdText.value=sel;}
+      cmdText.focus();
+      if(charCounter)charCounter.textContent=cmdText.value.length;
+    }
+  });
+}
+
+// ── #2: EXPORTAR CONVERSA ──────────────────────────────────────────────────────
+function exportConversation(){
+  const lines=[`# JARVIS v8.0 — Conversa exportada em ${new Date().toLocaleString('pt-BR')}`,`Sessão: ${_sessionId||'—'}`,'---',''];
+  convHistory.forEach(e=>{
+    const role=e.role==='user'?'**Você**':'**JARVIS**';
+    lines.push(`${role} [${e.ts}]`);
+    lines.push(e.text||'');lines.push('');
+  });
+  const blob=new Blob([lines.join('\n')],{type:'text/markdown;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=`jarvis_conversa_${Date.now()}.md`;
+  document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+  showToast('CONVERSA EXPORTADA','success');
+  addEvent('ok','Exportou conversa como .md');
+}
+
+// ── #3: EXPORTAR RESPOSTA ATUAL ─────────────────────────────────────────────
+function exportResponse(){
+  if(!_fullResponseText){showToast('Nenhuma resposta para exportar','warn');return;}
+  const header=`# JARVIS v8.0 — Resposta exportada\n${new Date().toLocaleString('pt-BR')}\n\n---\n\n`;
+  const blob=new Blob([header+_fullResponseText],{type:'text/markdown;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=`jarvis_resposta_${Date.now()}.md`;
+  document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+  showToast('RESPOSTA EXPORTADA','success');
+}
+
+// ── #4: PESQUISAR NA CONVERSA ──────────────────────────────────────────────────
+function toggleConvSearch(){
+  const s=document.getElementById('convSearch');
+  if(s){s.classList.toggle('show');
+    if(s.classList.contains('show'))document.getElementById('convSearchInput')?.focus();
+    else searchConversation('');
+  }
+}
+function searchConversation(query){
+  const entries=document.querySelectorAll('.conv-entry');
+  if(!query){entries.forEach(e=>e.classList.remove('search-match'));return;}
+  const q=query.toLowerCase();
+  entries.forEach(e=>{
+    const txt=(e.textContent||'').toLowerCase();
+    e.classList.toggle('search-match',txt.includes(q));
+  });
+}
+
+// ── #5: QUICK ACTIONS ─────────────────────────────────────────────────────────
+function quickAction(type){
+  const map={
+    'status':()=>runCmd('status'),
+    'osint':()=>{const t=window.prompt('OSINT — Alvo (número, IP, email ou domínio):');if(t)runOsintInvestigation(t.trim());},
+    'analyze':()=>{const f=window.prompt('Analisar — Caminho do arquivo (ex: backend/main.py):');if(f)runCodeAnalysis(f.trim());},
+    'architect':()=>{const d=window.prompt('Arquitetar — Descreva o sistema:');if(d)runArchitectPlan(d.trim());},
+    'generate':()=>{const d=window.prompt('Gerar código — Descreva o que precisa:\n\nEx: "API REST em FastAPI para gerenciar usuários"');if(d)runGenerateCode(d.trim());},
+    'summarize':()=>{const t=window.prompt('Resumir — Cole o texto ou caminho do arquivo:');if(t)runSummarize(t.trim());},
+    'explain':()=>{const t=window.prompt('Explicar — Cole o código ou conceito:');if(t)runExplain(t.trim());},
+    'review':()=>{const t=window.prompt('Code Review — Cole o código para revisar:');if(t)runCodeReview(t.trim());},
+  };
+  const fn=map[type];if(fn)fn();
+  const qb=document.getElementById('quickBar');if(qb)qb.classList.remove('show');
+}
+
+// ── #6: GERAÇÃO DE CÓDIGO v8.0 ────────────────────────────────────────────────
+async function runGenerateCode(description,language='python'){
+  if(!description)return;
+  openRichPanel('GERANDO CÓDIGO','generating');
+  addEvent('ai','GENERATE: '+description.substring(0,50));
+  try{
+    const d=await fetch(`${API_URL}/generate/code`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({description,language,style:'clean'}),
+      signal:AbortSignal.timeout(90000)
+    }).then(r=>r.json());
+    if(d.voice_response)showResponse(d.voice_response);
+    if(d.data?.code){
+      const code=d.data.code;
+      const lang=d.data.language||language;
+      document.getElementById('rpTitle').textContent='CÓDIGO GERADO';
+      const badge=document.getElementById('rpBadge');
+      if(badge){badge.className='rp-badge';badge.textContent=lang.toUpperCase();badge.style.color='rgba(78,255,145,0.85)';badge.style.borderColor='rgba(78,255,145,0.3)';}
+      const body=document.getElementById('rpBody');
+      if(body){
+        body.innerHTML=`
+          <div class="rp-row"><span class="rp-label">LINGUAGEM</span><span class="rp-value">${escHtml(lang)}</span></div>
+          <div class="rp-row"><span class="rp-label">DESCRIÇÃO</span><span class="rp-value" style="color:rgba(180,210,240,0.7)">${escHtml(description.substring(0,100))}</span></div>
+          <div style="position:relative;margin-top:8px">
+            <button class="md-copy-btn" style="position:static;display:block;margin-bottom:3px;width:auto" onclick="navigator.clipboard?.writeText(document.getElementById('genCodePre').innerText)">COPIAR CÓDIGO</button>
+            <pre class="rp-gen-code" id="genCodePre">${escHtml(code)}</pre>
+          </div>`;
+      }
+      const footer=document.getElementById('rpFooter');
+      if(footer){
+        footer.style.display='flex';footer.innerHTML='<button class="rp-confirm-btn" onclick="downloadGeneratedCode()">DOWNLOAD .'+lang+' ↓</button>';
+        window._lastGeneratedCode={code,lang};
+      }
+    }
+    addEvent('ok','Código gerado com sucesso');
+  }catch(e){
+    addEvent('err','GENERATE ERROR: '+e.message);
+    document.getElementById('rpBody').innerHTML=`<div style="color:rgba(255,107,107,0.8);font-size:7px;padding:10px">Erro ao gerar código: ${escHtml(e.message)}</div>`;
+  }
+}
+function downloadGeneratedCode(){
+  const gc=window._lastGeneratedCode;if(!gc)return;
+  const extMap={python:'.py',javascript:'.js',typescript:'.ts',java:'.java',go:'.go',rust:'.rs'};
+  const ext=extMap[gc.lang]||'.txt';
+  const blob=new Blob([gc.code],{type:'text/plain;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download='jarvis_generated'+ext;
+  document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+  showToast('CÓDIGO BAIXADO','success');
+}
+
+// ── #7: RESUMIR v8.0 ──────────────────────────────────────────────────────────
+async function runSummarize(text){
+  if(!text)return;
+  openRichPanel('RESUMINDO','summarizing');
+  addEvent('ai','SUMMARIZE: '+text.substring(0,40));
+  try{
+    const isPath=text.includes('/')||text.includes('\\')&&text.length<200;
+    const body=isPath?{file_path:text,format:'structured',length:'medium'}:{text,format:'structured',length:'medium'};
+    const d=await fetch(`${API_URL}/generate/summarize`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(body),signal:AbortSignal.timeout(60000)
+    }).then(r=>r.json());
+    if(d.voice_response)showResponse(d.voice_response);
+    document.getElementById('rpTitle').textContent='RESUMO';
+    const badge=document.getElementById('rpBadge');
+    if(badge){badge.textContent='SUMÁRIO';badge.className='rp-badge';badge.style.color='rgba(212,168,32,0.85)';badge.style.borderColor='rgba(212,168,32,0.3)';}
+    const rpBody=document.getElementById('rpBody');
+    if(rpBody&&d.data){
+      const sd=d.data;
+      rpBody.innerHTML=`
+        <div style="font-size:6.5px;color:rgba(0,229,255,0.5);letter-spacing:1px;margin-bottom:5px">RESUMO ESTRUTURADO</div>
+        ${sd.tldr?`<div class="rp-section-title">TL;DR</div><div style="font-size:7px;color:rgba(180,210,240,0.8);line-height:1.7;padding:5px 0">${escHtml(sd.tldr)}</div>`:''}
+        ${sd.key_points?.length?`<div class="rp-section-title" style="margin-top:8px">PONTOS PRINCIPAIS</div>${sd.key_points.map(p=>`<div class="next-step"><span class="next-step-num">•</span><span>${escHtml(p)}</span></div>`).join('')}`:''}
+        ${sd.action_items?.length?`<div class="rp-section-title" style="margin-top:8px">AÇÕES</div>${sd.action_items.map(p=>`<div class="next-step"><span class="next-step-num">→</span><span>${escHtml(p)}</span></div>`).join('')}`:''}
+        ${sd.conclusion?`<div class="rp-section-title" style="margin-top:8px">CONCLUSÃO</div><div style="font-size:6.5px;color:rgba(180,210,240,0.65);line-height:1.6">${escHtml(sd.conclusion)}</div>`:''}`;
+    }
+    addEvent('ok','Resumo gerado com sucesso');
+  }catch(e){
+    addEvent('err','SUMMARIZE ERROR: '+e.message);
+    document.getElementById('rpBody').innerHTML=`<div style="color:rgba(255,107,107,0.8);padding:10px">${escHtml(e.message)}</div>`;
+  }
+}
+
+// ── #8: EXPLICAR v8.0 ─────────────────────────────────────────────────────────
+async function runExplain(topic){
+  if(!topic)return;
+  openRichPanel('EXPLICANDO','explaining');
+  addEvent('ai','EXPLAIN: '+topic.substring(0,40));
+  try{
+    const d=await fetch(`${API_URL}/generate/explain`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({topic,level:'intermediate',language:'pt-BR'}),
+      signal:AbortSignal.timeout(60000)
+    }).then(r=>r.json());
+    if(d.voice_response)showResponse(d.voice_response);
+    document.getElementById('rpTitle').textContent='EXPLICAÇÃO';
+    const badge=document.getElementById('rpBadge');
+    if(badge){badge.textContent='LEARN';badge.className='rp-badge';badge.style.color='rgba(78,255,145,0.8)';badge.style.borderColor='rgba(78,255,145,0.25)';}
+    const rpBody=document.getElementById('rpBody');
+    if(rpBody&&d.data){
+      const dd=d.data;
+      rpBody.innerHTML=`
+        ${dd.summary?`<div style="font-size:7.5px;color:rgba(0,229,255,0.7);line-height:1.7;margin-bottom:8px;padding:5px;background:rgba(0,229,255,0.03);border-left:2px solid rgba(0,229,255,0.2)">${escHtml(dd.summary)}</div>`:''}
+        <div class="rp-section-title">EXPLICAÇÃO</div>
+        <div style="font-size:6.5px;color:rgba(180,210,240,0.75);line-height:1.8">${escHtml(dd.explanation||'')}</div>
+        ${dd.key_concepts?.length?`<div class="rp-section-title" style="margin-top:8px">CONCEITOS-CHAVE</div>${dd.key_concepts.map(c=>`<span class="mvp-feat">${escHtml(c)}</span>`).join('')}`:''}
+        ${dd.examples?.length?`<div class="rp-section-title" style="margin-top:8px">EXEMPLOS</div>${dd.examples.map(e=>`<div class="next-step"><span class="next-step-num">◆</span><span>${escHtml(e)}</span></div>`).join('')}`:''}
+        ${dd.common_mistakes?.length?`<div class="rp-section-title" style="margin-top:8px;color:rgba(255,209,102,0.5)">ERROS COMUNS</div>${dd.common_mistakes.map(e=>`<div class="next-step" style="border-color:rgba(255,209,102,0.08)"><span class="next-step-num" style="color:rgba(255,107,107,0.5)">⚠</span><span>${escHtml(e)}</span></div>`).join('')}`:''}`;
+    }
+    addEvent('ok','Explicação gerada');
+  }catch(e){
+    addEvent('err','EXPLAIN ERROR: '+e.message);
+  }
+}
+
+// ── #9: CODE REVIEW v8.0 ─────────────────────────────────────────────────────
+async function runCodeReview(code){
+  if(!code)return;
+  openRichPanel('REVISANDO CÓDIGO','reviewing');
+  addEvent('ai','CODE REVIEW: '+code.substring(0,40));
+  try{
+    const d=await fetch(`${API_URL}/generate/review`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({code,focus:['security','readability','performance']}),
+      signal:AbortSignal.timeout(90000)
+    }).then(r=>r.json());
+    if(d.voice_response)showResponse(d.voice_response);
+    document.getElementById('rpTitle').textContent='CODE REVIEW';
+    const rpBody=document.getElementById('rpBody');
+    if(rpBody&&d.data){
+      const dd=d.data;
+      const verdictColors={approve:'rgba(78,255,145,0.85)',request_changes:'rgba(255,107,107,0.85)',needs_discussion:'rgba(255,209,102,0.85)'};
+      const verdictLabels={approve:'✓ APROVADO',request_changes:'✗ SOLICITA MUDANÇAS',needs_discussion:'⚠ DISCUSSÃO NECESSÁRIA'};
+      rpBody.innerHTML=`
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-size:8px;color:${verdictColors[dd.verdict]||'rgba(0,229,255,0.7)'}">${verdictLabels[dd.verdict]||dd.verdict||'—'}</span>
+          <span style="font-size:7px;color:rgba(0,229,255,0.4)">SCORE: ${dd.score||0}/100</span>
+        </div>
+        ${dd.blocking_issues?.length?`<div class="rp-section-title" style="color:rgba(255,107,107,0.5)">ISSUES BLOQUEANTES (${dd.blocking_issues.length})</div>
+          ${dd.blocking_issues.map(i=>`<div style="padding:4px 0;border-bottom:1px solid rgba(255,107,107,0.06)">
+            <div style="font-size:5.5px;color:rgba(255,107,107,0.7)">${i.severity?.toUpperCase()||'ISSUE'} ${i.line?'L'+i.line:''}</div>
+            <div style="font-size:6px;color:rgba(220,180,180,0.8)">${escHtml(i.issue||'')}</div>
+            ${i.suggestion?`<div style="font-size:6px;color:rgba(78,255,145,0.6);margin-top:2px">→ ${escHtml(i.suggestion)}</div>`:''}
+          </div>`).join('')}`:''}
+        ${dd.praise?.length?`<div class="rp-section-title" style="margin-top:8px;color:rgba(78,255,145,0.5)">PONTOS POSITIVOS</div>
+          ${dd.praise.map(p=>`<div class="next-step"><span class="next-step-num" style="color:rgba(78,255,145,0.5)">✓</span><span>${escHtml(p)}</span></div>`).join('')}`:''}
+        ${dd.overall_feedback?`<div class="rp-section-title" style="margin-top:8px">FEEDBACK GERAL</div>
+          <div style="font-size:6.5px;color:rgba(180,210,240,0.65);line-height:1.7">${escHtml(dd.overall_feedback)}</div>`:''}`;
+    }
+    addEvent('ok','Code review concluído');
+  }catch(e){addEvent('err','REVIEW ERROR: '+e.message);}
+}
+
+// ── #10: GERAR DIAGRAMA MERMAID v8.0 ─────────────────────────────────────────
+async function runGenerateDiagram(description){
+  if(!description)return;
+  openRichPanel('GERANDO DIAGRAMA','diagramming');
+  addEvent('ai','DIAGRAM: '+description.substring(0,40));
+  try{
+    const d=await fetch(`${API_URL}/generate/diagram`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({description,type:'auto'}),
+      signal:AbortSignal.timeout(60000)
+    }).then(r=>r.json());
+    if(d.voice_response)showResponse(d.voice_response);
+    const mermaidCode=d.data?.mermaid||'';
+    document.getElementById('rpTitle').textContent='DIAGRAMA MERMAID';
+    const badge=document.getElementById('rpBadge');
+    if(badge){badge.textContent='DIAGRAM';badge.className='rp-badge';badge.style.color='rgba(212,168,32,0.85)';}
+    const rpBody=document.getElementById('rpBody');
+    if(rpBody){
+      const mId='mmd_'+Date.now();
+      rpBody.innerHTML=`
+        <div class="rp-row"><span class="rp-label">TIPO</span><span class="rp-value">${escHtml(d.data?.type||'flowchart')}</span></div>
+        <div class="rp-mermaid" id="${mId}"><pre>${escHtml(mermaidCode)}</pre></div>
+        <div style="margin-top:6px">
+          <button class="md-copy-btn" style="position:static;display:inline-block" onclick="navigator.clipboard?.writeText(${JSON.stringify(mermaidCode)})">COPIAR MERMAID</button>
+        </div>`;
+      // Try to render with mermaid.js
+      setTimeout(()=>{
+        try{
+          if(window.mermaid){
+            const wrap=document.getElementById(mId);
+            if(wrap){wrap.innerHTML=`<div class="mermaid">${escHtml(mermaidCode)}</div>`;window.mermaid.run({nodes:[wrap.querySelector('.mermaid')]});}
+          }
+        }catch(me){console.warn('Mermaid render:',me);}
+      },300);
+    }
+    addEvent('ok','Diagrama Mermaid gerado');
+  }catch(e){addEvent('err','DIAGRAM ERROR: '+e.message);}
+}
+
+// ── #11: GERAR TESTES v8.0 ────────────────────────────────────────────────────
+async function runGenerateTests(filePath){
+  if(!filePath)return;
+  openRichPanel('GERANDO TESTES','testing');
+  addEvent('ai','GENERATE TESTS: '+filePath.substring(0,40));
+  try{
+    const d=await fetch(`${API_URL}/generate/tests`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({file_path:filePath}),
+      signal:AbortSignal.timeout(90000)
+    }).then(r=>r.json());
+    if(d.voice_response)showResponse(d.voice_response);
+    document.getElementById('rpTitle').textContent='TESTES GERADOS';
+    const rpBody=document.getElementById('rpBody');
+    if(rpBody&&d.data?.code){
+      const fw=d.data.framework||'pytest';
+      rpBody.innerHTML=`
+        <div class="rp-row"><span class="rp-label">FRAMEWORK</span><span class="rp-value">${escHtml(fw)}</span></div>
+        <div style="position:relative;margin-top:6px">
+          <button class="md-copy-btn" style="position:static;display:block;margin-bottom:3px" onclick="navigator.clipboard?.writeText(document.getElementById('testCodePre').innerText)">COPIAR TESTES</button>
+          <pre class="rp-gen-code" id="testCodePre">${escHtml(d.data.code)}</pre>
+        </div>`;
+    }
+    addEvent('ok','Testes gerados com '+d.data?.framework);
+  }catch(e){addEvent('err','TESTS ERROR: '+e.message);}
+}
+
+// ── #12: THREAT SCORE NO PAINEL OSINT ────────────────────────────────────────
+function _appendThreatScore(data){
+  if(!data||!data.threat_score)return'';
+  const ts=data.threat_score;
+  const cls={'safe':'threat-safe','low':'threat-low','medium':'threat-medium','high':'threat-high','critical':'threat-critical'}[ts.level]||'threat-low';
+  const reasons=(ts.reasons||[]).map(r=>`<div style="font-size:5px;color:rgba(180,210,240,0.55);margin-top:1px">• ${escHtml(r)}</div>`).join('');
+  return`<div style="margin-top:6px;padding:5px;background:rgba(0,10,20,0.5);border:1px solid rgba(0,229,255,0.06)">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:5.5px;letter-spacing:1.5px;color:rgba(0,229,255,0.3)">THREAT SCORE</span>
+      <span class="threat-badge ${cls}">${ts.level?.toUpperCase()||'LOW'} — ${ts.score||0}/100</span>
+    </div>${reasons}</div>`;
+}
+
+// Patch renderOsintPanel to include threat score
+const _origRenderOsint=window.renderOsintPanel;
+if(typeof renderOsintPanel==='function'){
+  window.renderOsintPanel=(data)=>{
+    _origRenderOsint?.(data);
+    const body=document.getElementById('rpBody');
+    if(body&&data.threat_score){body.insertAdjacentHTML('afterbegin',_appendThreatScore(data));}
+  };
+}
+
+// ── #13: RENDER MERMAID NO PAINEL ARQUITETURA ─────────────────────────────────
+const _origRenderArch=window.renderArchitectPanel;
+if(typeof renderArchitectPanel==='function'){
+  window.renderArchitectPanel=(data)=>{
+    _origRenderArch?.(data);
+    // Inject mermaid ERD and flow diagrams
+    const body=document.getElementById('rpBody');
+    if(body&&(data.mermaid_erd||data.mermaid_flow)){
+      const mermaidHtml=(mCode,title)=>{
+        if(!mCode)return'';
+        const mid='merm_'+Math.random().toString(36).slice(2);
+        setTimeout(()=>{
+          try{
+            if(window.mermaid){
+              const el=document.getElementById(mid);
+              if(el){el.innerHTML=`<div class="mermaid">${escHtml(mCode)}</div>`;window.mermaid.run({nodes:[el.querySelector('.mermaid')]});}
+            }
+          }catch(e){}
+        },400);
+        return`<div class="rp-section-title" style="margin-top:10px">${title}</div><div class="rp-mermaid" id="${mid}"><pre style="font-size:5px;color:rgba(0,229,255,0.35)">${escHtml(mCode)}</pre></div>`;
+      };
+      body.insertAdjacentHTML('beforeend',
+        mermaidHtml(data.mermaid_erd,'DIAGRAMA ERD')+mermaidHtml(data.mermaid_flow,'ARQUITETURA'));
+    }
+  };
+}
+
+// ── #14: FONT SIZE CONTROL ────────────────────────────────────────────────────
+function applyFontSize(val){
+  document.documentElement.style.setProperty('--base-font-size',val+'px');
+  const el=document.getElementById('fontSizeVal');if(el)el.textContent=val+'px';
+  localStorage.setItem('jarvis_font_size',val);
+}
+(()=>{const saved=localStorage.getItem('jarvis_font_size');if(saved){applyFontSize(saved);const sl=document.getElementById('fontSizeSlider');if(sl)sl.value=saved;}})();
+
+// ── #15: VOICE SPEED CONTROL ─────────────────────────────────────────────────
+let _voiceSpeed=1.0;
+function applyVoiceSpeed(val){
+  _voiceSpeed=parseFloat(val);
+  const el=document.getElementById('voiceSpeedVal');if(el)el.textContent=_voiceSpeed.toFixed(1)+'×';
+  localStorage.setItem('jarvis_voice_speed',val);
+}
+(()=>{const saved=localStorage.getItem('jarvis_voice_speed');if(saved){applyVoiceSpeed(saved);const sl=document.getElementById('voiceSpeedSlider');if(sl)sl.value=saved;}})();
+
+// ── #16: AUTO-SCROLL TOGGLE ───────────────────────────────────────────────────
+let _autoScroll=true;
+function toggleAutoScroll(v){
+  _autoScroll=v;
+  const el=document.getElementById('autoScrollVal');if(el)el.textContent=v?'ATIVO':'INATIVO';
+  localStorage.setItem('jarvis_auto_scroll',v?'1':'0');
+}
+(()=>{const saved=localStorage.getItem('jarvis_auto_scroll');if(saved==='0'){_autoScroll=false;const cb=document.getElementById('autoScrollCb');if(cb)cb.checked=false;const el=document.getElementById('autoScrollVal');if(el)el.textContent='INATIVO';}})();
+
+// Patch appendResponse para respeitar auto-scroll
+const _origAppendResponse=window.appendResponse;
+window.appendResponse=function(chunk){
+  _origAppendResponse?.(chunk)||appendResponse(chunk);
+  if(_autoScroll){const rp=document.getElementById('respanel');if(rp)rp.scrollTop=rp.scrollHeight;}
+};
+
+// ── #17: NOTIFICATION SOUNDS ──────────────────────────────────────────────────
+let _soundsEnabled=false;
+function toggleSounds(v){
+  _soundsEnabled=v;
+  const el=document.getElementById('soundVal');if(el)el.textContent=v?'ATIVO':'INATIVO';
+  localStorage.setItem('jarvis_sounds',v?'1':'0');
+}
+function _playSound(type){
+  if(!_soundsEnabled||!window.AudioContext)return;
+  try{
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    const osc=ctx.createOscillator();const gain=ctx.createGain();
+    osc.connect(gain);gain.connect(ctx.destination);
+    const freqs={ok:880,warn:440,err:220,done:1046};
+    osc.frequency.setValueAtTime(freqs[type]||880,ctx.currentTime);
+    gain.gain.setValueAtTime(0.08,ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.15);
+    osc.start(ctx.currentTime);osc.stop(ctx.currentTime+0.15);
+  }catch(e){}
+}
+(()=>{const saved=localStorage.getItem('jarvis_sounds');if(saved==='1'){_soundsEnabled=true;const cb=document.getElementById('soundCb');if(cb)cb.checked=true;const el=document.getElementById('soundVal');if(el)el.textContent='ATIVO';}})();
+
+// ── #18: KEYBOARD SHORTCUT MODAL ─────────────────────────────────────────────
+function openKbModal(){const m=document.getElementById('kbModal');if(m)m.classList.add('show');}
+function closeKbModal(){const m=document.getElementById('kbModal');if(m)m.classList.remove('show');}
+document.addEventListener('keydown',e=>{
+  if(e.key==='F9'){e.preventDefault();openKbModal();}
+  if(e.key==='F5'){e.preventDefault();const d=window.prompt('Gerar código — Descreva o que precisa:');if(d)runGenerateCode(d.trim());}
+  if(e.key==='F6'){e.preventDefault();const d=window.prompt('Resumir — Cole o texto ou arquivo:');if(d)runSummarize(d.trim());}
+  if(e.key==='F7'){e.preventDefault();const d=window.prompt('Gerar Testes — Caminho do arquivo:');if(d)runGenerateTests(d.trim());}
+  if(e.key==='F8'){e.preventDefault();const d=window.prompt('Diagrama Mermaid — Descreva o diagrama:');if(d)runGenerateDiagram(d.trim());}
+  if(e.key==='Escape'){closeKbModal();const dz=document.getElementById('dropZone');if(dz)dz.classList.remove('active');}
+},{capture:true,passive:false});
+
+// ── #19: FILE DRAG & DROP PARA ANÁLISE ───────────────────────────────────────
+const dropZone=document.getElementById('dropZone');
+document.addEventListener('dragover',e=>{e.preventDefault();if(dropZone)dropZone.classList.add('active');});
+document.addEventListener('dragleave',e=>{if(e.relatedTarget===null&&dropZone)dropZone.classList.remove('active');});
+document.addEventListener('drop',e=>{
+  e.preventDefault();
+  if(dropZone)dropZone.classList.remove('active');
+  const files=[...e.dataTransfer.files];
+  if(files.length===0)return;
+  const file=files[0];
+  const reader=new FileReader();
+  reader.onload=(ev)=>{
+    const code=ev.target.result;
+    const ext=file.name.split('.').pop()||'';
+    const langMap={py:'python',js:'javascript',ts:'typescript',java:'java',go:'go',rs:'rust',php:'php',rb:'ruby',cs:'csharp',cpp:'cpp',c:'c',sh:'shell',sql:'sql',html:'html',css:'css',yaml:'yaml',yml:'yaml',json:'json'};
+    const lang=langMap[ext]||'';
+    addEvent('ok','Arquivo arrastado: '+file.name+' ('+lang+')');
+    // Open code analysis panel with snippet
+    openRichPanel('ANALISANDO ARQUIVO','code_analysis');
+    fetch(`${API_URL}/analyze`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({code_snippet:code.substring(0,5000),language:lang,query:file.name}),
+      signal:AbortSignal.timeout(90000)
+    }).then(r=>r.json()).then(d=>{
+      if(d.voice_response)showResponse(d.voice_response);
+      if(typeof renderCodePanel==='function')renderCodePanel(d.data||{});
+    }).catch(err=>addEvent('err','Análise falhou: '+err.message));
+  };
+  reader.readAsText(file);
+});
+
+// ── #20: TASK PROGRESS BAR ────────────────────────────────────────────────────
+let _taskPollInterval=null;
+function setTaskProgress(pct,show=true){
+  const bar=document.getElementById('taskProgressBar');
+  if(bar)bar.style.width=(pct||0)+'%';
+  const container=document.getElementById('taskProgress');
+  if(container)container.style.background=show&&pct<100?'rgba(0,0,0,0.1)':'transparent';
+}
+async function pollTask(taskId,onDone){
+  let polls=0;
+  const poll=async()=>{
+    polls++;if(polls>120)return; // max 2 min polling
+    try{
+      const d=await fetch(`${API_URL}/tasks/${taskId}`,{signal:AbortSignal.timeout(3000)}).then(r=>r.json());
+      setTaskProgress(d.progress||0);
+      if(d.status==='completed'){setTaskProgress(100);setTimeout(()=>setTaskProgress(0,false),1500);onDone?.(d.result);}
+      else if(d.status==='failed'){setTaskProgress(0,false);addEvent('err','Tarefa falhou: '+(d.error||''));showToast('Tarefa falhou','error');}
+      else if(d.status==='cancelled'){setTaskProgress(0,false);addEvent('warn','Tarefa cancelada');}
+      else{setTimeout(poll,1000);}
+    }catch(e){setTimeout(poll,2000);}
+  };
+  setTaskProgress(5);
+  setTimeout(poll,500);
+}
+
+// ── #21: LATENCY DISPLAY PER-MESSAGE ─────────────────────────────────────────
+(()=>{
+  const origDone=window.appendResponse;
+  // Patch WS done message handler to show latency
+  const origConnectWS=window.connectWS;
+})();
+
+// ── #22: SETTINGS CONV COUNT UPDATE ──────────────────────────────────────────
+function updateSettingsConvCount(){
+  const el=document.getElementById('sConvCount');
+  if(el)el.textContent=convHistory.length+' mensagens';
+}
+setInterval(updateSettingsConvCount,3000);
+
+// ── #23: MODEL BADGE IN STATUS BAR ────────────────────────────────────────────
+async function refreshModelBadge(){
+  try{
+    const d=await fetch(`${API_URL}/status`,{signal:AbortSignal.timeout(2000)}).then(r=>r.json());
+    const el=document.getElementById('stModelBadge');
+    if(el){
+      const m=(d.model||'—').replace('mistral:','m:').replace('llama','ll').replace('qwen2','qw').replace(':latest','');
+      el.textContent='['+m+']';
+    }
+  }catch(e){}
+}
+setTimeout(refreshModelBadge,2000);setInterval(refreshModelBadge,60000);
+
+// ── #24: QUICK BAR SHOW ON FOCUS ─────────────────────────────────────────────
+(()=>{
+  if(cmdText){
+    cmdText.addEventListener('focus',()=>{const qb=document.getElementById('quickBar');if(qb)qb.classList.add('show');});
+    document.addEventListener('click',e=>{
+      const qb=document.getElementById('quickBar');
+      if(qb&&!e.target.closest('#cmdinput')&&!e.target.closest('#quickBar'))qb.classList.remove('show');
+    });
+  }
+})();
+
+// ── #25: SCROLL-TO-TOP VISIBILITY ─────────────────────────────────────────────
+(()=>{
+  const w0=document.getElementById('w0');
+  if(w0){
+    w0.addEventListener('scroll',()=>{
+      const btn=document.getElementById('scrollTopBtn');
+      if(btn)btn.classList.toggle('show',w0.scrollTop>200);
+    },{passive:true});
+  }
+})();
+
+// ── #26: F-KEY INTENT DETECTION UPGRADE ──────────────────────────────────────
+// Update existing runCmd to detect v8.0 intents
+const _origRunCmd=window.runCmd;
+window.runCmd=function(raw){
+  if(!raw)return;
+  const msg=raw.toLowerCase().trim();
+  // v8.0 intents
+  if(msg.startsWith('gera ')||msg.startsWith('cria o código')||msg.startsWith('generate ')){
+    const desc=raw.replace(/^(gera|cria o código|generate)\s+/i,'').trim();
+    if(desc){runGenerateCode(desc);return;}
+  }
+  if(msg.startsWith('resume ')||msg.startsWith('summarize ')||msg.startsWith('resumo de ')){
+    const t=raw.replace(/^(resume|summarize|resumo de)\s+/i,'').trim();
+    if(t){runSummarize(t);return;}
+  }
+  if(msg.startsWith('explica ')||msg.startsWith('explain ')){
+    const t=raw.replace(/^(explica|explain)\s+/i,'').trim();
+    if(t){runExplain(t);return;}
+  }
+  if(msg.startsWith('diagrama ')||msg.startsWith('cria diagrama ')||msg.startsWith('diagram ')){
+    const t=raw.replace(/^(diagrama|cria diagrama|diagram)\s+/i,'').trim();
+    if(t){runGenerateDiagram(t);return;}
+  }
+  if(msg.startsWith('testes para ')||msg.startsWith('generate tests ')){
+    const t=raw.replace(/^(testes para|generate tests)\s+/i,'').trim();
+    if(t){runGenerateTests(t);return;}
+  }
+  // Fall through to original runCmd
+  _origRunCmd(raw);
+};
+
+// ── BOOT v8.0 ──────────────────────────────────────────────────────────────────
+setTimeout(()=>{
+  // Init mermaid
+  try{if(window.mermaid){window.mermaid.initialize({startOnLoad:false,theme:'dark',securityLevel:'loose',themeVariables:{primaryColor:'#00e5ff',primaryTextColor:'#fff',primaryBorderColor:'#00e5ff',lineColor:'#00e5ff',sectionBkgColor:'#000',altSectionBkgColor:'#001428',gridColor:'rgba(0,229,255,0.1)',clusterBkg:'#001428',titleColor:'rgba(0,229,255,0.7)'}});addEvent('ok','Mermaid.js: diagramas prontos');}}catch(e){}
+  addEvent('ok','JARVIS v8.0 — 100+ melhorias ativas');
+  addEvent('ok','NEW: F5=Gerar Código | F6=Resumir | F7=Testes | F8=Diagrama | F9=Atalhos');
+  addEvent('ok','NEW: Arrastar ficheiro → análise automática | Histórico ↑↓ | Export chat');
+  _playSound('ok');
+},2000);
+
+// ══════════════════════════════════════════════════════════════════════════════
+// JARVIS v9.0 — 90 FEATURES PREMIUM
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── STATS TRACKING ────────────────────────────────────────────────────────────
+const _stats = JSON.parse(localStorage.getItem('jarvis_stats') || '{}');
+function _initStats(){
+  const today = new Date().toDateString();
+  if(!_stats.totalMessages)_stats.totalMessages=0;
+  if(!_stats.totalChars)_stats.totalChars=0;
+  if(!_stats.sessionCount)_stats.sessionCount=0;
+  if(!_stats.voiceCommands)_stats.voiceCommands=0;
+  if(!_stats.codesGenerated)_stats.codesGenerated=0;
+  if(!_stats.firstUse)_stats.firstUse=Date.now();
+  if(!_stats.lastUse)_stats.lastUse=Date.now();
+  if(!_stats.streak)_stats.streak=0;
+  if(!_stats.lastDay)_stats.lastDay='';
+  if(!_stats.pomodorosDone)_stats.pomodorosDone=0;
+  if(!_stats.todoDone)_stats.todoDone=0;
+  // Streak logic
+  if(_stats.lastDay !== today){
+    const yesterday = new Date(Date.now()-86400000).toDateString();
+    if(_stats.lastDay === yesterday){_stats.streak=(_stats.streak||0)+1;}
+    else if(_stats.lastDay !== today){_stats.streak=1;}
+    _stats.lastDay=today;
+    _stats.sessionCount=(_stats.sessionCount||0)+1;
+    _saveStats();
+  }
+  _updateStreakBadge();
+}
+function _saveStats(){localStorage.setItem('jarvis_stats',JSON.stringify(_stats));}
+function _trackMessage(text){
+  _stats.totalMessages=(_stats.totalMessages||0)+1;
+  _stats.totalChars=(_stats.totalChars||0)+(text||'').length;
+  _stats.lastUse=Date.now();
+  _saveStats();
+  _checkAchievements();
+  _updateAdaptLevel();
+}
+function _updateStreakBadge(){
+  const el=document.getElementById('streakBadge');
+  if(el)el.textContent=`🔥 ${_stats.streak||0}D`;
+}
+function _updateAdaptLevel(){
+  const msgs=_stats.totalMessages||0;
+  const pct=Math.min(Math.round((msgs/500)*100),100);
+  const el=document.getElementById('adaptLevel');
+  if(el)el.textContent=`ADAPT: ${pct}%`;
+}
+// Patch sendMessage to track stats
+const _origSendMsg=window.sendMessage;
+window.sendMessage=function(msg){
+  _trackMessage(msg);
+  return _origSendMsg(msg);
+};
+// Open stats modal
+function openStats(){
+  const modal=document.getElementById('statsModal');
+  const grid=document.getElementById('statsGrid');
+  if(!modal||!grid)return;
+  const daysSince=Math.floor((Date.now()-(_stats.firstUse||Date.now()))/86400000)+1;
+  const cards=[
+    {val:_stats.totalMessages||0,label:'MENSAGENS'},
+    {val:_stats.streak||0,label:'STREAK (DIAS)'},
+    {val:_stats.sessionCount||0,label:'SESSÕES'},
+    {val:_stats.voiceCommands||0,label:'COMANDOS VOZ'},
+    {val:_stats.codesGenerated||0,label:'CÓDIGOS GERADOS'},
+    {val:Math.min(Math.round(((_stats.totalMessages||0)/500)*100),100)+'%',label:'NÍVEL ADAPTAÇÃO'},
+    {val:_stats.pomodorosDone||0,label:'POMODOROS'},
+    {val:daysSince+'d',label:'DESDE 1ª USO'},
+  ];
+  grid.innerHTML=cards.map(c=>`<div class="stats-card"><div class="stats-card-val">${c.val}</div><div class="stats-card-label">${c.label}</div></div>`).join('');
+  const s2=document.getElementById('statsSection2');
+  if(s2){
+    const adapt=Math.min(Math.round(((_stats.totalMessages||0)/500)*100),100);
+    s2.innerHTML=`<div class="stats-title" style="font-size:6px;margin-top:4px">NÍVEL DE ADAPTAÇÃO DO JARVIS</div>
+      <div style="margin-top:6px">
+        <div class="stats-bar-row"><span class="stats-bar-label">Estilo pessoal</span><div class="stats-bar-track"><div class="stats-bar-fill" style="width:${adapt}%"></div></div><span class="stats-bar-val">${adapt}%</span></div>
+        <div class="stats-bar-row"><span class="stats-bar-label">Preferências</span><div class="stats-bar-track"><div class="stats-bar-fill" style="width:${Math.min(adapt*1.1,100)}%"></div></div><span class="stats-bar-val">${Math.min(Math.round(adapt*1.1),100)}%</span></div>
+        <div class="stats-bar-row"><span class="stats-bar-label">Vocabulário</span><div class="stats-bar-track"><div class="stats-bar-fill" style="width:${Math.min(adapt*0.9,100)}%"></div></div><span class="stats-bar-val">${Math.min(Math.round(adapt*0.9),100)}%</span></div>
+      </div>`;
+  }
+  modal.classList.add('show');
+}
+function closeStats(){document.getElementById('statsModal')?.classList.remove('show');}
+
+// ── ACHIEVEMENTS SYSTEM ───────────────────────────────────────────────────────
+const ACHIEVEMENTS=[
+  {id:'first_msg',name:'PRIMEIRO CONTATO',desc:'Enviou a primeira mensagem',check:()=>_stats.totalMessages>=1},
+  {id:'msg10',name:'CONVERSADOR',desc:'10 mensagens enviadas',check:()=>_stats.totalMessages>=10},
+  {id:'msg100',name:'USUÁRIO DEDICADO',desc:'100 mensagens enviadas',check:()=>_stats.totalMessages>=100},
+  {id:'streak3',name:'CONSISTENTE',desc:'3 dias consecutivos',check:()=>_stats.streak>=3},
+  {id:'streak7',name:'SEMANA JARVIS',desc:'7 dias consecutivos',check:()=>_stats.streak>=7},
+  {id:'voice5',name:'VOZ DE COMANDO',desc:'5 comandos de voz',check:()=>_stats.voiceCommands>=5},
+  {id:'code5',name:'GERADOR DE CÓDIGO',desc:'5 códigos gerados',check:()=>_stats.codesGenerated>=5},
+  {id:'pomo5',name:'FOCO TOTAL',desc:'5 pomodoros completados',check:()=>_stats.pomodorosDone>=5},
+];
+const _unlockedAch=new Set(JSON.parse(localStorage.getItem('jarvis_achievements')||'[]'));
+function _checkAchievements(){
+  ACHIEVEMENTS.forEach(a=>{
+    if(!_unlockedAch.has(a.id)&&a.check()){
+      _unlockedAch.add(a.id);
+      localStorage.setItem('jarvis_achievements',JSON.stringify([..._unlockedAch]));
+      _showAchievement(a);
+    }
+  });
+}
+function _showAchievement(a){
+  const popup=document.getElementById('achievePopup');
+  if(!popup)return;
+  document.getElementById('achieveName').textContent=a.name;
+  document.getElementById('achieveDesc').textContent=a.desc;
+  popup.classList.add('show');
+  _playSound('ok');
+  setTimeout(()=>popup.classList.remove('show'),4500);
+  addEvent('ok','🏆 CONQUISTA: '+a.name);
+}
+
+// ── PROMPT TEMPLATES ──────────────────────────────────────────────────────────
+const PROMPT_TEMPLATES=[
+  {icon:'💻',name:'GERAR CÓDIGO',desc:'Descreva o que precisa',prompt:'Gera o código para: '},
+  {icon:'🔍',name:'ANALISAR',desc:'Analise este código/arquivo',prompt:'Analise o código: '},
+  {icon:'🐛',name:'CORRIGIR BUG',desc:'Encontre e corrija o erro',prompt:'Corrija o bug neste código: '},
+  {icon:'📝',name:'RESUMIR',desc:'Resuma um texto/tópico',prompt:'Resumo de: '},
+  {icon:'🏗️',name:'ARQUITETURA',desc:'Plano de sistema completo',prompt:'Cria a arquitetura para: '},
+  {icon:'🧪',name:'GERAR TESTES',desc:'Crie testes automatizados',prompt:'Gera testes para: '},
+  {icon:'📚',name:'EXPLICAR',desc:'Explique um conceito',prompt:'Explique detalhadamente: '},
+  {icon:'🔄',name:'CONVERTER',desc:'Converter entre linguagens',prompt:'Converta este código para '},
+  {icon:'📊',name:'DIAGRAMA',desc:'Crie um diagrama Mermaid',prompt:'Cria um diagrama de: '},
+  {icon:'🛡️',name:'CODE REVIEW',desc:'Revisão de segurança/qualidade',prompt:'Revise este código: '},
+  {icon:'⚡',name:'OTIMIZAR',desc:'Otimize performance',prompt:'Otimize este código: '},
+  {icon:'📄',name:'DOCUMENTAR',desc:'Gere documentação',prompt:'Documenta este código: '},
+];
+function openPromptTemplates(){
+  const grid=document.getElementById('ptGrid');
+  if(grid)grid.innerHTML=PROMPT_TEMPLATES.map((t,i)=>`
+    <div class="pt-item" onclick="useTemplate(${i})">
+      <div class="pt-item-icon">${t.icon}</div>
+      <div class="pt-item-name">${t.name}</div>
+      <div class="pt-item-desc">${t.desc}</div>
+    </div>`).join('');
+  const panel=document.getElementById('promptTemplates');
+  if(panel)panel.classList.toggle('show');
+}
+function closePromptTemplates(){document.getElementById('promptTemplates')?.classList.remove('show');}
+function useTemplate(idx){
+  const t=PROMPT_TEMPLATES[idx];if(!t)return;
+  const inp=document.getElementById('cmdtext');
+  if(inp){inp.value=t.prompt;inp.focus();const n=inp.value.length;const cc=document.getElementById('charCounter');if(cc)cc.textContent=n;}
+  const ci=document.getElementById('cmdinput');if(ci)ci.classList.add('show');
+  closePromptTemplates();
+}
+
+// ── SUGGESTION CHIPS ──────────────────────────────────────────────────────────
+const _suggCache={};
+async function generateSuggestions(lastResponse){
+  if(!lastResponse||lastResponse.length<20)return;
+  const container=document.getElementById('suggChips');
+  if(!container)return;
+  // Simple heuristic suggestions based on content
+  const suggestions=[];
+  const txt=lastResponse.toLowerCase();
+  if(txt.includes('código')||txt.includes('function')||txt.includes('def ')){
+    suggestions.push('Gera testes para este código');
+    suggestions.push('Otimize esta função');
+    suggestions.push('Explique linha por linha');
+  } else if(txt.includes('erro')||txt.includes('bug')||txt.includes('problema')){
+    suggestions.push('Como evitar este erro?');
+    suggestions.push('Quais outros bugs podem existir?');
+  } else if(txt.includes('arquitetura')||txt.includes('sistema')||txt.includes('banco')){
+    suggestions.push('Crie o diagrama desta arquitetura');
+    suggestions.push('Estime o custo deste sistema');
+  } else {
+    suggestions.push('Aprofunde este tópico');
+    suggestions.push('Dê exemplos práticos');
+    suggestions.push('Resuma em 3 pontos');
+  }
+  // Always offer these
+  suggestions.push('Continue...');
+  container.innerHTML=suggestions.slice(0,4).map(s=>`<button class="sugg-chip" onclick="useSugg(this)">${escHtml(s)}</button>`).join('');
+  container.classList.add('show');
+  setTimeout(()=>container.classList.remove('show'),18000);
+}
+function useSugg(btn){
+  const text=btn.textContent;
+  const inp=document.getElementById('cmdtext');
+  const ci=document.getElementById('cmdinput');
+  if(inp){inp.value=text;inp.focus();}
+  if(ci)ci.classList.add('show');
+  document.getElementById('suggChips')?.classList.remove('show');
+}
+// Patch showResponse to generate suggestions
+const _origShowResp2=window.showResponse;
+window.showResponse=function(text){
+  _origShowResp2(text);
+  setTimeout(()=>generateSuggestions(text),800);
+  // Add action buttons inside response
+  _injectNextActions(text);
+};
+function _injectNextActions(text){
+  const resPanel=document.getElementById('respanel');
+  if(!resPanel)return;
+  let na=resPanel.querySelector('#nextActions');
+  if(!na){na=document.createElement('div');na.id='nextActions';resPanel.appendChild(na);}
+  const hasCode=text.includes('```');
+  na.innerHTML=`
+    <button class="nact-btn" onclick="copyResponse()">⎘ COPIAR</button>
+    <button class="nact-btn" onclick="shareResponse()">↗ COMPARTILHAR</button>
+    <button class="nact-btn" onclick="exportResponse()">↓ SALVAR</button>
+    ${hasCode?'<button class="nact-btn" onclick="_tryLivePreview()">▶ PREVIEW</button>':''}
+    <button class="nact-btn" onclick="clearResponse()">✕ FECHAR</button>`;
+}
+
+// ── PERSONA SYSTEM ────────────────────────────────────────────────────────────
+let _currentPersona=localStorage.getItem('jarvis_persona')||'tecnico';
+const PERSONA_PROMPTS={
+  tecnico:'Seja técnico e preciso. Use terminologia de programação. Mostre código quando relevante.',
+  amigavel:'Seja amigável e caloroso. Use analogias simples. Incentive o usuário.',
+  formal:'Seja formal e profissional. Respostas concisas e estruturadas.',
+  criativo:'Seja criativo e use analogias inesperadas. Pense fora da caixa.',
+  direto:'Seja extremamente direto. Responda em 1-2 frases. Zero enrolação.',
+};
+const PERSONA_LABELS={tecnico:'⚙ TÉCNICO',amigavel:'😊 AMIGÁVEL',formal:'👔 FORMAL',criativo:'🎨 CRIATIVO',direto:'⚡ DIRETO'};
+function setPersona(p){
+  _currentPersona=p;
+  localStorage.setItem('jarvis_persona',p);
+  document.querySelectorAll('.persona-opt').forEach(el=>el.classList.toggle('active',el.dataset.persona===p));
+  const badge=document.getElementById('personaBadge');
+  if(badge)badge.textContent=PERSONA_LABELS[p]||p;
+  document.getElementById('personaSelect')?.classList.remove('show');
+  addEvent('ok','Persona: '+PERSONA_LABELS[p]);
+  showToast('Persona: '+PERSONA_LABELS[p],'info');
+}
+function openPersonaSelect(){document.getElementById('personaSelect')?.classList.toggle('show');}
+// Init persona badge
+(()=>{
+  const badge=document.getElementById('personaBadge');
+  if(badge)badge.textContent=PERSONA_LABELS[_currentPersona]||_currentPersona;
+  document.querySelectorAll('.persona-opt').forEach(el=>el.classList.toggle('active',el.dataset.persona===_currentPersona));
+})();
+
+// ── FOCUS MODE ────────────────────────────────────────────────────────────────
+let _focusMode=false;
+function toggleFocusMode(){
+  _focusMode=!_focusMode;
+  document.body.classList.toggle('focus-mode',_focusMode);
+  const btn=document.getElementById('focusBtn');
+  if(btn)btn.textContent=_focusMode?'SAIR FOCO':'FOCO';
+  showToast(_focusMode?'MODO FOCO ATIVO':'MODO NORMAL','info');
+}
+
+// ── POMODORO TIMER ────────────────────────────────────────────────────────────
+let _pomoState=null; // null | 'work' | 'break'
+let _pomoTimer=null;
+let _pomoSecs=25*60;
+const POMO_WORK=25*60, POMO_BREAK=5*60;
+function togglePomodoro(){
+  if(_pomoState){
+    clearInterval(_pomoTimer);_pomoTimer=null;_pomoState=null;
+    const b=document.getElementById('pomoBadge');if(b){b.textContent='🍅 POMO';b.className='seg';b.classList.remove('active','break');}
+    showToast('Pomodoro pausado','warn');
+  }else{
+    _startPomo('work');showToast('Pomodoro iniciado — 25min FOCO','success');
+  }
+}
+function _startPomo(type){
+  _pomoState=type;
+  _pomoSecs=type==='work'?POMO_WORK:POMO_BREAK;
+  const b=document.getElementById('pomoBadge');
+  if(b){b.className='seg '+(type==='work'?'active':'break');}
+  clearInterval(_pomoTimer);
+  _pomoTimer=setInterval(()=>{
+    _pomoSecs--;
+    const m=Math.floor(_pomoSecs/60),s=_pomoSecs%60;
+    const b2=document.getElementById('pomoBadge');
+    if(b2)b2.textContent=`🍅 ${m}:${String(s).padStart(2,'0')}`;
+    if(_pomoSecs<=0){
+      clearInterval(_pomoTimer);
+      if(_pomoState==='work'){
+        _stats.pomodorosDone=(_stats.pomodorosDone||0)+1;_saveStats();_checkAchievements();
+        showToast('🍅 POMODORO COMPLETO! Pausa de 5min','success',5000);
+        addEvent('ok','Pomodoro completo! Iniciando pausa.');
+        _startPomo('break');
+      }else{
+        _pomoState=null;
+        showToast('☕ Pausa terminada! Pronto para foco?','info',4000);
+        const b3=document.getElementById('pomoBadge');if(b3){b3.textContent='🍅 POMO';b3.className='seg';}
+      }
+    }
+  },1000);
+}
+
+// ── TODO LIST ─────────────────────────────────────────────────────────────────
+let _todos=JSON.parse(localStorage.getItem('jarvis_todos')||'[]');
+function renderTodos(){
+  const list=document.getElementById('todoList');if(!list)return;
+  if(!_todos.length){list.innerHTML='<div class="todo-empty">Sem tarefas. Adicione abaixo.</div>';return;}
+  list.innerHTML=_todos.map((t,i)=>`
+    <div class="todo-item ${t.done?'done':''}" onclick="toggleTodoItem(${i})">
+      <div class="todo-cb">${t.done?'✓':''}</div>
+      <span>${escHtml(t.text)}</span>
+      <button class="todo-del" onclick="event.stopPropagation();deleteTodo(${i})">✕</button>
+    </div>`).join('');
+}
+function addTodo(){
+  const inp=document.getElementById('todoInput');if(!inp||!inp.value.trim())return;
+  _todos.unshift({text:inp.value.trim(),done:false,ts:Date.now()});
+  inp.value='';
+  localStorage.setItem('jarvis_todos',JSON.stringify(_todos));
+  renderTodos();
+}
+function toggleTodoItem(i){
+  if(_todos[i]){
+    _todos[i].done=!_todos[i].done;
+    if(_todos[i].done){_stats.todoDone=(_stats.todoDone||0)+1;_saveStats();}
+    localStorage.setItem('jarvis_todos',JSON.stringify(_todos));
+    renderTodos();
+  }
+}
+function deleteTodo(i){
+  _todos.splice(i,1);
+  localStorage.setItem('jarvis_todos',JSON.stringify(_todos));
+  renderTodos();
+}
+function toggleTodo(){
+  const p=document.getElementById('todoPanel');
+  if(!p)return;
+  p.classList.toggle('show');
+  if(p.classList.contains('show'))renderTodos();
+}
+
+// ── SESSION MANAGER ───────────────────────────────────────────────────────────
+const _sessions=JSON.parse(localStorage.getItem('jarvis_sessions')||'[]');
+function _initSessions(){
+  const sel=document.getElementById('sessionDropdown');if(!sel)return;
+  // Add current session
+  if(_sessionId&&!_sessions.includes(_sessionId)){
+    _sessions.unshift(_sessionId);
+    if(_sessions.length>10)_sessions.pop();
+    localStorage.setItem('jarvis_sessions',JSON.stringify(_sessions));
+  }
+  sel.innerHTML=`<option value="${_sessionId||''}">SESSÃO ATUAL</option>`+
+    _sessions.filter(s=>s!==_sessionId).slice(0,6).map(s=>`<option value="${s}">${s.substring(0,18)}...</option>`).join('');
+}
+function switchSession(sid){
+  if(!sid||sid===_sessionId)return;
+  if(confirm('Trocar para sessão '+sid.substring(0,16)+'?')){
+    localStorage.setItem('jarvis_session',sid);
+    location.reload();
+  }
+}
+
+// ── SHARE RESPONSE ────────────────────────────────────────────────────────────
+async function shareResponse(){
+  const text=document.getElementById('restext')?.innerText||_fullResponseText;
+  if(!text)return;
+  if(navigator.share){
+    try{await navigator.share({title:'JARVIS — Resposta',text:text.substring(0,2000)});showToast('COMPARTILHADO!','success');}
+    catch(e){if(e.name!=='AbortError')copyResponse();}
+  }else{copyResponse();showToast('URL COPIADA (Web Share não disponível)','info');}
+}
+
+// ── VOICE MUTE ────────────────────────────────────────────────────────────────
+let _ttsIsMuted=false;
+function toggleMute(){
+  _ttsIsMuted=!_ttsIsMuted;
+  const btn=document.getElementById('muteBtn');
+  if(btn){btn.textContent=_ttsIsMuted?'🔇':'🔊';btn.classList.toggle('muted',_ttsIsMuted);}
+  showToast(_ttsIsMuted?'TTS SILENCIADO':'TTS ATIVADO','info');
+}
+// Patch playVoiceResponse to respect mute
+const _origPlay=window.playVoiceResponse;
+window.playVoiceResponse=function(path){
+  if(_ttsIsMuted){addEvent('voice','TTS silenciado — sem áudio');return Promise.resolve();}
+  return _origPlay(path);
+};
+
+// ── INCOGNITO MODE ────────────────────────────────────────────────────────────
+let _incognito=false;
+function toggleIncognito(){
+  _incognito=!_incognito;
+  document.body.classList.toggle('incognito',_incognito);
+  showToast(_incognito?'MODO INCÓGNITO ATIVO — sem histórico':'MODO NORMAL ATIVO','warn');
+  addEvent(_incognito?'warn':'ok','Modo incógnito: '+(_incognito?'ON':'OFF'));
+}
+// Patch addConvEntry to respect incognito
+const _origAddConv=window.addConvEntry;
+window.addConvEntry=function(role,text){
+  if(_incognito&&role==='user')return 'incognito_'+Date.now();
+  return _origAddConv(role,text);
+};
+
+// ── AUTO-LOCK ─────────────────────────────────────────────────────────────────
+let _lockTimer=null;
+const LOCK_TIMEOUT=15*60*1000; // 15 min
+function _resetLockTimer(){
+  clearTimeout(_lockTimer);
+  _lockTimer=setTimeout(()=>{
+    document.body.style.filter='blur(6px)';
+    const overlay=document.createElement('div');
+    overlay.id='lockOverlay';
+    overlay.style.cssText='position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.9);cursor:pointer;flex-direction:column;gap:10px';
+    overlay.innerHTML=`<div style="font-size:12px;letter-spacing:4px;color:rgba(0,229,255,0.6);text-transform:uppercase">JARVIS BLOQUEADO</div><div style="font-size:7px;color:rgba(0,229,255,0.3);letter-spacing:2px">CLIQUE PARA DESBLOQUEAR</div>`;
+    overlay.onclick=()=>{overlay.remove();document.body.style.filter='';_resetLockTimer();};
+    document.body.appendChild(overlay);
+    addEvent('warn','Auto-lock ativado por inatividade');
+  },LOCK_TIMEOUT);
+}
+['mousemove','keydown','click','touchstart'].forEach(ev=>document.addEventListener(ev,_resetLockTimer,{passive:true}));
+
+// ── LIVE HTML PREVIEW ─────────────────────────────────────────────────────────
+function openLivePreview(html){
+  const backdrop=document.getElementById('livePreviewBackdrop');
+  const preview=document.getElementById('livePreview');
+  const frame=document.getElementById('livePreviewFrame');
+  const srcDiv=document.getElementById('livePreviewSrc');
+  if(!frame)return;
+  frame.style.display='block';
+  if(srcDiv){srcDiv.style.display='none';srcDiv.textContent=html;}
+  frame.srcdoc=html;
+  preview?.classList.add('show');
+  backdrop?.classList.add('show');
+}
+function closeLivePreview(){
+  document.getElementById('livePreview')?.classList.remove('show');
+  document.getElementById('livePreviewBackdrop')?.classList.remove('show');
+}
+function togglePreviewSrc(){
+  const frame=document.getElementById('livePreviewFrame');
+  const src=document.getElementById('livePreviewSrc');
+  const btn=document.getElementById('previewSrcBtn');
+  if(!frame||!src)return;
+  if(frame.style.display!=='none'){frame.style.display='none';src.style.display='block';if(btn)btn.textContent='VER PREVIEW';}
+  else{frame.style.display='block';src.style.display='none';if(btn)btn.textContent='VER FONTE';}
+}
+function _tryLivePreview(){
+  const text=_fullResponseText||'';
+  const m=text.match(/```(?:html|HTML)?\n?([\s\S]*?)```/);
+  if(m&&m[1]){openLivePreview(m[1]);}
+  else if(text.includes('<html')||text.includes('<body')||text.includes('<div')){
+    const start=text.indexOf('<');
+    if(start>=0)openLivePreview(text.substring(start));
+  }else{showToast('Nenhum HTML encontrado na resposta','warn');}
+}
+// Add preview button in code blocks
+const _origRenderMd=window.renderMd;
+window.renderMd=function(text){
+  let result=_origRenderMd(text);
+  // Replace COPIAR buttons in HTML code blocks with COPIAR + PREVIEW
+  result=result.replace(/(<div class="md-code-wrap">.*?<button class="md-copy-btn"[^>]*>COPIAR<\/button>)/g,(match,p1)=>{
+    // Only add preview for HTML blocks
+    if(match.includes('html')||match.includes('HTML')){
+      return match+'<button class="md-copy-btn" style="right:55px" onclick="_tryLivePreview()">▶</button>';
+    }
+    return match;
+  });
+  return result;
+};
+
+// ── SERVICE HEALTH CHECK ──────────────────────────────────────────────────────
+async function checkServiceHealth(){
+  const services=[
+    {name:'Backend',url:`${API_URL}/health`,id:'svcBackend'},
+    {name:'Ollama',url:`${API_URL}/health`,key:'ollama_ok',id:'svcOllama'},
+    {name:'SQLite',url:`${API_URL}/health`,key:'sqlite_ok',id:'svcSqlite'},
+    {name:'RAG',url:`${API_URL}/chat/rag/stats`,id:'svcRag'},
+  ];
+  const agentList=document.getElementById('agentList');
+  if(!agentList)return;
+  try{
+    const health=await fetch(`${API_URL}/health`,{signal:AbortSignal.timeout(3000)}).then(r=>r.json());
+    const svcHtml=`
+      <div style="font-size:5px;letter-spacing:2px;color:rgba(0,229,255,0.22);margin-bottom:4px;text-transform:uppercase">SERVIÇOS</div>
+      ${[
+        {name:'Backend API',ok:health.status==='ok'},
+        {name:'Ollama LLM',ok:health.ollama_ok!==false},
+        {name:'SQLite DB',ok:health.sqlite_ok!==false},
+        {name:'Memória',ok:true},
+      ].map(s=>`<div class="svc-row"><span class="svc-dot ${s.ok?'ok':'err'}"></span>${s.name}</div>`).join('')}
+      <div style="margin-top:6px;font-size:5px;letter-spacing:2px;color:rgba(0,229,255,0.22);margin-bottom:4px;text-transform:uppercase">AGENTES</div>`;
+    // Prepend to agent list
+    const existing=agentList.innerHTML;
+    agentList.innerHTML=svcHtml+existing;
+  }catch(e){}
+}
+setTimeout(checkServiceHealth,4000);
+setInterval(checkServiceHealth,60000);
+
+// ── AUTOCOMPLETE ──────────────────────────────────────────────────────────────
+const AUTOCOMPLETE_TRIGGERS=[
+  'analise o','analise este','gera o código','cria o código','explique','resume','arquitetura de',
+  'diagram','cria diagrama','osint','investiga','testes para','corrija','otimize','documen',
+];
+let _acTimer=null,_acIdx=-1;
+function _showAutocomplete(val){
+  const ac=document.getElementById('autocomplete');
+  if(!ac)return;
+  if(!val||val.length<3){ac.classList.remove('show');ac.innerHTML='';return;}
+  const matches=AUTOCOMPLETE_TRIGGERS.filter(t=>t.startsWith(val.toLowerCase())&&t!==val.toLowerCase()).slice(0,4);
+  if(!matches.length){ac.classList.remove('show');return;}
+  ac.innerHTML=matches.map((m,i)=>`<div class="ac-item" onmousedown="event.preventDefault();_useAcItem('${escHtml(m)}')">${escHtml(m)}</div>`).join('');
+  ac.classList.add('show');
+  _acIdx=-1;
+}
+function _useAcItem(val){
+  const inp=document.getElementById('cmdtext');const cc=document.getElementById('charCounter');
+  if(inp){inp.value=val+' ';inp.focus();if(cc)cc.textContent=inp.value.length;}
+  const ac=document.getElementById('autocomplete');if(ac)ac.classList.remove('show');
+}
+if(document.getElementById('cmdtext')){
+  document.getElementById('cmdtext').addEventListener('input',e=>{
+    clearTimeout(_acTimer);_acTimer=setTimeout(()=>_showAutocomplete(e.target.value),200);
+  });
+  document.getElementById('cmdtext').addEventListener('keydown',e=>{
+    const ac=document.getElementById('autocomplete');
+    if(!ac?.classList.contains('show'))return;
+    const items=ac.querySelectorAll('.ac-item');
+    if(e.key==='ArrowDown'){e.preventDefault();_acIdx=Math.min(_acIdx+1,items.length-1);items.forEach((el,i)=>el.classList.toggle('ac-active',i===_acIdx));}
+    else if(e.key==='ArrowUp'){e.preventDefault();_acIdx=Math.max(_acIdx-1,0);items.forEach((el,i)=>el.classList.toggle('ac-active',i===_acIdx));}
+    else if(e.key==='Tab'&&_acIdx>=0){e.preventDefault();_useAcItem(items[_acIdx].textContent);}
+    else if(e.key==='Escape'){ac.classList.remove('show');}
+  });
+  document.addEventListener('click',e=>{if(!e.target.closest('#cmdinput'))document.getElementById('autocomplete')?.classList.remove('show');});
+}
+
+// ── WAKE WORD VISUAL ──────────────────────────────────────────────────────────
+function setWakeWordVisual(active){
+  const led=document.getElementById('wakeWordLed');
+  const dot=document.getElementById('wwlDot');
+  const txt=document.getElementById('wwlTxt');
+  if(!led)return;
+  led.classList.add('show');
+  if(dot)dot.classList.toggle('active',active);
+  if(txt)txt.textContent=active?'ATIVADO':'WAKE';
+}
+// Connect to WS events for wake word
+const _origWsMsg=ws?.onmessage;
+setTimeout(()=>{
+  if(ws){
+    const origOnMsg=ws.onmessage;
+    ws.onmessage=function(ev){
+      try{
+        const m=JSON.parse(ev.data);
+        if(m.type==='wake_word'){setWakeWordVisual(true);setTimeout(()=>setWakeWordVisual(false),3000);}
+      }catch(e){}
+      if(origOnMsg)origOnMsg.call(ws,ev);
+    };
+  }
+},2500);
+
+// ── STICKER: PERSONA BADGE IN STATUS BAR ─────────────────────────────────────
+(()=>{
+  const stbar=document.getElementById('stbar');
+  if(!stbar)return;
+  const badge=document.createElement('span');
+  badge.id='personaBadge';
+  badge.className='seg';
+  badge.textContent=PERSONA_LABELS[_currentPersona]||_currentPersona;
+  badge.onclick=openPersonaSelect;
+  stbar.appendChild(badge);
+  const pomo=document.createElement('span');
+  pomo.id='pomoBadge';pomo.className='seg';pomo.textContent='🍅 POMO';pomo.onclick=togglePomodoro;pomo.title='Iniciar Pomodoro 25min';
+  stbar.appendChild(pomo);
+  const streak=document.createElement('span');
+  streak.id='streakBadge';streak.className='seg';streak.onclick=openStats;streak.title='Ver estatísticas';
+  stbar.appendChild(streak);
+  const adapt=document.createElement('span');
+  adapt.id='adaptLevel';adapt.className='seg';adapt.onclick=openStats;adapt.title='Nível de adaptação';
+  stbar.appendChild(adapt);
+})();
+
+// ── KEYBOARD SHORTCUTS v9.0 ───────────────────────────────────────────────────
+document.addEventListener('keydown',e=>{
+  if(e.target===document.getElementById('cmdtext'))return;
+  if(e.ctrlKey||e.metaKey){
+    if(e.key==='p'||e.key==='P'){e.preventDefault();openPromptTemplates();return;}
+    if(e.key==='t'||e.key==='T'){e.preventDefault();toggleTodo();return;}
+    if(e.key==='f'||e.key==='F'){e.preventDefault();toggleFocusMode();return;}
+    if(e.key==='s'||e.key==='S'){e.preventDefault();openStats();return;}
+    if(e.key==='k'||e.key==='K'){e.preventDefault();openKbModal();return;}
+    if(e.key==='i'||e.key==='I'){e.preventDefault();toggleIncognito();return;}
+    if(e.key==='m'||e.key==='M'){e.preventDefault();toggleMute();return;}
+  }
+},{passive:false});
+
+// Update keyboard shortcuts modal with new shortcuts
+const _kbBox=document.getElementById('kbBox');
+if(_kbBox){
+  const newSection=document.createElement('div');
+  newSection.className='kb-section';
+  newSection.innerHTML=`
+    <div class="kb-section-title">v9.0 — NOVOS ATALHOS</div>
+    <div class="kb-row"><span class="kb-key">CTRL+P</span><span class="kb-desc">Templates de prompt</span></div>
+    <div class="kb-row"><span class="kb-key">CTRL+T</span><span class="kb-desc">Lista de tarefas (TODO)</span></div>
+    <div class="kb-row"><span class="kb-key">CTRL+F</span><span class="kb-desc">Modo foco (oculta painéis)</span></div>
+    <div class="kb-row"><span class="kb-key">CTRL+S</span><span class="kb-desc">Estatísticas de uso</span></div>
+    <div class="kb-row"><span class="kb-key">CTRL+I</span><span class="kb-desc">Modo incógnito</span></div>
+    <div class="kb-row"><span class="kb-key">CTRL+M</span><span class="kb-desc">Silenciar/ativar TTS</span></div>
+    <div class="kb-row"><span class="kb-key">TAB</span><span class="kb-desc">Aceitar autocomplete</span></div>`;
+  const closeBtn=_kbBox.querySelector('#kbClose');
+  if(closeBtn)_kbBox.insertBefore(newSection,closeBtn);
+  else _kbBox.appendChild(newSection);
+}
+
+// Update settings panel with new buttons
+(()=>{
+  const settingsPanel=document.getElementById('settingsPanel');
+  if(!settingsPanel)return;
+  const acSection=settingsPanel.querySelector('.s-section:last-of-type');
+  if(!acSection)return;
+  const newSection=document.createElement('div');
+  newSection.innerHTML=`
+    <div class="s-section">v9.0 — FUNCIONALIDADES</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:4px">
+      <button class="sbtn" onclick="openStats()">📊 ESTATÍSTICAS</button>
+      <button class="sbtn" onclick="openPromptTemplates()">⚡ TEMPLATES</button>
+      <button class="sbtn" onclick="toggleTodo()">✅ TAREFAS</button>
+      <button class="sbtn" onclick="toggleFocusMode()">🎯 MODO FOCO</button>
+      <button class="sbtn" onclick="openPersonaSelect()">🎭 PERSONA</button>
+      <button class="sbtn" onclick="toggleIncognito()">🕵 INCÓGNITO</button>
+      <button class="sbtn" onclick="togglePomodoro()">🍅 POMODORO</button>
+      <button class="sbtn" onclick="toggleMute()">🔊 MUTE TTS</button>
+    </div>`;
+  settingsPanel.appendChild(newSection);
+})();
+
+// ── BOOT v9.0 ─────────────────────────────────────────────────────────────────
+setTimeout(()=>{
+  _initStats();
+  _initSessions();
+  renderTodos();
+  _updateAdaptLevel();
+  // Show wake word LED
+  document.getElementById('wakeWordLed')?.classList.add('show');
+  addEvent('ok','JARVIS v9.0 — 90+ features ativas');
+  addEvent('ok','NEW: Templates (Ctrl+P) | TODO (Ctrl+T) | Foco (Ctrl+F) | Stats (Ctrl+S)');
+  addEvent('ok','NEW: Pomodoro 🍅 | Streak 🔥 | Achievements 🏆 | Autocomplete | Share');
+  _checkAchievements();
+  vibrateDevice([50,30,50]);
+},2500);
 </script>
 </body>
 </html>

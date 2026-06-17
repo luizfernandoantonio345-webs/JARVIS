@@ -24,8 +24,9 @@ from conftest import BASE_URL
 log = logging.getLogger(__name__)
 
 
+@pytest.mark.integration
 class TestCriticalPath:
-    """Critical path smoke tests."""
+    """Critical path smoke tests — requerem servidor rodando em localhost:8000."""
 
     @pytest.fixture
     def client(self):
@@ -166,6 +167,7 @@ class TestCriticalPath:
         log.info(f"✓ Malformed payload rejected with {resp.status_code}")
 
 
+@pytest.mark.integration
 class TestActionSecurity:
     """Tests for action security (whitelist, validation)."""
 

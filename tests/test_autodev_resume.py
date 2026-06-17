@@ -1,3 +1,4 @@
+
 """
 TESTE 5 — Retomada de job interrompido
 
@@ -12,6 +13,9 @@ Validações:
 Run: pytest tests/test_autodev_resume.py -v
 """
 from __future__ import annotations
+import pytest
+pytestmark = pytest.mark.integration
+
 
 import json
 import os

@@ -1,8 +1,12 @@
+
 """
 Sentinel regression tests.
 Protects scanner behavior against accidental pattern regressions.
 """
 from __future__ import annotations
+import pytest
+pytestmark = pytest.mark.integration
+
 
 import sys
 from pathlib import Path

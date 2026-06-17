@@ -1,3 +1,4 @@
+
 """
 TESTE 2 — AutoDev com erro forçado (auto_fixer)
 
@@ -16,6 +17,9 @@ Validações:
 Run: pytest tests/test_autodev_fixer.py -v
 """
 from __future__ import annotations
+import pytest
+pytestmark = pytest.mark.integration
+
 
 import json
 import os

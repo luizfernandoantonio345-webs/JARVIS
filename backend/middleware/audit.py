@@ -23,7 +23,25 @@ log = logging.getLogger("jarvis.audit")
 # ── Ficheiro de audit log ─────────────────────────────────────────────────────
 _LOG_DIR = Path(__file__).parent.parent / "logs"
 _LOG_DIR.mkdir(exist_ok=True)
-_AUDIT_FILE = _LOG_DIR / "audit.jsonl"
+_AUDIT_FILE   = _LOG_DIR / "audit.jsonl"
+_MAX_BYTES    = 5 * 1024 * 1024   # 5 MB por arquivo
+_BACKUP_COUNT = 7                  # 7 backups → ~35 MB total de audit
+
+# ── Rotação do audit.jsonl ────────────────────────────────────────────────────
+def _rotate_if_needed() -> None:
+    """Roda audit.jsonl quando passa de _MAX_BYTES (rename simples)."""
+    try:
+        if not _AUDIT_FILE.exists() or _AUDIT_FILE.stat().st_size < _MAX_BYTES:
+            return
+        # Shift backups: audit.7.jsonl → remove, 6→7 … 1→2
+        for i in range(_BACKUP_COUNT - 1, 0, -1):
+            old = _LOG_DIR / f"audit.{i}.jsonl"
+            new = _LOG_DIR / f"audit.{i + 1}.jsonl"
+            if old.exists():
+                old.rename(new)
+        _AUDIT_FILE.rename(_LOG_DIR / "audit.1.jsonl")
+    except Exception:
+        pass
 
 # ── Janela de deteção de anomalias ────────────────────────────────────────────
 _ip_errors:   dict[str, deque] = defaultdict(lambda: deque(maxlen=50))
@@ -33,8 +51,9 @@ _REQUEST_THRESHOLD = 60   # requests em 60s → possível scan
 
 
 def _write_audit(entry: dict) -> None:
-    """Escreve entrada de audit em JSONL (append-only)."""
+    """Escreve entrada de audit em JSONL (append-only) com rotação automática."""
     try:
+        _rotate_if_needed()
         with open(_AUDIT_FILE, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
     except Exception:
@@ -122,18 +141,52 @@ class AuditMiddleware(BaseHTTPMiddleware):
 
 
 def get_recent_audit(limit: int = 100) -> list[dict]:
-    """Lê as últimas N entradas do audit log."""
-    if not _AUDIT_FILE.exists():
-        return []
-    try:
-        lines = _AUDIT_FILE.read_text(encoding="utf-8").strip().split("\n")
-        entries = []
-        for line in lines[-limit:]:
-            if line.strip():
-                try:
-                    entries.append(json.loads(line))
-                except Exception:
-                    pass
-        return entries
-    except Exception:
-        return []
+    """Lê as últimas N entradas do audit log (incluindo backups se necessário)."""
+    entries: list[dict] = []
+
+    # Arquivos em ordem mais recente → mais antigo
+    candidates = [_AUDIT_FILE] + [
+        _LOG_DIR / f"audit.{i}.jsonl" for i in range(1, _BACKUP_COUNT + 1)
+    ]
+
+    for path in candidates:
+        if not path.exists():
+            continue
+        try:
+            lines = path.read_text(encoding="utf-8").strip().splitlines()
+            for line in reversed(lines):
+                if line.strip():
+                    try:
+                        entries.append(json.loads(line))
+                    except Exception:
+                        pass
+                    if len(entries) >= limit:
+                        break
+        except Exception:
+            pass
+        if len(entries) >= limit:
+            break
+
+    # Retorna em ordem cronológica (mais antigo primeiro)
+    entries.reverse()
+    return entries[-limit:]
+
+
+def get_audit_stats() -> dict:
+    """Retorna estatísticas do audit log."""
+    total_size = 0
+    file_count = 0
+    candidates = [_AUDIT_FILE] + [
+        _LOG_DIR / f"audit.{i}.jsonl" for i in range(1, _BACKUP_COUNT + 1)
+    ]
+    for path in candidates:
+        if path.exists():
+            total_size += path.stat().st_size
+            file_count += 1
+    return {
+        "files": file_count,
+        "total_size_mb": round(total_size / 1024 / 1024, 2),
+        "max_size_mb": round(_MAX_BYTES / 1024 / 1024, 1),
+        "backup_count": _BACKUP_COUNT,
+        "current_file": str(_AUDIT_FILE),
+    }

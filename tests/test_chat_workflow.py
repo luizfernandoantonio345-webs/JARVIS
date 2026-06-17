@@ -1,7 +1,11 @@
+
 """
 Integration tests for JARVIS chat and workflow execution.
 Tests chat endpoints, message processing, and orchestration.
 """
+import pytest
+pytestmark = pytest.mark.integration
+
 import json
 import pytest
 from fastapi.testclient import TestClient

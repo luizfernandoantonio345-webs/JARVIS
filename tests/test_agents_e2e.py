@@ -1,3 +1,4 @@
+
 """
 TESTE 4 — Multi-Agent com objetivo real
 
@@ -12,6 +13,9 @@ Validações:
 Run: pytest tests/test_agents_e2e.py -v
 """
 from __future__ import annotations
+import pytest
+pytestmark = pytest.mark.integration
+
 
 import os
 import re
