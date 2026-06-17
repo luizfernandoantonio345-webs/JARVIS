@@ -62,6 +62,15 @@ class JarvisConfig(BaseSettings):
     cors_origins: str = Field(default="http://localhost:8000,http://127.0.0.1:8000")
     # Bearer token required on every request. Empty string = no auth (local-only).
     api_key: str = Field(default="")
+    # Secret key for AES-256 encryption and HMAC signing of tokens
+    # Generate with: python -c "import secrets; print(secrets.token_hex(32))"
+    secret_key: str = Field(default="")
+    # Comma-separated IPs allowed to connect (empty = allow all local IPs)
+    allow_ips: str = Field(default="")
+    # Enable audit logging to logs/audit.jsonl
+    audit_enabled: bool = Field(default=True)
+    # Max message length in characters
+    max_message_len: int = Field(default=8000)
 
     # TTS
     tts_voice:        str  = Field(default="pt-BR-AntonioNeural")

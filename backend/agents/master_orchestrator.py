@@ -515,36 +515,80 @@ class MasterOrchestrator:
             await on_token(resp)
         return resp
 
-    # ── Chat principal com memória ─────────────────────────────────────────────
+    # ── Chat principal com memória + raciocínio melhorado ────────────────────
 
     async def _chat_agent(self, message, session_id, on_token):
         from ai.client import get_ai_client
         from memory.persistent_memory import get_persistent_memory
-        from core.jarvis_persona import _build_identity
+        from core.jarvis_persona import _build_identity, _build_main_prompt
 
         mem = get_persistent_memory()
+
+        # ── 1. Contexto de memória persistente ───────────────────────────────
         context = mem.build_context(session_id)
 
-        system = _build_identity()
+        # ── 2. Tentar injeção de memória semântica (se disponível) ───────────
+        semantic_context = ""
+        try:
+            from memory.semantic_engine import SemanticMemory
+            import asyncio
+            sem_results = await asyncio.wait_for(
+                SemanticMemory().search(message, top_k=3), timeout=1.5
+            )
+            if sem_results:
+                snippets = [r.get("content", "")[:200] for r in sem_results if r.get("content")]
+                if snippets:
+                    semantic_context = (
+                        "\n\nMEMÓRIA SEMÂNTICA RELEVANTE (usar se útil):\n"
+                        + "\n".join(f"• {s}" for s in snippets)
+                    )
+        except Exception:
+            pass  # Semântica opcional — não bloqueia
+
+        # ── 3. Montar prompt de sistema completo ─────────────────────────────
+        system = _build_main_prompt()
         if context:
             system += f"\n\n{context}"
+        if semantic_context:
+            system += semantic_context
 
+        # ── 4. Construir histórico de mensagens (últimas 12) ─────────────────
         messages = [{"role": "system", "content": system}]
-        for m in mem.get_recent(session_id, 10):
-            messages.append({"role": m["role"], "content": m["content"]})
+        for m in mem.get_recent(session_id, 12):
+            role = m.get("role", "user")
+            if role == "assistant":
+                role = "assistant"
+            elif role != "user":
+                role = "user"
+            messages.append({"role": role, "content": m["content"]})
         messages.append({"role": "user", "content": message})
 
+        # ── 5. Gerar resposta (streaming ou síncrono) ─────────────────────────
         if on_token:
             resp = await get_ai_client().stream_chat(messages, on_token)
         else:
             resp = get_ai_client().call(messages)
 
-        # Persist to memory
+        # ── 6. Persistir na memória ───────────────────────────────────────────
         try:
             mem.save(session_id, "user", message)
-            mem.save(session_id, "assistant", resp)
+            mem.save(session_id, "assistant", resp or "")
         except Exception as e:
             log.warning("[MEMORY] Não foi possível salvar: %s", e)
+
+        # ── 7. Tentar indexar na memória semântica ────────────────────────────
+        try:
+            from memory.semantic_engine import SemanticMemory
+            import asyncio
+            if resp and len(resp) > 30:
+                asyncio.create_task(
+                    SemanticMemory().add(
+                        f"Q: {message[:200]}\nA: {resp[:400]}",
+                        {"session_id": session_id, "type": "conversation"}
+                    )
+                )
+        except Exception:
+            pass
 
         return resp
 

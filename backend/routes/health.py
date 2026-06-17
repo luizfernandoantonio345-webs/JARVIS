@@ -163,6 +163,56 @@ async def system_info():
     return info
 
 
+@router.get("/audit")
+async def get_audit_log(limit: int = 50):
+    """Retorna as últimas entradas do audit log (apenas localhost)."""
+    try:
+        from middleware.audit import get_recent_audit
+        entries = get_recent_audit(limit)
+        return {"count": len(entries), "entries": entries}
+    except Exception as e:
+        return {"error": str(e), "entries": []}
+
+
+@router.get("/security/status")
+async def security_status():
+    """Estado da camada de segurança — middlewares ativos."""
+    checks = {}
+    try:
+        from middleware.security_headers import SecurityHeadersMiddleware
+        checks["security_headers"] = "active"
+    except Exception:
+        checks["security_headers"] = "inactive"
+    try:
+        from middleware.input_guard import InputGuardMiddleware
+        checks["input_guard"] = "active"
+    except Exception:
+        checks["input_guard"] = "inactive"
+    try:
+        from middleware.audit import AuditMiddleware
+        checks["audit_log"] = "active"
+    except Exception:
+        checks["audit_log"] = "inactive"
+    try:
+        from middleware.ws_guard import check_ws_allowed
+        checks["ws_guard"] = "active"
+    except Exception:
+        checks["ws_guard"] = "inactive"
+    try:
+        from utils.crypto import generate_token
+        checks["crypto"] = "active"
+    except Exception:
+        checks["crypto"] = "inactive"
+
+    active = sum(1 for v in checks.values() if v == "active")
+    total = len(checks)
+    return {
+        "security_score": f"{active}/{total}",
+        "level": "MAXIMUM" if active == total else "PARTIAL" if active >= 3 else "MINIMAL",
+        "checks": checks,
+    }
+
+
 def os_env(key: str, default: str = "") -> str:
     import os
     return os.getenv(key, default)

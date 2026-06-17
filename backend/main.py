@@ -56,6 +56,36 @@ app.add_middleware(
 )
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
+# ── Security Middleware Stack ──────────────────────────────────────────────────
+try:
+    from middleware.security_headers import SecurityHeadersMiddleware
+    app.add_middleware(SecurityHeadersMiddleware)
+    log.info('[SECURITY] SecurityHeaders: ATIVO')
+except Exception as e:
+    log.warning('[SECURITY] SecurityHeaders não carregado: %s', e)
+
+try:
+    from middleware.input_guard import InputGuardMiddleware
+    app.add_middleware(InputGuardMiddleware)
+    log.info('[SECURITY] InputGuard (anti-injection): ATIVO')
+except Exception as e:
+    log.warning('[SECURITY] InputGuard não carregado: %s', e)
+
+try:
+    from middleware.audit import AuditMiddleware
+    app.add_middleware(AuditMiddleware)
+    log.info('[SECURITY] AuditLog: ATIVO → logs/audit.jsonl')
+except Exception as e:
+    log.warning('[SECURITY] AuditLog não carregado: %s', e)
+
+try:
+    from middleware.rate_limiter import rate_limit_middleware
+    from starlette.middleware.base import BaseHTTPMiddleware
+    app.add_middleware(BaseHTTPMiddleware, dispatch=rate_limit_middleware)
+    log.info('[SECURITY] RateLimiter: ATIVO')
+except Exception as e:
+    log.warning('[SECURITY] RateLimiter não carregado: %s', e)
+
 # ── Optional Bearer-token auth ─────────────────────────────────────────────────
 _API_KEY = _cfg.api_key.strip()
 
@@ -226,6 +256,18 @@ async def _prewarm_ollama():
 # ── WebSocket endpoint ─────────────────────────────────────────────────────────
 @app.websocket('/ws/jarvis')
 async def websocket_endpoint(ws: WebSocket, session_id: str = ''):
+    # ── WS Guard: validar IP e origem ─────────────────────────────────────────
+    try:
+        from middleware.ws_guard import check_ws_allowed
+        client_ip = ws.client.host if ws.client else "unknown"
+        origin = ws.headers.get("origin")
+        allowed, reason = check_ws_allowed(client_ip, origin)
+        if not allowed:
+            await ws.close(code=1008, reason=reason)
+            log.warning('[WS] Conexão recusada: %s — %s', client_ip, reason)
+            return
+    except Exception:
+        pass  # Fail-open: se guard falhar, permite conexão
     await manager.connect(ws)
 
     # Accept a stable session_id from the client (stored in localStorage).

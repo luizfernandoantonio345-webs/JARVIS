@@ -317,6 +317,7 @@ body.alert #jt{text-shadow:0 0 8px rgba(255,42,74,0.9),0 0 25px rgba(255,42,74,0
   <div class="srow"><span class="slabel">UPTIME</span><span class="sval" id="sUptimeVal">—</span></div>
   <div class="srow"><span class="slabel">VOZ TTS</span><span class="sval" id="sVoiceVal">—</span></div>
   <div class="srow"><span class="slabel">WS LATENCY</span><span class="sval" id="sWsLatency">—</span></div>
+  <div class="srow"><span class="slabel">SEGURANÇA</span><span class="sval" id="sSecScore" style="color:rgba(78,255,145,0.8)">—</span></div>
   <div class="srow" style="margin-top:10px;border:none">
     <button class="sbtn" onclick="toggleSettings()">FECHAR</button>
     <button class="sbtn danger" onclick="clearConversation()">LIMPAR CHAT</button>
@@ -965,6 +966,16 @@ function toggleSettings(){
   }
 }
 async function fetchSettings(){
+  // Fetch security score
+  try{
+    const sec=await fetch(`${API_URL}/security/status`,{signal:AbortSignal.timeout(2000)}).then(r=>r.json());
+    const ss=document.getElementById('sSecScore');
+    if(ss){
+      ss.textContent=sec.security_score+' — '+sec.level;
+      ss.style.color=sec.level==='MAXIMUM'?'rgba(78,255,145,0.85)':sec.level==='PARTIAL'?'rgba(255,209,102,0.8)':'rgba(255,107,107,0.8)';
+    }
+    addEvent(sec.level==='MAXIMUM'?'ok':'warn','SEGURANÇA: '+sec.security_score+' ('+sec.level+')');
+  }catch(e){}
   try{
     const d=await fetch(`${API_URL}/system/info`,{signal:AbortSignal.timeout(2500)}).then(r=>r.json());
     const m=document.getElementById('sModelVal');if(m)m.textContent=d.model||'—';
@@ -982,7 +993,7 @@ async function fetchSettings(){
       const mn=document.getElementById('modelName');if(mn)mn.textContent=d.model||'—';
     }catch(e2){}
   }
-}
+}  // end fetchSettings
 
 // ── CLEAR CONVERSATION ────────────────────────────────────────────────────────
 function clearConversation(){
@@ -1017,7 +1028,8 @@ setTimeout(fetchAgentStatus,3000);
 
 // ── BOOT EVENTS ───────────────────────────────────────────────────────────────
 setTimeout(()=>{
-  addEvent('ok','JARVIS v6.0 — SISTEMA ONLINE');
+  addEvent('ok','JARVIS v7.0 FORTRESS — SISTEMA ONLINE');
+  addEvent('ok','Segurança: InputGuard + AuditLog + RateLimit + WSGuard');
   addEvent('info','Backend: '+API_URL);
   addEvent('info','Sessão: '+(_sessionId.substring(0,16)||'nova'));
   // Show all panels on boot briefly then close
