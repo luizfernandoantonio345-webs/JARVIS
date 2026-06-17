@@ -184,6 +184,25 @@ async def _init_voice():
     except Exception as e:
         log.warning('[VOICE] %s', e)
 
+    if os.getenv('JARVIS_HEADSET_MODE', 'false').lower() == 'true':
+        asyncio.create_task(_init_headset_pipeline())
+
+
+async def _init_headset_pipeline():
+    """Start headset listener pipeline for hands-free voice interaction."""
+    await asyncio.sleep(4)
+    try:
+        from voice_v2.voice_pipeline_v3 import get_voice_pipeline
+        from agents.master_orchestrator import get_orchestrator
+        import main as _main_mod
+        pipeline = get_voice_pipeline()
+        pipeline.orchestrator = get_orchestrator()
+        pipeline.manager = _main_mod.manager
+        await pipeline.initialize()
+        log.info('[HEADSET_PIPELINE] Hands-free mode active')
+    except Exception as e:
+        log.warning('[HEADSET_PIPELINE] Could not start: %s', e)
+
 
 async def _speak_boot():
     await asyncio.sleep(1)

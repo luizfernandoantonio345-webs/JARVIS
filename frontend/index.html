@@ -121,7 +121,7 @@ canvas.mc{width:100%;display:block;margin:2px 0 5px}
 #restext{font-size:clamp(7px,0.82vw,10px);color:rgba(0,229,255,0.88);line-height:1.7;letter-spacing:0.5px;white-space:pre-wrap;word-break:break-word}
 #reswho{font-size:5.5px;letter-spacing:2px;color:rgba(0,229,255,0.28);margin-bottom:4px;text-transform:uppercase}
 #botrow{display:none}
-#hint{position:absolute;top:clamp(8px,1.4vh,16px);left:50%;transform:translateX(-50%);z-index:25;font-size:clamp(5px,0.55vw,6.5px);letter-spacing:2.5px;color:rgba(0,229,255,0.16);text-transform:uppercase;pointer-events:none;white-space:nowrap;animation:hpulse 5s ease-in-out infinite;display:none;}
+#hint{position:absolute;top:clamp(8px,1.4vh,16px);left:50%;transform:translateX(-50%);z-index:25;font-size:clamp(5px,0.55vw,6.5px);letter-spacing:2.5px;color:rgba(0,229,255,0.16);text-transform:uppercase;pointer-events:none;white-space:nowrap;animation:hpulse 5s ease-in-out infinite;display:block;}
 @keyframes hpulse{0%,100%{opacity:0.5}50%{opacity:1}}
 #spark{position:absolute;bottom:clamp(20px,3vh,34px);right:clamp(10px,1.1vw,16px);z-index:28;pointer-events:none}
 .spksvg{animation:spkrot 14s linear infinite}
@@ -185,7 +185,8 @@ body.alert #jt{text-shadow:0 0 8px rgba(255,42,74,0.9),0 0 25px rgba(255,42,74,0
     <div class="mrow"><span class="mrlabel">CPU</span><div class="mrbar"><div class="mrfill cpu" id="cpubar" style="width:74%"></div></div><span class="mrval" id="cpuv">74%</span></div>
     <div class="mrow"><span class="mrlabel">RAM</span><div class="mrbar"><div class="mrfill ram" id="rambar" style="width:61%"></div></div><span class="mrval" id="ramv">61%</span></div>
     <div class="mrow"><span class="mrlabel">REDE</span><div class="mrbar"><div class="mrfill net" id="netbar" style="width:32%"></div></div><span class="mrval" id="netv">32%</span></div>
-    <div class="chlbl" style="margin-top:5px">PROCESSADOR: <span id="cpuv2">74%</span></div>
+    <div class="mrow"><span class="mrlabel">DISK</span><div class="mrbar"><div class="mrfill cpu" id="diskbar" style="width:50%;background:rgba(78,255,145,0.65)"></div></div><span class="mrval" id="diskv">—</span></div>
+    <div class="chlbl" style="margin-top:5px">PROCESSADOR: <span id="cpuv2">—</span></div>
     <canvas class="mc" id="cc" height="36"></canvas>
     <div class="chlbl">MEMÓRIA: <span id="ramv2">61%</span></div>
     <canvas class="mc" id="rc" height="36"></canvas>
@@ -220,7 +221,7 @@ body.alert #jt{text-shadow:0 0 8px rgba(255,42,74,0.9),0 0 25px rgba(255,42,74,0
   <input id="cmdtext" type="text" autocomplete="off" spellcheck="false" placeholder="FALE OU DIGITE...">
   <div id="cmdcursor"></div>
 </div>
-<div id="hint">[ FALE UM COMANDO — JARVIS ESTÁ OUVINDO ]</div>
+<div id="hint">[ SPACE: VOZ &nbsp;|&nbsp; ENTER: TEXTO &nbsp;|&nbsp; 1-4: PAINÉIS &nbsp;|&nbsp; F1: STATUS ]</div>
 <div id="spark"><svg class="spksvg" width="16" height="16" viewBox="0 0 20 20"><defs><filter id="sf"><feGaussianBlur stdDeviation="1.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><path d="M10 0L11.9 8.1L20 10L11.9 11.9L10 20L8.1 11.9L0 10L8.1 8.1Z" fill="rgba(255,255,255,0.52)" filter="url(#sf)"/></svg></div>
 <script>
 const _h = window.location.hostname || 'localhost';
@@ -341,8 +342,9 @@ function drawFx(OR){
   }
   if(Math.random()<0.0032){cxF.save();cxF.globalAlpha=Math.random()*0.06;cxF.fillStyle='rgba(0,229,255,1)';const gy=Math.random()*H;cxF.fillRect(0,gy,W,0.8+Math.random()*2.5);cxF.restore();}
 }
-const cpuH=Array.from({length:80},()=>38+Math.random()*44);
-const ramH=Array.from({length:80},()=>50+Math.random()*24);
+const cpuH=Array.from({length:80},()=>35+Math.random()*30);
+const ramH=Array.from({length:80},()=>45+Math.random()*20);
+let _realMetrics=null;
 function drawChart(id,data,color,fill){
   const mc=document.getElementById(id);if(!mc)return;
   const mw=mc.offsetWidth||mc.parentElement?.clientWidth||220;mc.width=mw;mc.height=parseInt(mc.getAttribute('height'))||36;
@@ -585,17 +587,43 @@ cmdText.addEventListener('keydown',e=>{
   e.stopPropagation();
 });
 function setAlert(on){alertMode=on;document.body.classList.toggle('alert',on);if(on){document.getElementById('stlive').textContent='⚠ ALERTA: AMEAÇA DETECTADA';setSpeaking(true)}}
+async function fetchMetrics(){
+  try{
+    const d=await fetch(`${API_URL}/metrics`,{signal:AbortSignal.timeout(2500)}).then(r=>r.json());
+    if(!d.error)_realMetrics=d;
+  }catch(e){}
+}
+setInterval(fetchMetrics,3000);fetchMetrics();
+
 let lm=0;
 function updateMetrics(ts){
   if(ts-lm<1600)return;lm=ts;
-  const c=Math.max(14,Math.min(95,cpuH[cpuH.length-1]+(Math.random()-0.45)*15));
-  const r=Math.max(40,Math.min(84,ramH[ramH.length-1]+(Math.random()-0.5)*6));
-  const n=Math.max(8,Math.min(78,Math.random()*68));
+  let c,r,n,dk;
+  if(_realMetrics){
+    c=_realMetrics.cpu_percent||0;
+    r=_realMetrics.ram_percent||0;
+    n=Math.min((_realMetrics.net_recv_mb||0),100);
+    dk=_realMetrics.disk_percent||0;
+    const el=document.getElementById('blstat');
+    if(el&&_realMetrics.ram_used_gb!=null)el.textContent=`RAM: ${_realMetrics.ram_used_gb}/${_realMetrics.ram_total_gb}GB | DISK: ${_realMetrics.disk_free_gb}GB livre`;
+  }else{
+    c=Math.max(10,Math.min(90,cpuH[cpuH.length-1]+(Math.random()-0.45)*12));
+    r=Math.max(30,Math.min(85,ramH[ramH.length-1]+(Math.random()-0.5)*5));
+    n=Math.max(0,Math.min(60,Math.random()*40));
+    dk=50;
+  }
   cpuH.push(c);cpuH.shift();ramH.push(r);ramH.shift();
-  const cv=Math.round(c),rv=Math.round(r),nv=Math.round(n);
-  document.getElementById('cpuv').textContent=cv+'%';document.getElementById('ramv').textContent=rv+'%';document.getElementById('netv').textContent=nv+'%';
-  document.getElementById('cpuv2').textContent=cv+'%';document.getElementById('ramv2').textContent=rv+'%';
-  document.getElementById('cpubar').style.width=cv+'%';document.getElementById('rambar').style.width=rv+'%';document.getElementById('netbar').style.width=nv+'%';
+  const cv=Math.round(c),rv=Math.round(r),nv=parseFloat(n.toFixed(1)),dv=Math.round(dk);
+  document.getElementById('cpuv').textContent=cv+'%';
+  document.getElementById('ramv').textContent=rv+'%';
+  document.getElementById('netv').textContent=nv+'MB';
+  document.getElementById('cpuv2').textContent=cv+'%';
+  document.getElementById('ramv2').textContent=rv+'%';
+  document.getElementById('cpubar').style.width=cv+'%';
+  document.getElementById('rambar').style.width=rv+'%';
+  document.getElementById('netbar').style.width=Math.min(n*2,100)+'%';
+  const db=document.getElementById('diskbar');if(db)db.style.width=dv+'%';
+  const dv2=document.getElementById('diskv');if(dv2)dv2.textContent=dv+'%';
   drawCharts();
 }
 function loop(now){
@@ -607,8 +635,8 @@ function loop(now){
 resize();initMic();initSpeech();connectWS();
 lastT=performance.now();requestAnimationFrame(loop);
 
-// ── MELHORIA 1: Status real-time com modelo e uptime ──
-setInterval(async()=>{
+// ── Status real-time: modelo + uptime ───────────────────────────────────────
+async function fetchStatus(){
   try{
     const d=await fetch(`${API_URL}/status`,{cache:'no-store',signal:AbortSignal.timeout(2000)}).then(r=>r.json());
     const sl=document.getElementById('stlive');
@@ -616,8 +644,12 @@ setInterval(async()=>{
       const up=Math.floor((d.uptime_seconds||0)/60);
       sl.textContent=`ONLINE | ${d.model||'?'} | UP: ${up}min`;
     }
-  }catch(e){}
-},15000);
+  }catch(e){
+    const sl=document.getElementById('stlive');
+    if(sl&&!speaking)sl.textContent='CONECTANDO...';
+  }
+}
+setInterval(fetchStatus,15000);fetchStatus();
 
 // ── MELHORIA 2: Histórico de comandos com seta para cima ──
 const cmdHistory=[];let cmdHistIdx=-1;

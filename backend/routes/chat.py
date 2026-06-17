@@ -235,6 +235,23 @@ def get_memory_route(session_id: str, limit: int = 20):
     }
 
 
+@router.get("/history")
+def get_history(session_id: str = Query("default"), limit: int = Query(30)):
+    """Return conversation history from persistent memory for a session."""
+    try:
+        from memory.persistent_memory import PersistentMemory
+        pm = PersistentMemory()
+        messages = pm.get_recent(session_id, limit=limit)
+        messages.reverse()
+        return {
+            "session_id": session_id,
+            "count": len(messages),
+            "messages": messages,
+        }
+    except Exception as e:
+        return {"session_id": session_id, "count": 0, "messages": [], "error": str(e)}
+
+
 @router.get("/sessions")
 def list_sessions():
     return {"sessions": get_session_list()}

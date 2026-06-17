@@ -1,7 +1,6 @@
-import shutil
-import time
+"""Rotas de health check e métricas do sistema."""
 import logging
-import asyncio
+import time
 
 import httpx
 from fastapi import APIRouter
@@ -12,14 +11,11 @@ log = logging.getLogger(__name__)
 _START_TIME = time.time()
 
 
-async def _get_ollama_models_fast(url: str, timeout: float = 0.8) -> tuple[bool, list[str]]:
-    """Check rápido com timeout curto — não trava o health"""
+async def _check_ollama(url: str, timeout: float = 1.0) -> tuple[bool, list[str]]:
     try:
-        clean_url = url.replace("localhost", "127.0.0.1")
-        async with httpx.AsyncClient(
-            timeout=httpx.Timeout(timeout, connect=0.3, read=timeout, write=0.5, pool=0.3)
-        ) as c:
-            r = await c.get(f"{clean_url}/api/tags")
+        clean = url.replace("localhost", "127.0.0.1")
+        async with httpx.AsyncClient(timeout=httpx.Timeout(timeout, connect=0.5)) as c:
+            r = await c.get(f"{clean}/api/tags")
             if r.status_code != 200:
                 return False, []
             models = [m.get("name", "") for m in r.json().get("models", [])]
@@ -30,67 +26,100 @@ async def _get_ollama_models_fast(url: str, timeout: float = 0.8) -> tuple[bool,
 
 @router.get("/health")
 async def health_check():
-    log.info("[HEALTH] Check started")
-    from backend.config import get_config
-    from backend.runtime.watchdog import get_watchdog
+    import asyncio
+    from config import get_config
+    from runtime.watchdog import get_watchdog
 
     cfg = get_config()
-    log.info("[HEALTH] Config loaded")
     wd = get_watchdog()
-    log.info("[HEALTH] Watchdog retrieved")
     uptime_s = wd.uptime()
-    log.info("[HEALTH] Uptime calculated: %s", uptime_s)
-    hours, rem = divmod(uptime_s, 3600)
-    mins, secs = divmod(rem, 60)
+    h, rem = divmod(uptime_s, 3600)
+    m, s = divmod(rem, 60)
 
-    ollama_ok = False
-    installed_models: list[str] = []
     try:
-        ollama_ok, installed_models = await asyncio.wait_for(
-            _get_ollama_models_fast(cfg.ollama_url),
-            timeout=1.2,
-        )
+        ollama_ok, models = await asyncio.wait_for(_check_ollama(cfg.ollama_url), timeout=1.5)
     except Exception:
-        ollama_ok = False
+        ollama_ok, models = False, []
 
-    model_info = {
-        "provider": "ollama",
-        "local_model": cfg.local_model,
-        "model": cfg.local_model,
-        "url": cfg.ollama_url,
-        "status": "ok" if ollama_ok else "error",
-        "models": installed_models,
-        "openai_available": bool(getattr(cfg, "openai_api_key", None)),
-        "claude_model": None,
-        "openai_model": None,
-        "complex_threshold": getattr(cfg, "complex_threshold", 0.45),
-    }
-
-    cache_info = {}
-    try:
-        from services.cache_service import cache_stats
-        cache_info = cache_stats()
-    except Exception:
-        pass
-
-    components = {
-        "api": True,
-        "ollama": ollama_ok,
-        "voice_guard": True,
-        "domain_detector": True,
-        "semantic_memory": True,
-    }
-    degraded = [k for k, v in components.items() if not v]
+    degraded = [] if ollama_ok else ["ollama"]
 
     return {
-        "status": "ok" if not degraded else "degraded",
-        "service": "JARVIS API",
-        "version": "6.0",
-        "uptime": f"{hours:02d}:{mins:02d}:{secs:02d}",
+        "status":   "ok" if not degraded else "degraded",
+        "service":  "JARVIS API",
+        "version":  "6.0",
+        "uptime":   f"{h:02d}:{m:02d}:{s:02d}",
         "uptime_seconds": uptime_s,
-        "docker_available": shutil.which("docker") is not None,
-        "models": model_info,
-        "cache": cache_info,
-        "components": components,
+        "models": {
+            "active":  os_env("JARVIS_MODEL", cfg.local_model),
+            "ollama":  "ok" if ollama_ok else "error",
+            "list":    models,
+        },
         "degraded": degraded,
     }
+
+
+@router.get("/status")
+async def status():
+    from config import get_config
+    from runtime.watchdog import get_watchdog
+    cfg = get_config()
+    wd = get_watchdog()
+    import os
+    return {
+        "jarvis":          "online",
+        "model":           os.getenv("JARVIS_MODEL", cfg.local_model),
+        "uptime_seconds":  wd.uptime(),
+        "voice":           os.getenv("JARVIS_VOICE_ENABLED", "true") == "true",
+        "ollama_url":      cfg.ollama_url,
+    }
+
+
+@router.get("/metrics")
+async def get_metrics():
+    """Métricas reais do sistema via psutil — usadas pelo frontend."""
+    try:
+        import psutil
+
+        cpu     = psutil.cpu_percent(interval=0.3)
+        ram     = psutil.virtual_memory()
+        disk    = psutil.disk_usage("C:\\" if __import__("sys").platform == "win32" else "/")
+        net     = psutil.net_io_counters()
+        procs   = len(psutil.pids())
+
+        # Top 3 processos por CPU
+        top_procs = []
+        try:
+            all_procs = [
+                p.info for p in psutil.process_iter(["name", "cpu_percent", "memory_percent"])
+                if p.info.get("cpu_percent") is not None
+            ]
+            top_procs = sorted(all_procs, key=lambda x: x["cpu_percent"] or 0, reverse=True)[:3]
+            top_procs = [{"name": p["name"], "cpu": round(p["cpu_percent"], 1)} for p in top_procs]
+        except Exception:
+            pass
+
+        return {
+            "cpu_percent":   round(cpu, 1),
+            "ram_percent":   round(ram.percent, 1),
+            "ram_used_gb":   round(ram.used  / 1024**3, 1),
+            "ram_total_gb":  round(ram.total / 1024**3, 1),
+            "ram_free_gb":   round(ram.available / 1024**3, 1),
+            "disk_percent":  round(disk.percent, 1),
+            "disk_used_gb":  round(disk.used  / 1024**3, 1),
+            "disk_free_gb":  round(disk.free  / 1024**3, 1),
+            "disk_total_gb": round(disk.total / 1024**3, 1),
+            "net_sent_mb":   round(net.bytes_sent / 1024**2, 1),
+            "net_recv_mb":   round(net.bytes_recv / 1024**2, 1),
+            "process_count": procs,
+            "top_processes": top_procs,
+        }
+    except ImportError:
+        return {"error": "psutil não instalado", "cpu_percent": 0, "ram_percent": 0}
+    except Exception as e:
+        log.warning("[METRICS] Erro: %s", e)
+        return {"error": str(e), "cpu_percent": 0, "ram_percent": 0}
+
+
+def os_env(key: str, default: str = "") -> str:
+    import os
+    return os.getenv(key, default)
