@@ -56,6 +56,13 @@ class JarvisConfig(BaseSettings):
     port:    int = Field(default=8000)
     workers: int = Field(default=1)
 
+    # Security
+    # Comma-separated allowed origins, e.g. "http://localhost:8000,http://192.168.1.10:8000"
+    # Set to "*" only for fully local/trusted setups.
+    cors_origins: str = Field(default="http://localhost:8000,http://127.0.0.1:8000")
+    # Bearer token required on every request. Empty string = no auth (local-only).
+    api_key: str = Field(default="")
+
     # TTS
     tts_voice:        str  = Field(default="pt-BR-AntonioNeural")
     tts_rate:         str  = Field(default="-12%")

@@ -173,7 +173,7 @@ _conn = _get_conn()
 # ── Embedding ──────────────────────────────────────────────────────────────────
 
 def _embed_ollama(text: str) -> list[float]:
-    from backend.ai.client import get_ai_client
+    from ai.client import get_ai_client
     return get_ai_client().embed(text)
 
 

@@ -5,8 +5,7 @@ from datetime import datetime
 
 JARVIS_PERSONA_MARKER = "[JARVIS_PERSONA_V2]"
 
-
-IDENTITY_PROMPT = f"""[JARVIS_PERSONA_V6_PRODUCTION_BRITISH]
+_IDENTITY_TEMPLATE = """[JARVIS_PERSONA_V6_PRODUCTION_BRITISH]
 You are J.A.R.V.I.S. — Just A Rather Very Intelligent System.
 Personal AI assistant to Mr. Luiz.
 
@@ -49,9 +48,21 @@ Voice and Style:
 - Subtle humour is permitted — irony when contextual
 - Status updates should be concise and actionable
 
-Date/Time: {datetime.now().strftime('%d/%m/%Y at %H:%M')}
+Date/Time: {datetime_now}
 Status: ONLINE. All systems operational.
 """
+
+
+def _build_identity() -> str:
+    """Generate identity prompt with current date/time (called per-request, never stale)."""
+    return _IDENTITY_TEMPLATE.format(
+        datetime_now=datetime.now().strftime('%d/%m/%Y at %H:%M')
+    )
+
+
+# Module-level constant kept for backward compatibility (used in session_store etc.).
+# Code that needs a fresh timestamp should call _build_identity() instead.
+IDENTITY_PROMPT = _build_identity()
 
 
 DEV_SENIOR_PROMPT = """
@@ -95,15 +106,18 @@ MODO DIA A DIA:
 """.strip()
 
 
-MAIN_SYSTEM_PROMPT = "\n\n".join(
-    [
-        IDENTITY_PROMPT,
+def _build_main_prompt() -> str:
+    """Assemble full system prompt with a fresh timestamp."""
+    return "\n\n".join([
+        _build_identity(),
         DEV_SENIOR_PROMPT,
         CYBER_SENIOR_PROMPT,
         QUALITY_SENIOR_PROMPT,
         DAILY_WORK_PROMPT,
-    ]
-)
+    ])
+
+
+MAIN_SYSTEM_PROMPT = _build_main_prompt()
 
 
 ROLE_PROMPTS: dict[str, str] = {
@@ -132,8 +146,10 @@ def build_agent_prompt(role: str, base_prompt: str = "") -> str:
 
 
 def inject_system_persona(messages: Iterable[dict]) -> list[dict]:
-    """Garante que toda chamada LLM receba a persona JARVIS uma vez."""
+    """Inject JARVIS persona into every LLM call with a fresh timestamp."""
+    current_prompt = _build_main_prompt()
     prepared = [dict(message) for message in messages]
+
     for index, message in enumerate(prepared):
         content = str(message.get("content", ""))
         if JARVIS_PERSONA_MARKER not in content:
@@ -156,10 +172,10 @@ def inject_system_persona(messages: Iterable[dict]) -> list[dict]:
 
     if prepared and prepared[0].get("role") == "system":
         prepared[0]["content"] = (
-            MAIN_SYSTEM_PROMPT
+            current_prompt
             + "\n\nInstruções específicas da chamada:\n"
             + str(prepared[0].get("content", ""))
         )
         return prepared
 
-    return [{"role": "system", "content": MAIN_SYSTEM_PROMPT}] + prepared
+    return [{"role": "system", "content": current_prompt}] + prepared

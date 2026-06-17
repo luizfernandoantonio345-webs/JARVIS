@@ -19,6 +19,7 @@ Both keys are optional. If neither is set, all calls go local.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import math
@@ -31,13 +32,13 @@ from functools import lru_cache
 import httpx
 
 from core.jarvis_persona import inject_system_persona
-from backend.ai.client import get_ai_client
+from ai.client import get_ai_client
 
 log = logging.getLogger(__name__)
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 
-from backend.config import get_config
+from config import get_config
 
 _config = get_config()
 LOCAL_MODEL        = _config.model
@@ -236,7 +237,7 @@ def call_llm(
     """
     # Fast-path: if no API keys and Ollama circuit is open, skip all expensive work
     if not _ANTHROPIC_KEY and not _OPENAI_KEY:
-        from backend.ai.client import is_ollama_available
+        from ai.client import is_ollama_available
         if not is_ollama_available():
             return (
                 f"JARVIS offline - Ollama nao responde em {_config.ollama_url}. "

@@ -8,7 +8,7 @@ from typing import List, Dict, Generator, Callable, Awaitable
 from requests import RequestException
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-from backend.config import get_config
+from config import get_config
 
 # Circuit breaker — if Ollama failed recently, skip and fail fast
 _CIRCUIT_OPEN = False
@@ -175,7 +175,7 @@ class JarvisAIClient:
                     "prompt": self._messages_to_prompt(messages),
                     "stream": False,
                     "keep_alive": "30m",
-                    "options": {"num_predict": 32, "num_ctx": 512, "temperature": 0.3},
+                    "options": {"num_predict": 512, "num_ctx": 2048, "temperature": 0.3},
                 },
                 timeout=self.request_timeout,
             )
@@ -220,7 +220,7 @@ class JarvisAIClient:
             "messages": messages,
             "stream": stream,
             "keep_alive": "30m",
-            "options": {"num_predict": 32, "num_ctx": 512, "temperature": 0.3},
+            "options": {"num_predict": 512, "num_ctx": 2048, "temperature": 0.3},
         }
         for attempt in range(self.max_retries):
             try:
@@ -264,7 +264,7 @@ class JarvisAIClient:
             "messages": messages,
             "stream": True,
             "keep_alive": "30m",
-            "options": {"num_predict": 32, "num_ctx": 512, "temperature": 0.3},
+            "options": {"num_predict": 512, "num_ctx": 2048, "temperature": 0.3},
         }
         try:
             if self._chat_supported:
@@ -294,7 +294,7 @@ class JarvisAIClient:
                     "prompt": self._messages_to_prompt(messages),
                     "stream": True,
                     "keep_alive": "30m",
-                    "options": {"num_predict": 64, "temperature": 0.3},
+                    "options": {"num_predict": 512, "num_ctx": 2048, "temperature": 0.3},
                 }
                 gen_resp = self._session.post(
                     f"{self.ollama_url}/api/generate",
@@ -341,11 +341,11 @@ class JarvisAIClient:
             "messages": messages,
             "stream": True,
             "keep_alive": "30m",
-            "options": {"temperature": 0.7, "num_predict": 32, "num_ctx": 512}
+            "options": {"temperature": 0.7, "num_predict": 512, "num_ctx": 2048}
         }
         full = []
         try:
-            async with httpx.AsyncClient(timeout=35) as client:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
                 if self._chat_supported:
                     async with client.stream("POST", url, json=payload) as resp:
                         if resp.status_code == 200:
@@ -372,7 +372,7 @@ class JarvisAIClient:
                     "prompt": self._messages_to_prompt(messages),
                     "stream": True,
                     "keep_alive": "30m",
-                    "options": {"num_predict": 32, "num_ctx": 512, "temperature": 0.7},
+                    "options": {"num_predict": 512, "num_ctx": 2048, "temperature": 0.7},
                 }
                 async with client.stream("POST", f"{self.ollama_url}/api/generate", json=gen_payload) as gen_resp:
                     async for line in gen_resp.aiter_lines():

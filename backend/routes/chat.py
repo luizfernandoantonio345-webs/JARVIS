@@ -54,11 +54,12 @@ def _try_instant_agent(message: str) -> str | None:
     math_kw = ["calcule", "calculate", "quanto é", "quanto vale", "compute", "resultado de"]
     if any(k in msg for k in math_kw):
         import re
+        from utils.math_eval import safe_eval_math
         try:
-            expr = re.sub(r'[^0-9+\-*/().,% ]', '', message).replace(',', '.')
+            expr = re.sub(r'[^0-9+\-*/().,% ]', '', message)
             stripped = expr.strip()
             if stripped:
-                result = eval(stripped, {"__builtins__": {}}, {})
+                result = safe_eval_math(stripped)
                 return f"The result is {result}, Sir."
         except Exception:
             pass

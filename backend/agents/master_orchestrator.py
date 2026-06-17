@@ -103,28 +103,32 @@ class MasterOrchestrator:
         return get_ai_client().call(messages)
 
     async def _computer_agent(self, message, session_id):
+        import subprocess, webbrowser
         msg = message.lower()
+
+        def _launch(*args):
+            try:
+                subprocess.Popen(list(args))
+                return True
+            except FileNotFoundError:
+                return False
+
         if any(w in msg for w in ["chrome", "navegador", "browser"]):
-            import subprocess
-            subprocess.Popen(["chrome.exe"])
-            return "Abrindo Chrome, Senhor."
-        if any(w in msg for w in ["vscode", "vs code", "code"]):
-            import subprocess
-            subprocess.Popen(["code", "."])
-            return "Abrindo VS Code, Senhor."
+            ok = _launch("chrome.exe") or _launch("google-chrome") or _launch("chromium")
+            return "Abrindo Chrome, Senhor." if ok else "Chrome não encontrado no PATH, Senhor."
+        if any(w in msg for w in ["vscode", "vs code"]):
+            ok = _launch("code", ".")
+            return "Abrindo VS Code, Senhor." if ok else "VS Code não encontrado no PATH, Senhor."
         if any(w in msg for w in ["terminal", "cmd", "powershell"]):
-            import subprocess
-            subprocess.Popen(["powershell.exe"])
-            return "Abrindo terminal, Senhor."
-        if any(w in msg for w in ["youtube"]):
-            import webbrowser
+            ok = _launch("powershell.exe") or _launch("wt.exe")
+            return "Abrindo terminal, Senhor." if ok else "Terminal não encontrado, Senhor."
+        if "youtube" in msg:
             webbrowser.open("https://youtube.com")
             return "Abrindo YouTube, Senhor."
-        if any(w in msg for w in ["spotify"]):
-            import subprocess
-            subprocess.Popen(["spotify.exe"])
-            return "Abrindo Spotify, Senhor."
-        return "Comando de computador recebido. Especifique o que deseja abrir, Senhor."
+        if "spotify" in msg:
+            ok = _launch("spotify.exe")
+            return "Abrindo Spotify, Senhor." if ok else "Spotify não encontrado, Senhor."
+        return "Comando recebido. Especifique o que deseja abrir, Senhor."
 
     async def _memory_agent(self, message, session_id):
         from memory.persistent_memory import get_persistent_memory
@@ -173,11 +177,12 @@ class MasterOrchestrator:
 
     async def _math_agent(self, message, session_id, on_token):
         import re
+        from utils.math_eval import safe_eval_math
         try:
-            expr = re.sub(r'[^0-9+\-*/().,% ]', '', message).replace(',', '.')
+            expr = re.sub(r'[^0-9+\-*/().,% ]', '', message)
             stripped = expr.strip()
             if stripped:
-                result = eval(stripped, {"__builtins__": {}}, {})
+                result = safe_eval_math(stripped)
                 resp = f"The result is {result}, Sir."
                 if on_token:
                     await on_token(resp)
