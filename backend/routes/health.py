@@ -120,6 +120,49 @@ async def get_metrics():
         return {"error": str(e), "cpu_percent": 0, "ram_percent": 0}
 
 
+@router.get("/system/info")
+async def system_info():
+    """Snapshot completo do sistema — versão, modelo, config, agentes ativos."""
+    import os, sys, platform
+    from config import get_config
+    from runtime.watchdog import get_watchdog
+    cfg = get_config()
+    wd = get_watchdog()
+    uptime_s = wd.uptime()
+
+    info: dict = {
+        "jarvis_version": "6.0",
+        "python_version": sys.version.split()[0],
+        "platform": platform.system() + " " + platform.release(),
+        "model": os.getenv("JARVIS_MODEL", cfg.local_model),
+        "ollama_url": cfg.ollama_url,
+        "uptime_seconds": uptime_s,
+        "uptime_human": f"{int(uptime_s//3600):02d}:{int((uptime_s%3600)//60):02d}:{int(uptime_s%60):02d}",
+        "tts_voice": cfg.tts_voice,
+        "voice_enabled": cfg.voice_enabled,
+        "safe_mode": cfg.safe_mode,
+        "debug": cfg.debug,
+    }
+
+    try:
+        import psutil
+        info["cpu_count"] = psutil.cpu_count()
+        ram = psutil.virtual_memory()
+        info["ram_total_gb"] = round(ram.total / 1024**3, 1)
+        info["ram_used_gb"]  = round(ram.used  / 1024**3, 1)
+    except Exception:
+        pass
+
+    try:
+        from routes.agents import list_agents_route
+        agents_data = list_agents_route()
+        info["agent_count"] = agents_data.get("count", 0)
+    except Exception:
+        info["agent_count"] = 0
+
+    return info
+
+
 def os_env(key: str, default: str = "") -> str:
     import os
     return os.getenv(key, default)
