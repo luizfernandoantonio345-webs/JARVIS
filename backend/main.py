@@ -146,13 +146,17 @@ manager = ConnectionManager()
 # ── Router loader ──────────────────────────────────────────────────────────────
 def _mount_routers():
     cfg_map = [
-        # (module,              url_prefix,   required)
-        ('routes.health',       '',           True),
-        ('routes.chat',         '/chat',      True),
-        ('routes.agents',       '/agents',    False),
-        ('routes.jarvis_tts',   '/tts-iron',  False),
-        ('routes.memory',       '/memory',    False),
-        ('routes.voice',        '/voice',     False),
+        # (module,              url_prefix,       required)
+        ('routes.health',       '',               True),
+        ('routes.chat',         '/chat',          True),
+        ('routes.agents',       '/agents',        False),
+        ('routes.jarvis_tts',   '/tts-iron',      False),
+        ('routes.memory',       '/memory',        False),
+        ('routes.voice',        '/voice',         False),
+        # ── JARVIS v7.0: Power routes ──────────────────────────────────────
+        ('routes.investigate',  '/investigate',   False),  # OSINT: phone/IP/email
+        ('routes.analyze',      '/analyze',       False),  # Code analysis + errors
+        ('routes.architect',    '/architect',     False),  # System architecture planner
     ]
     for module, prefix, required in cfg_map:
         try:

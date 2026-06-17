@@ -213,6 +213,126 @@ body.alert #jt{text-shadow:0 0 8px rgba(255,42,74,0.9),0 0 25px rgba(255,42,74,0
 @keyframes pttPulse{0%,100%{box-shadow:0 0 8px rgba(255,42,74,0.15)}50%{box-shadow:0 0 18px rgba(255,42,74,0.38)}}
 #settingsBtn{position:absolute;bottom:clamp(56px,8vh,78px);left:clamp(12px,1.2vw,18px);z-index:36;width:30px;height:30px;border-radius:50%;background:rgba(0,4,14,0.95);border:1px solid rgba(0,229,255,0.1);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.25s;font-size:10px;color:rgba(0,229,255,0.35);user-select:none}
 #settingsBtn:hover{border-color:rgba(0,229,255,0.38);color:rgba(0,229,255,0.82)}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   RICH PANEL — OSINT / CODE ANALYSIS / ARCHITECT PLAN
+   Overlay sobre a interface principal, sem alterar o visual existente
+   ══════════════════════════════════════════════════════════════════════════ */
+#richPanel{
+  position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.93);
+  z-index:500;width:clamp(340px,72vw,860px);max-height:82vh;
+  background:rgba(0,2,10,0.99);border:1px solid rgba(0,229,255,0.28);
+  border-top:2px solid rgba(0,229,255,0.55);
+  display:flex;flex-direction:column;
+  opacity:0;pointer-events:none;transition:all 0.32s cubic-bezier(.4,0,.2,1);
+  box-shadow:0 0 80px rgba(0,0,0,0.97),0 0 40px rgba(0,229,255,0.06);
+  overflow:hidden;
+}
+#richPanel.show{opacity:1;pointer-events:all;transform:translate(-50%,-50%) scale(1)}
+#richPanel::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,229,255,0.6),transparent)}
+/* Header */
+#rpHeader{display:flex;justify-content:space-between;align-items:center;padding:9px 16px;border-bottom:1px solid rgba(0,229,255,0.06);background:rgba(0,229,255,0.015);flex-shrink:0}
+#rpTitle{font-size:clamp(6px,0.65vw,8px);letter-spacing:3px;color:rgba(0,229,255,0.55);text-transform:uppercase}
+.rp-badge{font-size:5.5px;letter-spacing:2px;padding:2px 8px;border:1px solid;text-transform:uppercase;flex-shrink:0}
+.rp-badge-osint{color:rgba(165,135,255,0.9);border-color:rgba(165,135,255,0.28)}
+.rp-badge-code{color:rgba(78,255,145,0.9);border-color:rgba(78,255,145,0.25)}
+.rp-badge-arch{color:rgba(212,168,30,0.9);border-color:rgba(212,168,30,0.28)}
+.rp-close-btn{font-size:8px;width:18px;height:18px;border:1px solid rgba(0,229,255,0.12);background:transparent;color:rgba(0,229,255,0.35);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;font-family:var(--f);margin-left:10px}
+.rp-close-btn:hover{border-color:rgba(255,42,74,0.45);color:rgba(255,42,74,0.85)}
+/* Body */
+#rpBody{overflow-y:auto;padding:14px 16px;flex:1;display:flex;flex-direction:column;gap:10px}
+#rpBody::-webkit-scrollbar{width:2px}#rpBody::-webkit-scrollbar-thumb{background:rgba(0,229,255,0.1)}
+/* Loading state */
+.rp-loading{display:flex;align-items:center;gap:8px;padding:20px;justify-content:center;color:rgba(0,229,255,0.4);font-size:clamp(6px,0.65vw,8px);letter-spacing:2px}
+.rp-spin{width:14px;height:14px;border:1.5px solid rgba(0,229,255,0.1);border-top-color:rgba(0,229,255,0.7);border-radius:50%;animation:rpspin 0.8s linear infinite}
+@keyframes rpspin{to{transform:rotate(360deg)}}
+/* Section headers */
+.rp-section-title{font-size:5px;letter-spacing:2.5px;color:rgba(0,229,255,0.25);text-transform:uppercase;margin-bottom:5px;padding-bottom:3px;border-bottom:1px solid rgba(0,229,255,0.04)}
+/* Grid layouts */
+.rp-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.rp-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.rp-card{background:rgba(0,229,255,0.012);border:1px solid rgba(0,229,255,0.06);padding:8px 10px}
+.rp-card-label{font-size:4.5px;letter-spacing:2px;color:rgba(0,229,255,0.22);text-transform:uppercase;margin-bottom:3px}
+.rp-card-value{font-size:clamp(6.5px,0.7vw,8.5px);color:rgba(0,229,255,0.85);letter-spacing:0.5px;word-break:break-all}
+.rp-card-value.valid{color:rgba(78,255,145,0.9)}
+.rp-card-value.invalid{color:rgba(255,107,107,0.9)}
+/* Findings list */
+.rp-findings{display:flex;flex-direction:column;gap:3px}
+.rp-finding{font-size:clamp(5.5px,0.6vw,7px);color:rgba(120,195,215,0.75);padding:3px 0;border-bottom:1px solid rgba(0,229,255,0.03);display:flex;align-items:baseline;gap:5px}
+.rp-finding::before{content:'›';color:rgba(0,229,255,0.3);flex-shrink:0}
+/* External links */
+.rp-links{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
+.rp-link{font-size:5px;letter-spacing:1.5px;padding:3px 8px;border:1px solid rgba(0,229,255,0.1);color:rgba(0,229,255,0.45);text-decoration:none;text-transform:uppercase;transition:all 0.2s;cursor:pointer;background:transparent;font-family:var(--f)}
+.rp-link:hover{border-color:rgba(0,229,255,0.38);color:rgba(0,229,255,0.88)}
+/* Issues (code analysis) */
+.rp-issues{display:flex;flex-direction:column;gap:4px}
+.rp-issue{display:grid;grid-template-columns:52px 38px 1fr;gap:6px;align-items:start;padding:6px 8px;border-left:2px solid}
+.rp-issue.critical{border-left-color:rgba(255,42,74,0.6);background:rgba(255,42,74,0.04)}
+.rp-issue.warning{border-left-color:rgba(255,209,102,0.55);background:rgba(255,209,102,0.03)}
+.rp-issue.info{border-left-color:rgba(0,229,255,0.3);background:rgba(0,229,255,0.018)}
+.issue-sev{font-size:4.5px;letter-spacing:1.5px;text-transform:uppercase;padding-top:1px}
+.critical .issue-sev{color:rgba(255,107,107,0.9)}
+.warning .issue-sev{color:rgba(255,209,102,0.9)}
+.info .issue-sev{color:rgba(0,229,255,0.7)}
+.issue-line{font-size:5px;color:rgba(0,229,255,0.35);letter-spacing:1px;padding-top:1px}
+.issue-body{display:flex;flex-direction:column;gap:2px}
+.issue-desc{font-size:clamp(5.5px,0.6vw,7px);color:rgba(200,220,225,0.78);line-height:1.4}
+.issue-fix{font-size:5px;color:rgba(78,255,145,0.68);letter-spacing:0.3px}
+/* Code block in rich panel */
+.rp-code{background:rgba(0,4,14,0.9);border:1px solid rgba(0,229,255,0.08);padding:8px 10px;font-size:clamp(6px,0.62vw,7.5px);color:rgba(78,255,145,0.8);line-height:1.65;white-space:pre-wrap;word-break:break-all;font-family:var(--f);overflow-y:auto;max-height:140px}
+/* Quality score badge */
+.rp-score{display:flex;align-items:center;gap:6px;margin-bottom:2px}
+.rp-score-bar{flex:1;height:3px;background:rgba(0,229,255,0.05);border-radius:2px;overflow:hidden}
+.rp-score-fill{height:100%;border-radius:2px;transition:width 0.8s ease}
+.rp-score-fill.high{background:rgba(78,255,145,0.75)}
+.rp-score-fill.mid{background:rgba(255,209,102,0.75)}
+.rp-score-fill.low{background:rgba(255,107,107,0.75)}
+.rp-score-num{font-size:clamp(7px,0.75vw,9px);font-weight:700;min-width:32px;text-align:right}
+.rp-score-num.high{color:rgba(78,255,145,0.9)}.rp-score-num.mid{color:rgba(255,209,102,0.9)}.rp-score-num.low{color:rgba(255,107,107,0.9)}
+/* Architect plan specific */
+.arch-title-block{border-bottom:1px solid rgba(0,229,255,0.06);padding-bottom:8px;margin-bottom:4px}
+.arch-main-title{font-size:clamp(9px,1vw,13px);color:rgba(0,229,255,0.92);letter-spacing:1.5px;font-weight:700;margin-bottom:4px}
+.arch-tagline{font-size:clamp(5.5px,0.6vw,7px);color:rgba(0,229,255,0.32);letter-spacing:1.5px}
+.arch-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+.arch-tag{font-size:4.5px;letter-spacing:1.5px;padding:2px 7px;border:1px solid rgba(212,168,30,0.2);color:rgba(212,168,30,0.75);text-transform:uppercase}
+.arch-stack-row{display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid rgba(0,229,255,0.025);font-size:clamp(5.5px,0.6vw,7px)}
+.arch-stack-key{color:rgba(0,229,255,0.35);letter-spacing:1px;flex-shrink:0;width:70px}
+.arch-stack-val{color:rgba(150,210,220,0.82);word-break:break-word;text-align:right}
+.arch-screen-item{display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid rgba(0,229,255,0.02);font-size:clamp(5.5px,0.6vw,7px)}
+.arch-screen-name{color:rgba(150,210,220,0.8)}
+.arch-screen-pri{font-size:4.5px;letter-spacing:1px;padding:1.5px 5px;border:1px solid rgba(78,255,145,0.15);color:rgba(78,255,145,0.65)}
+.arch-module-item{padding:4px 6px;background:rgba(0,229,255,0.012);border-left:1.5px solid rgba(0,229,255,0.12);margin-bottom:3px;font-size:clamp(5.5px,0.6vw,7px)}
+.arch-module-name{color:rgba(150,210,220,0.85)}
+.arch-module-hours{color:rgba(0,229,255,0.35);font-size:5px;letter-spacing:1px;margin-top:1px}
+.arch-table-row{display:grid;grid-template-columns:100px 1fr;gap:6px;padding:3px 0;border-bottom:1px solid rgba(0,229,255,0.02);font-size:clamp(5.5px,0.6vw,7px)}
+.arch-table-name{color:rgba(212,168,30,0.8);font-weight:600}
+.arch-table-fields{color:rgba(120,195,210,0.65)}
+.arch-api-row{display:grid;grid-template-columns:36px 140px 1fr;gap:6px;padding:3px 0;border-bottom:1px solid rgba(0,229,255,0.02);font-size:5px}
+.arch-api-method{font-weight:700;text-transform:uppercase;flex-shrink:0}
+.arch-api-method.GET{color:rgba(78,255,145,0.85)}.arch-api-method.POST{color:rgba(255,209,102,0.85)}.arch-api-method.PUT{color:rgba(0,229,255,0.85)}.arch-api-method.DELETE{color:rgba(255,107,107,0.85)}
+.arch-api-path{color:rgba(150,210,220,0.7);font-family:var(--f)}
+.arch-api-desc{color:rgba(120,190,205,0.55)}
+.mon-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(0,229,255,0.025);font-size:clamp(5.5px,0.6vw,7px)}
+.mon-model{color:rgba(212,168,30,0.8);flex-shrink:0;width:120px}
+.mon-price{color:rgba(78,255,145,0.82);font-weight:700;flex-shrink:0;width:110px;text-align:center}
+.mon-desc{color:rgba(120,195,210,0.55);text-align:right}
+.risk-row{display:flex;gap:8px;padding:3px 0;font-size:5.5px}
+.risk-text{color:rgba(255,107,107,0.7);flex:1}
+.risk-mit{color:rgba(78,255,145,0.65);flex:1}
+/* Footer with action buttons */
+#rpFooter{flex-shrink:0;border-top:1px solid rgba(0,229,255,0.06);padding:10px 16px;display:flex;gap:8px;align-items:center;background:rgba(0,229,255,0.008)}
+.rp-btn-confirm{flex:1;padding:7px;background:rgba(0,229,255,0.04);border:1px solid rgba(0,229,255,0.22);color:rgba(0,229,255,0.88);font-size:clamp(5.5px,0.6vw,7px);letter-spacing:2.5px;text-transform:uppercase;cursor:pointer;transition:all 0.22s;font-family:var(--f)}
+.rp-btn-confirm:hover{background:rgba(0,229,255,0.09);border-color:rgba(0,229,255,0.5);box-shadow:0 0 14px rgba(0,229,255,0.08)}
+.rp-btn-cancel{padding:7px 14px;background:transparent;border:1px solid rgba(255,107,107,0.15);color:rgba(255,107,107,0.45);font-size:clamp(5px,0.55vw,6.5px);letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;transition:all 0.2s;font-family:var(--f)}
+.rp-btn-cancel:hover{border-color:rgba(255,107,107,0.4);color:rgba(255,107,107,0.85)}
+/* Backdrop */
+#richPanelBackdrop{position:fixed;inset:0;z-index:499;background:rgba(0,0,0,0);pointer-events:none;transition:background 0.3s}
+#richPanelBackdrop.show{background:rgba(0,0,0,0.65);pointer-events:all}
+/* Next steps */
+.next-step{display:flex;gap:8px;align-items:baseline;font-size:clamp(5.5px,0.6vw,7px);color:rgba(120,195,215,0.75);padding:3px 0;border-bottom:1px solid rgba(0,229,255,0.025)}
+.next-step-num{color:rgba(0,229,255,0.28);flex-shrink:0;font-size:5px;letter-spacing:1px}
+/* MVP features */
+.mvp-feat{display:inline-block;font-size:5px;letter-spacing:1px;padding:2px 7px;border:1px solid rgba(78,255,145,0.18);color:rgba(78,255,145,0.7);text-transform:uppercase;margin:2px}
 </style>
 </head>
 <body>
@@ -323,7 +443,20 @@ body.alert #jt{text-shadow:0 0 8px rgba(255,42,74,0.9),0 0 25px rgba(255,42,74,0
     <button class="sbtn danger" onclick="clearConversation()">LIMPAR CHAT</button>
   </div>
 </div>
-<div id="hint">[ ESPAÇO: VOZ &nbsp;|&nbsp; ENTER: TEXTO &nbsp;|&nbsp; 1-4: PAINÉIS &nbsp;|&nbsp; ESC: FECHAR &nbsp;|&nbsp; F1: STATUS ]</div>
+<div id="hint">[ ESPAÇO: VOZ &nbsp;|&nbsp; ENTER: TEXTO &nbsp;|&nbsp; 1-4: PAINÉIS &nbsp;|&nbsp; ESC: FECHAR &nbsp;|&nbsp; F1: STATUS &nbsp;|&nbsp; F2: OSINT &nbsp;|&nbsp; F3: ANALISAR &nbsp;|&nbsp; F4: ARQUITETAR ]</div>
+<!-- RICH PANEL — JARVIS v7.0 -->
+<div id="richPanelBackdrop" onclick="closeRichPanel()"></div>
+<div id="richPanel">
+  <div id="rpHeader">
+    <span id="rpTitle">ANÁLISE</span>
+    <div style="display:flex;align-items:center;gap:7px">
+      <span id="rpBadge" class="rp-badge rp-badge-osint">OSINT</span>
+      <button class="rp-close-btn" onclick="closeRichPanel()">✕</button>
+    </div>
+  </div>
+  <div id="rpBody"><div class="rp-loading"><div class="rp-spin"></div><span>PROCESSANDO...</span></div></div>
+  <div id="rpFooter" style="display:none"></div>
+</div>
 <div id="spark"><svg class="spksvg" width="16" height="16" viewBox="0 0 20 20"><defs><filter id="sf"><feGaussianBlur stdDeviation="1.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><path d="M10 0L11.9 8.1L20 10L11.9 11.9L10 20L8.1 11.9L0 10L8.1 8.1Z" fill="rgba(255,255,255,0.52)" filter="url(#sf)"/></svg></div>
 <script>
 const _h = window.location.hostname || 'localhost';
@@ -1062,6 +1195,468 @@ initSpeech=function(){
   addEvent('ok','Speech Recognition ativo (pt-BR)');
   return _origInitSpeech();
 };
+
+// ══════════════════════════════════════════════════════════════════════════════
+// JARVIS v7.0 — RICH PANEL SYSTEM
+// OSINT Investigation | Code Analysis | System Architect
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── INTENT DETECTION ─────────────────────────────────────────────────────────
+function detectIntent(msg){
+  const m=msg.toLowerCase();
+  // OSINT: investigação de telefone, IP, email, perfil
+  const osintKw=[
+    'hackear','hackear o','localizar','rastrear','investigar','investigação',
+    'número de telefone','número desse','osint','quem é esse número',
+    'descobrir onde','descobrir quem','encontrar essa pessoa',
+    'pesquisa o ip','pesquisa o número','pesquisa esse número',
+    'quem é dono','dono do número','dono desse número',
+    'pesquisar número','buscar número','informações sobre o número',
+    'que número é esse','localização dessa pessoa',
+  ];
+  if(osintKw.some(k=>m.includes(k))) return 'osint';
+  // Regex: phone numbers in message
+  if(/\+?\d[\d\s\-().]{8,18}\d/.test(msg)&&/(localiz|investig|hackear|osint|rastr|descobrir|quem|número|phone)/i.test(msg)) return 'osint';
+  // IP addresses
+  if(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/.test(msg)&&/(investigar|osint|ip|localiz|rastr)/i.test(msg)) return 'osint';
+
+  // CODE ANALYSIS: analisar arquivos, erros, bugs
+  const analyzeKw=[
+    'analise o arquivo','analise esse arquivo','analise esse código','analise o código',
+    'analise o main','analise o backend','analise o frontend',
+    'o que está errado','o que está dando errado','o que está errado no arquivo',
+    'analyze the file','analyze this code','what\'s wrong',
+    'qual é o bug','qual é o erro','me explique o erro',
+    'me explique o código','explique esse arquivo','explique o código',
+    'bug no arquivo','erro no arquivo','problema no arquivo',
+    'debug o arquivo','debug o código','review o arquivo',
+    'o que tem de errado','encontre o bug','encontre o erro',
+    'qual o erro do arquivo','corrija o arquivo','corrija o código',
+  ];
+  if(analyzeKw.some(k=>m.includes(k))) return 'code_analysis';
+  // File path patterns with analysis intent
+  if(/(analise|analyze|revise|review|debug|erro|bug|errado|problema|explain|explique)/.test(m)&&/\.(py|js|ts|jsx|tsx|java|go|rs|php|rb|cs|cpp|html|css|sql|sh)/.test(m)) return 'code_analysis';
+
+  // ARCHITECT: criar sistemas, apps, planos de desenvolvimento
+  const archKw=[
+    'criar sistema de','criar um sistema','criar app de','criar um app',
+    'criar plataforma','criar uma plataforma','desenvolver sistema','desenvolver app',
+    'quero criar um sistema','quero criar um app','quero desenvolver',
+    'plano para sistema','arquitetura para','arquitetura de sistema',
+    'como criar um sistema','como criar um app','design de sistema',
+    'system design','plano completo para','estrutura do sistema',
+    'me mostre a linguagem','que tecnologia usar','que stack usar',
+    'preciso criar um','preciso de um sistema','quero montar um',
+    'montar um sistema','montar um app','criar um e-commerce',
+    'criar um saas','criar um marketplace',
+  ];
+  if(archKw.some(k=>m.includes(k))) return 'architect';
+
+  return null;
+}
+
+// ── TARGET EXTRACTORS ─────────────────────────────────────────────────────────
+function extractOsintTarget(msg){
+  // Phone number
+  let m=msg.match(/\+?[\d][\d\s\-().]{8,18}[\d]/);
+  if(m) return {target:m[0].trim(),type:'phone'};
+  // IP
+  m=msg.match(/\b(\d{1,3}\.){3}\d{1,3}\b/);
+  if(m) return {target:m[0],type:'ip'};
+  // Email
+  m=msg.match(/[^\s<>"]+@[^\s<>"]+\.[a-zA-Z]{2,}/);
+  if(m) return {target:m[0],type:'email'};
+  // Domain
+  m=msg.match(/[a-zA-Z0-9][a-zA-Z0-9\-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}/);
+  if(m&&!m[0].startsWith('jarvis')) return {target:m[0],type:'domain'};
+  return {target:'',type:'auto'};
+}
+
+function extractFilePath(msg){
+  // Match file.ext or path/to/file.ext
+  const m=msg.match(/[\w.\/\\-]+\.(py|js|ts|jsx|tsx|java|go|rs|php|rb|cs|cpp|c|html|css|sql|sh|yaml|yml|json|xml|tf|ps1|md)\b/i);
+  return m?m[0]:'';
+}
+
+function extractArchDescription(msg){
+  // Remove trigger words to get the domain description
+  return msg
+    .replace(/jarvis[,.]?\s*/gi,'')
+    .replace(/^(criar|preciso|quero|me|por favor|cria|desenvolver|montar|arquitetura)\s+(sistema|app|aplicativo|plataforma|uma|um|de|para|criar|um|sistema|app|se|o|a)\s*/gi,'')
+    .replace(/^(criar um|criar uma|criar|preciso de|quero um|quero uma|plano para|arquitetura de|design de|como criar um|como criar uma)\s*/gi,'')
+    .trim()||msg;
+}
+
+// ── RICH PANEL CORE ───────────────────────────────────────────────────────────
+let _richPanelData=null;
+
+function openRichPanel(title,badgeText,badgeCls){
+  const panel=document.getElementById('richPanel');
+  const backdrop=document.getElementById('richPanelBackdrop');
+  const rtitle=document.getElementById('rpTitle');
+  const rbadge=document.getElementById('rpBadge');
+  const rfooter=document.getElementById('rpFooter');
+  if(!panel)return;
+  rtitle.textContent=title;
+  rbadge.textContent=badgeText;
+  rbadge.className='rp-badge '+badgeCls;
+  document.getElementById('rpBody').innerHTML='<div class="rp-loading"><div class="rp-spin"></div><span>PROCESSANDO...</span></div>';
+  rfooter.style.display='none';rfooter.innerHTML='';
+  panel.classList.add('show');
+  backdrop.classList.add('show');
+  _hasInteracted=true;
+}
+
+function closeRichPanel(){
+  document.getElementById('richPanel')?.classList.remove('show');
+  document.getElementById('richPanelBackdrop')?.classList.remove('show');
+}
+
+function _esc(s){return escHtml(String(s||'—'));}
+
+// ── OSINT RENDERER ────────────────────────────────────────────────────────────
+function renderOsintPanel(data){
+  const d=data.data||data;
+  const type=d.type||'unknown';
+  const body=document.getElementById('rpBody');if(!body)return;
+
+  let rows='';
+  if(type==='phone'){
+    rows=`
+      <div class="rp-grid-3">
+        <div class="rp-card"><div class="rp-card-label">ALVO</div><div class="rp-card-value">${_esc(d.target)}</div></div>
+        <div class="rp-card"><div class="rp-card-label">STATUS</div><div class="rp-card-value ${d.valid?'valid':'invalid'}">${d.valid?'✓ VÁLIDO':'✗ INVÁLIDO'}</div></div>
+        <div class="rp-card"><div class="rp-card-label">TIPO</div><div class="rp-card-value">${_esc(d.number_type||'—')}</div></div>
+      </div>
+      <div class="rp-grid-3">
+        <div class="rp-card"><div class="rp-card-label">PAÍS</div><div class="rp-card-value">${_esc(d.country)}</div></div>
+        <div class="rp-card"><div class="rp-card-label">REGIÃO / DDD</div><div class="rp-card-value">${_esc(d.region)}</div></div>
+        <div class="rp-card"><div class="rp-card-label">OPERADORA</div><div class="rp-card-value">${_esc(d.carrier)}</div></div>
+      </div>
+      <div class="rp-grid-2">
+        <div class="rp-card"><div class="rp-card-label">INTERNACIONAL</div><div class="rp-card-value">${_esc(d.format?.international)}</div></div>
+        <div class="rp-card"><div class="rp-card-label">FUSO HORÁRIO</div><div class="rp-card-value">${_esc((d.timezone||[])[0]||'—')}</div></div>
+      </div>`;
+  }else if(type==='ip'){
+    rows=`
+      <div class="rp-grid-3">
+        <div class="rp-card"><div class="rp-card-label">IP</div><div class="rp-card-value">${_esc(d.target)}</div></div>
+        <div class="rp-card"><div class="rp-card-label">PAÍS</div><div class="rp-card-value">${_esc(d.country)}</div></div>
+        <div class="rp-card"><div class="rp-card-label">CIDADE</div><div class="rp-card-value">${_esc(d.city)}</div></div>
+      </div>
+      <div class="rp-grid-2">
+        <div class="rp-card"><div class="rp-card-label">ORGANIZAÇÃO / ASN</div><div class="rp-card-value">${_esc(d.org)}</div></div>
+        <div class="rp-card"><div class="rp-card-label">FUSO / REGIÃO</div><div class="rp-card-value">${_esc(d.timezone)}</div></div>
+      </div>
+      ${d.hostname&&d.hostname!=='—'?`<div class="rp-card"><div class="rp-card-label">HOSTNAME</div><div class="rp-card-value">${_esc(d.hostname)}</div></div>`:''}
+      ${d.lat!=null?`<div class="rp-card"><div class="rp-card-label">COORDENADAS</div><div class="rp-card-value">${d.lat}, ${d.lon}</div></div>`:''}`;
+  }else if(type==='email'){
+    rows=`
+      <div class="rp-grid-3">
+        <div class="rp-card"><div class="rp-card-label">EMAIL</div><div class="rp-card-value">${_esc(d.target)}</div></div>
+        <div class="rp-card"><div class="rp-card-label">DOMÍNIO</div><div class="rp-card-value">${_esc(d.domain)}</div></div>
+        <div class="rp-card"><div class="rp-card-label">STATUS</div><div class="rp-card-value ${d.valid?'valid':'invalid'}">${d.valid?'✓ VÁLIDO':'✗ INVÁLIDO'}</div></div>
+      </div>
+      <div class="rp-card"><div class="rp-card-label">MX RECORDS</div><div class="rp-card-value">${_esc((d.mx_records||[]).join(' | ')||'—')}</div></div>`;
+  }else{
+    rows=`<div class="rp-card"><div class="rp-card-label">ALVO</div><div class="rp-card-value">${_esc(d.target||d.analysis||'—')}</div></div>`;
+  }
+
+  const findings=(d.findings||[]).map(f=>`<div class="rp-finding">${_esc(f)}</div>`).join('');
+  const links=Object.entries(d.links||{}).map(([k,v])=>`<a class="rp-link" href="${v}" target="_blank">${_esc(k.replace(/_/g,' ').toUpperCase())} ↗</a>`).join('');
+
+  body.innerHTML=`
+    <div>${rows}</div>
+    ${findings?`<div><div class="rp-section-title">DESCOBERTAS</div><div class="rp-findings">${findings}</div></div>`:''}
+    ${links?`<div><div class="rp-section-title">VERIFICAR EM</div><div class="rp-links">${links}</div></div>`:''}`;
+}
+
+// ── CODE ANALYSIS RENDERER ────────────────────────────────────────────────────
+function renderCodePanel(data){
+  const d=data.data||data;
+  const body=document.getElementById('rpBody');
+  const footer=document.getElementById('rpFooter');
+  if(!body)return;
+
+  const score=d.quality_score||0;
+  const scoreCls=score>=75?'high':score>=50?'mid':'low';
+  const issues=(d.issues||[]);
+  const issueHtml=issues.map(i=>`
+    <div class="rp-issue ${_esc(i.severity||'info')}">
+      <span class="issue-sev">${_esc((i.severity||'info').toUpperCase())}</span>
+      <span class="issue-line">${i.line?'L'+i.line:'—'}</span>
+      <div class="issue-body">
+        <span class="issue-desc">${_esc(i.description||'')}</span>
+        ${i.fix?`<span class="issue-fix">Fix: ${_esc(i.fix)}</span>`:''}
+      </div>
+    </div>`).join('');
+
+  body.innerHTML=`
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div>
+          <div style="font-size:clamp(6.5px,0.7vw,8.5px);color:rgba(0,229,255,0.75);letter-spacing:1px">${_esc(d.file||'código')}</div>
+          <div style="font-size:5px;color:rgba(0,229,255,0.25);letter-spacing:1.5px;margin-top:2px">${_esc(d.language||'?')} · ${d.lines||0} linhas · ${issues.length} problema${issues.length!==1?'s':''}</div>
+        </div>
+        <div class="rp-score" style="min-width:120px">
+          <div class="rp-score-bar"><div class="rp-score-fill ${scoreCls}" style="width:${score}%"></div></div>
+          <span class="rp-score-num ${scoreCls}">${score}/100</span>
+        </div>
+      </div>
+      ${d.summary?`<div style="font-size:5.5px;color:rgba(120,195,210,0.62);margin-bottom:6px;letter-spacing:0.5px">${_esc(d.summary)}</div>`:''}
+    </div>
+    ${issues.length>0?`<div><div class="rp-section-title">PROBLEMAS DETECTADOS (${issues.length})</div><div class="rp-issues">${issueHtml}</div></div>`:'<div style="color:rgba(78,255,145,0.7);font-size:clamp(6px,0.65vw,7.5px);padding:4px 0">✓ Nenhum problema detectado — código saudável</div>'}
+    ${d.solution?`<div><div class="rp-section-title">SOLUÇÃO</div><pre class="rp-code">${_esc(d.solution)}</pre></div>`:''}
+    ${d.explanation?`<div><div class="rp-section-title">EXPLICAÇÃO</div><div style="font-size:clamp(6px,0.65vw,7.5px);color:rgba(120,195,215,0.78);line-height:1.75;letter-spacing:0.3px">${_esc(d.explanation)}</div></div>`:''}`;
+
+  if(d.solution&&footer){
+    footer.style.display='flex';
+    footer.innerHTML=`
+      <button class="rp-btn-confirm" onclick="_copyCode()">COPIAR SOLUÇÃO</button>
+      <button class="rp-btn-cancel" onclick="closeRichPanel()">FECHAR</button>`;
+  }
+}
+function _copyCode(){
+  const el=document.querySelector('#rpBody .rp-code');
+  if(!el)return;
+  const txt=el.innerText||el.textContent;
+  navigator.clipboard?.writeText(txt).then(()=>showToast('SOLUÇÃO COPIADA!','success')).catch(()=>{});
+}
+
+// ── ARCHITECT PLAN RENDERER ───────────────────────────────────────────────────
+let _currentArchPlan=null;
+function renderArchitectPanel(data){
+  const d=data.data||data;
+  _currentArchPlan=d;
+  const body=document.getElementById('rpBody');
+  const footer=document.getElementById('rpFooter');
+  if(!body)return;
+
+  const tech=d.tech_stack||{};
+  const techRows=Object.entries(tech).filter(([k,v])=>v&&k!=='extras').map(([k,v])=>
+    `<div class="arch-stack-row"><span class="arch-stack-key">${_esc(k.replace(/_/g,' ').toUpperCase())}</span><span class="arch-stack-val">${_esc(v)}</span></div>`
+  ).join('');
+
+  const screens=(d.screens||[]).slice(0,10).map((s,i)=>
+    `<div class="arch-screen-item"><span class="arch-screen-name">${i+1}. ${_esc(s.name||s)}</span><span class="arch-screen-pri">${_esc((s.priority||1==='1'?'ALTA':s.priority<=2?'ALTA':s.priority<=3?'MÉDIA':'BAIXA'))}</span></div>`
+  ).join('');
+
+  const modules=(d.modules||[]).slice(0,8).map(m=>
+    `<div class="arch-module-item"><div class="arch-module-name">${_esc(m.name||m)}</div>${m.estimated_hours?`<div class="arch-module-hours">≈ ${m.estimated_hours}h</div>`:''}</div>`
+  ).join('');
+
+  const tables=(d.database_tables||[]).slice(0,6).map(t=>
+    `<div class="arch-table-row"><span class="arch-table-name">${_esc(t.name||t)}</span><span class="arch-table-fields">${_esc((t.main_fields||[]).join(', '))}</span></div>`
+  ).join('');
+
+  const endpoints=(d.api_endpoints||[]).slice(0,8).map(e=>
+    `<div class="arch-api-row"><span class="arch-api-method ${_esc(e.method)}">${_esc(e.method)}</span><span class="arch-api-path">${_esc(e.path)}</span><span class="arch-api-desc">${_esc(e.description)}</span></div>`
+  ).join('');
+
+  const monRows=(d.monetization||[]).map(m=>
+    `<div class="mon-row"><span class="mon-model">${_esc(m.model||m)}</span><span class="mon-price">${_esc(m.price||'—')}</span><span class="mon-desc">${_esc(m.description||'')}</span></div>`
+  ).join('');
+
+  const risks=(d.risks||[]).map(r=>
+    `<div class="risk-row"><span class="risk-text">⚠ ${_esc(r.risk||r)}</span><span class="risk-mit">→ ${_esc(r.mitigation||'Mitigar')}</span></div>`
+  ).join('');
+
+  const nextSteps=(d.next_steps||[]).map((s,i)=>
+    `<div class="next-step"><span class="next-step-num">0${i+1}</span><span>${_esc(s)}</span></div>`
+  ).join('');
+
+  const mvp=(d.mvp_features||[]).map(f=>`<span class="mvp-feat">${_esc(f)}</span>`).join('');
+
+  body.innerHTML=`
+    <div class="arch-title-block">
+      <div class="arch-main-title">${_esc(d.title||'SISTEMA')}</div>
+      ${d.tagline?`<div class="arch-tagline">${_esc(d.tagline)}</div>`:''}
+      <div class="arch-tags">
+        <span class="arch-tag">${_esc((d.type||'').toUpperCase())}</span>
+        <span class="arch-tag">${_esc((d.complexity||'?').toUpperCase())}</span>
+        <span class="arch-tag">${d.estimated_hours||0}H ESTIMADO</span>
+        <span class="arch-tag">${d.estimated_sprints||0} SPRINTS</span>
+        <span class="arch-tag">${_esc(d.team_size||'SOLO DEV')}</span>
+      </div>
+    </div>
+    ${d.description?`<div style="font-size:clamp(5.5px,0.6vw,7px);color:rgba(120,195,210,0.65);letter-spacing:0.5px;line-height:1.7">${_esc(d.description)}</div>`:''}
+    <div class="rp-grid-2">
+      <div><div class="rp-section-title">STACK TECNOLÓGICA</div>${techRows}${(tech.extras||[]).length>0?`<div style="font-size:5px;color:rgba(0,229,255,0.25);margin-top:3px">Extras: ${_esc((tech.extras||[]).join(', '))}</div>`:''}</div>
+      <div><div class="rp-section-title">TELAS PRINCIPAIS (${(d.screens||[]).length})</div>${screens}</div>
+    </div>
+    ${mvp?`<div><div class="rp-section-title">MVP — LANÇAR PRIMEIRO</div><div>${mvp}</div></div>`:''}
+    ${modules?`<div><div class="rp-section-title">MÓDULOS DO SISTEMA</div>${modules}</div>`:''}
+    ${tables?`<div><div class="rp-section-title">BANCO DE DADOS (TABELAS PRINCIPAIS)</div>${tables}</div>`:''}
+    ${endpoints?`<div><div class="rp-section-title">API ENDPOINTS (PRINCIPAIS)</div>${endpoints}</div>`:''}
+    ${monRows?`<div><div class="rp-section-title">MODELO DE MONETIZAÇÃO</div>${monRows}</div>`:''}
+    ${risks?`<div><div class="rp-section-title">RISCOS & MITIGAÇÕES</div>${risks}</div>`:''}
+    ${nextSteps?`<div><div class="rp-section-title">PRÓXIMOS PASSOS</div>${nextSteps}</div>`:''}`;
+
+  if(footer){
+    footer.style.display='flex';
+    footer.innerHTML=`
+      <button class="rp-btn-confirm" onclick="confirmArchitectPlan()">CONFIRMAR E INICIAR PROJETO</button>
+      <button class="rp-btn-cancel" onclick="closeRichPanel()">AJUSTAR REQUISITOS</button>`;
+  }
+}
+
+function confirmArchitectPlan(){
+  if(!_currentArchPlan)return;
+  const summary=`Implementar: ${_currentArchPlan.title||'sistema'}. Stack: ${_currentArchPlan.tech_stack?.backend||'FastAPI'} + ${_currentArchPlan.tech_stack?.frontend||'React'}. Começar pelo MVP: ${(_currentArchPlan.mvp_features||[]).slice(0,3).join(', ')}.`;
+  closeRichPanel();
+  showToast('PROJETO CONFIRMADO — INICIANDO','success',5000);
+  addEvent('ok','ARQUITETURA CONFIRMADA: '+_currentArchPlan.title);
+  sendMessage(summary);
+  showAll();
+}
+
+// ── POWER MODE RUNNERS ────────────────────────────────────────────────────────
+async function runOsintInvestigation(msg){
+  const{target,type}=extractOsintTarget(msg);
+  openRichPanel('INVESTIGAÇÃO OSINT','OSINT','rp-badge-osint');
+  addConvEntry('user',msg);
+  addEvent('ai','[OSINT] Investigando: '+(target||msg).substring(0,60));
+  startElapsed();
+  try{
+    const r=await fetch(`${API_URL}/investigate`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({target:target||'',query:msg,type:target?type:'auto'}),
+      signal:AbortSignal.timeout(25000),
+    });
+    stopElapsed();
+    if(!r.ok){throw new Error('HTTP '+r.status);}
+    const data=await r.json();
+    renderOsintPanel(data);
+    const voice=data.voice_response||'Investigação concluída, Senhor.';
+    showResponse(voice);addConvEntry('jarvis',voice);
+    addEvent('ok','OSINT concluído: '+(target||'').substring(0,40));
+    showToast('OSINT CONCLUÍDO','success');
+  }catch(e){
+    stopElapsed();
+    document.getElementById('rpBody').innerHTML=`<div style="color:rgba(255,107,107,0.8);font-size:clamp(6px,0.65vw,7.5px);padding:10px">✗ ERRO: ${_esc(e.message)}</div>`;
+    addEvent('err','OSINT FALHOU: '+e.message);
+    showToast('ERRO NA INVESTIGAÇÃO','error');
+  }
+}
+
+async function runCodeAnalysis(msg){
+  const filePath=extractFilePath(msg);
+  openRichPanel('ANÁLISE DE CÓDIGO','CODE ANALYSIS','rp-badge-code');
+  addConvEntry('user',msg);
+  addEvent('ai','[CODE] Analisando: '+(filePath||'código'));
+  startElapsed();
+  try{
+    const r=await fetch(`${API_URL}/analyze`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({file_path:filePath,query:msg,error_message:''}),
+      signal:AbortSignal.timeout(90000),
+    });
+    stopElapsed();
+    if(!r.ok){throw new Error('HTTP '+r.status);}
+    const data=await r.json();
+    renderCodePanel(data);
+    const voice=data.voice_response||'Análise concluída, Senhor.';
+    showResponse(voice);addConvEntry('jarvis',voice);
+    addEvent('ok','Análise concluída: '+(filePath||'código'));
+    showToast('ANÁLISE CONCLUÍDA','success');
+  }catch(e){
+    stopElapsed();
+    document.getElementById('rpBody').innerHTML=`<div style="color:rgba(255,107,107,0.8);font-size:clamp(6px,0.65vw,7.5px);padding:10px">✗ ERRO: ${_esc(e.message)}</div>`;
+    addEvent('err','CODE ANALYSIS FALHOU: '+e.message);
+    showToast('ERRO NA ANÁLISE','error');
+  }
+}
+
+async function runArchitectPlan(msg){
+  const description=extractArchDescription(msg);
+  openRichPanel('PLANO ARQUITETURAL','ARCHITECT','rp-badge-arch');
+  addConvEntry('user',msg);
+  addEvent('ai','[ARCH] Gerando plano: '+description.substring(0,60));
+  startElapsed();
+  try{
+    const r=await fetch(`${API_URL}/architect`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({description:description,type:'auto',budget:'startup'}),
+      signal:AbortSignal.timeout(90000),
+    });
+    stopElapsed();
+    if(!r.ok){throw new Error('HTTP '+r.status);}
+    const data=await r.json();
+    renderArchitectPanel(data);
+    const voice=data.voice_response||'Plano gerado, Senhor.';
+    showResponse(voice);addConvEntry('jarvis',voice);
+    addEvent('ok','PLANO gerado: '+(data.data?.title||description).substring(0,40));
+    showToast('PLANO ARQUITETURAL GERADO','success');
+  }catch(e){
+    stopElapsed();
+    document.getElementById('rpBody').innerHTML=`<div style="color:rgba(255,107,107,0.8);font-size:clamp(6px,0.65vw,7.5px);padding:10px">✗ ERRO: ${_esc(e.message)}</div>`;
+    addEvent('err','ARCHITECT FALHOU: '+e.message);
+    showToast('ERRO NO PLANO','error');
+  }
+}
+
+// ── PATCH runCmd TO USE INTENT DETECTION ──────────────────────────────────────
+const _origRunCmdV7=window.runCmd;
+window.runCmd=function(raw){
+  const cmd=(raw||'').trim();
+  if(!cmd)return;
+  _hasInteracted=true;
+
+  const intent=detectIntent(cmd);
+
+  if(intent==='osint'){
+    showAll();
+    runOsintInvestigation(cmd);
+    return;
+  }
+  if(intent==='code_analysis'){
+    showAll();
+    runCodeAnalysis(cmd);
+    return;
+  }
+  if(intent==='architect'){
+    showAll();
+    runArchitectPlan(cmd);
+    return;
+  }
+
+  // Default: original handler
+  return _origRunCmdV7(cmd);
+};
+
+// ── KEYBOARD SHORTCUTS ────────────────────────────────────────────────────────
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&document.getElementById('richPanel')?.classList.contains('show')){
+    e.preventDefault();closeRichPanel();return;
+  }
+  if(e.key==='F2'){
+    e.preventDefault();
+    const t=window.prompt('OSINT — Alvo (número, IP, email):','');
+    if(t)runOsintInvestigation(t);
+    return;
+  }
+  if(e.key==='F3'){
+    e.preventDefault();
+    const t=window.prompt('CODE ANALYSIS — Caminho do arquivo:','backend/main.py');
+    if(t)runCodeAnalysis('analise o arquivo '+t);
+    return;
+  }
+  if(e.key==='F4'){
+    e.preventDefault();
+    const t=window.prompt('ARCHITECT — Descreva o sistema:','sistema de gestão de academia');
+    if(t)runArchitectPlan('criar um sistema de '+t);
+    return;
+  }
+},{capture:false});
+
+// ── BOOT MESSAGE ──────────────────────────────────────────────────────────────
+setTimeout(()=>{
+  addEvent('ok','Power Modes ONLINE: F2=OSINT | F3=CODE | F4=ARCH');
+  addEvent('ok','Voice: "investiga o número..." | "analise o arquivo..." | "cria um sistema de..."');
+},1200);
 </script>
 </body>
 </html>
