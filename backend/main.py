@@ -144,7 +144,20 @@ async def startup():
     log.info('=' * 50)
     log.info('JARVIS v6.0 iniciando...')
     log.info('Ollama: %s', _cfg.ollama_url)
-    log.info('Model : %s', _cfg.local_model)
+
+    # Seleciona modelo por RAM (JARVIS_MODEL manual sempre tem prioridade)
+    try:
+        from utils.model_selector import resolve_model
+        resolved = resolve_model(_cfg)
+        if resolved != _cfg.local_model:
+            os.environ['JARVIS_MODEL'] = resolved
+            os.environ['JARVIS_LOCAL_MODEL'] = resolved
+            log.info('Model : %s (auto-selecionado por RAM)', resolved)
+        else:
+            log.info('Model : %s', _cfg.local_model)
+    except Exception as _e:
+        log.warning('[MODEL_SEL] %s — usando %s', _e, _cfg.local_model)
+
     auth_status = 'habilitado' if _API_KEY else 'desabilitado (local)'
     log.info('Auth  : %s', auth_status)
     log.info('CORS  : %s', CORS_ORIGINS)

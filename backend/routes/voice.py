@@ -1,111 +1,100 @@
+"""Rotas de voz — STT + TTS via voice_v2."""
 import logging
-import tempfile
 import os
-import asyncio
-from fastapi import APIRouter, UploadFile, File, HTTPException, Form
-from pydantic import BaseModel
-from typing import Optional
+import tempfile
 
-from voice.controller import process_voice_command
-from voice.enrollment import (
-    enroll_voice,
-    load_encrypted_profile,
-    reset_profile,
-    save_encrypted_profile,
-    authenticate_voice,
-    get_auth_log,
-)
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 
 log = logging.getLogger(__name__)
-
 router = APIRouter(tags=["Voice"])
 
-class VoiceRequest(BaseModel):
-    session_id: Optional[str] = "voice_v2"
-
-
-class ThresholdRequest(BaseModel):
-    threshold: float
-
-
-@router.post("/enroll")
-async def enroll(samples: list[UploadFile] = File(...), threshold: float = Form(0.82)):
-    audio_samples = [await sample.read() for sample in samples]
-    try:
-        profile = enroll_voice(audio_samples, threshold=threshold)
-    except ValueError as exc:
-        raise HTTPException(400, str(exc))
-    return {"enrolled": True, "samples": profile.samples_count, "threshold": profile.threshold}
-
-
-@router.post("/verify")
-async def verify(audio: UploadFile = File(...)):
-    result = authenticate_voice(await audio.read())
-    return result
-
-
-@router.get("/profile/status")
-async def profile_status():
-    profile = load_encrypted_profile()
-    return {
-        "enrolled": profile is not None,
-        "samples": profile.samples_count if profile else 0,
-        "threshold": profile.threshold if profile else None,
-    }
-
-
-@router.get("/auth/log")
-async def auth_log():
-    return {"attempts": get_auth_log(20)}
-
-
-@router.post("/profile/reset")
-async def profile_reset():
-    reset_profile()
-    return {"status": "ok", "enrolled": False}
-
-
-@router.put("/profile/threshold")
-async def update_threshold(body: ThresholdRequest):
-    profile = load_encrypted_profile()
-    if not profile:
-        raise HTTPException(404, "voice profile not enrolled")
-    profile.threshold = body.threshold
-    save_encrypted_profile(profile)
-    return {"status": "ok", "threshold": profile.threshold}
 
 @router.post("/command")
 async def voice_command(
-    audio: UploadFile = File(..., description="Audio file (wav/mp3)"), 
-    session_id: str = Form("voice_v2")
+    audio: UploadFile = File(..., description="Arquivo de áudio (wav/mp3/webm)"),
+    session_id: str = Form("voice"),
+    language: str = Form("pt"),
 ):
-    """Voice command pipeline: upload audio → transcribe → LLM → TTS → JSON response."""
-
+    """
+    Pipeline de voz completo:
+      1. Recebe áudio do cliente
+      2. Transcreve com Whisper (STT)
+      3. Processa com orchestrator (LLM)
+      4. Gera resposta em áudio (TTS)
+      5. Retorna JSON com transcript, response e audio_path
+    """
     if not audio.content_type or "audio" not in audio.content_type:
-        raise HTTPException(400, "Arquivo deve ser audio (wav, mp3, etc)")
+        # Aceita webm/ogg/mp4 também (gravação de navegador)
+        allowed_ext = {".wav", ".mp3", ".webm", ".ogg", ".m4a", ".mp4"}
+        ext = os.path.splitext(audio.filename or "")[1].lower()
+        if ext not in allowed_ext:
+            raise HTTPException(400, f"Formato não suportado: {audio.content_type}")
 
-    # Save uploaded file to temp
-    temp_path = tempfile.mktemp(suffix=os.path.splitext(audio.filename)[1] or ".wav")
     try:
         content = await audio.read()
-        with open(temp_path, "wb") as f:
-            f.write(content)
-        log.info("Voice command started: file=%s size=%dB session=%s", 
-                 audio.filename, len(content), session_id)
-    except Exception as exc:
-        raise HTTPException(500, f"Erro salvando audio: {exc}")
+    except Exception as e:
+        raise HTTPException(500, f"Erro lendo áudio: {e}")
 
-    from voice.voice_guard import voice_guard
-    guard = await voice_guard(content, "")
-    if not guard.allowed:
-        return {
-            "status": "denied",
-            "response": "Acesso nao autorizado. Voz nao reconhecida.",
-            "reason": guard.reason,
-            "confidence": guard.confidence,
-        }
+    if len(content) < 100:
+        raise HTTPException(400, "Arquivo de áudio muito pequeno ou vazio")
 
-    # Run pipeline (cleanup handled inside)
-    result = await process_voice_command(temp_path, session_id)
-    
+    log.info("[VOICE] Comando recebido: %dB session=%s lang=%s", len(content), session_id, language)
+
+    try:
+        from voice_v2.pipeline import process_audio_pipeline
+        result = await process_audio_pipeline(content, session_id=session_id, language=language)
+    except Exception as e:
+        log.error("[VOICE] Pipeline falhou: %s", e)
+        raise HTTPException(500, f"Erro no pipeline de voz: {e}")
+
     return result
+
+
+@router.get("/tts")
+async def tts_generate(text: str, voice: str | None = None):
+    """
+    Gera áudio TTS para o texto e retorna o arquivo MP3.
+    Útil para o frontend tocar a resposta via <audio>.
+    """
+    if not text or not text.strip():
+        raise HTTPException(400, "Texto vazio")
+
+    try:
+        from voice_v2.output import generate_tts_file
+        import edge_tts
+
+        cfg_voice = voice
+        if not cfg_voice:
+            try:
+                from config import get_config
+                cfg_voice = get_config().tts_voice
+            except Exception:
+                cfg_voice = "en-GB-RyanNeural"
+
+        path = await generate_tts_file(text)
+        if path is None:
+            raise HTTPException(503, "TTS indisponível — edge-tts não instalado")
+
+        return FileResponse(
+            path,
+            media_type="audio/mpeg",
+            filename="jarvis_tts.mp3",
+            background=None,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error("[VOICE/TTS] Erro: %s", e)
+        raise HTTPException(500, f"Erro TTS: {e}")
+
+
+@router.get("/status")
+async def voice_status():
+    """Retorna disponibilidade de TTS e STT."""
+    try:
+        from voice_v2.resilient_loader import load_voice_safe
+        info = load_voice_safe()
+    except Exception as e:
+        info = {"mode": "none", "error": str(e)}
+    return info

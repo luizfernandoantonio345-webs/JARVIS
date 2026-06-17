@@ -1,8 +1,12 @@
+"""Seleciona o modelo Ollama ideal com base na RAM disponível."""
+import logging
 import os
 import platform
 import subprocess
 from dataclasses import dataclass
 from typing import Optional
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -11,47 +15,42 @@ class RamInfo:
     source: str
 
 
-def _ram_total_gb_windows_wmi() -> Optional[float]:
-    # Uses WMI: TotalPhysicalMemory returns bytes
+def _ram_windows_wmi() -> Optional[float]:
     try:
-        # Prefer PowerShell (available on Windows)
-        cmd = (
-            "powershell -NoProfile -Command "
-            "\"(Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory\""
-        )
-        out = subprocess.check_output(cmd, shell=True, text=True, stderr=subprocess.DEVNULL).strip()
-        if not out:
-            return None
-        total_bytes = int(out)
-        return total_bytes / (1024 ** 3)
+        out = subprocess.check_output(
+            'powershell -NoProfile -Command "(Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory"',
+            shell=True, text=True, stderr=subprocess.DEVNULL, timeout=8,
+        ).strip()
+        return int(out) / (1024 ** 3) if out else None
     except Exception:
         return None
 
 
-def _ram_total_gb_fallback() -> Optional[float]:
-    # Best-effort fallback: parse systeminfo (Windows)
+def _ram_fallback() -> Optional[float]:
     try:
         if platform.system().lower().startswith("windows"):
-            out = subprocess.check_output("systeminfo", shell=True, text=True, stderr=subprocess.DEVNULL)
-            # Example line: "Total Physical Memory:  16.384.00 GB"
+            out = subprocess.check_output(
+                "systeminfo", shell=True, text=True,
+                stderr=subprocess.DEVNULL, timeout=20,
+            )
             for line in out.splitlines():
-                if "Total Physical Memory" in line:
-                    # extract last token with GB
-                    if "GB" in line:
-                        # keep digits and dot/comma
-                        s = line.split(":")[-1].strip().replace(".", "").replace(",", ".")
-                        # sometimes: "16.384,00 GB" -> normalize
-                        parts = [p for p in s.split() if p]
-                        if parts:
-                            val = parts[0]
-                            return float(val)
-        return None
+                if "Total Physical Memory" in line and "GB" in line:
+                    s = line.split(":")[-1].strip().replace(".", "").replace(",", ".")
+                    parts = [p for p in s.split() if p]
+                    if parts:
+                        return float(parts[0])
+        # Linux/Mac
+        with open("/proc/meminfo") as f:
+            for line in f:
+                if line.startswith("MemTotal:"):
+                    kb = int(line.split()[1])
+                    return kb / (1024 ** 2)
     except Exception:
-        return None
+        pass
+    return None
 
 
 def get_total_ram_gb() -> RamInfo:
-    # Respect manual override if user sets it (useful for testing)
     forced = os.getenv("JARVIS_TOTAL_RAM_GB", "").strip()
     if forced:
         try:
@@ -60,54 +59,67 @@ def get_total_ram_gb() -> RamInfo:
             pass
 
     if platform.system().lower().startswith("windows"):
-        v = _ram_total_gb_windows_wmi()
+        v = _ram_windows_wmi()
         if v is not None:
             return RamInfo(total_gb=v, source="windows:wmi")
-    # fallback
-    v = _ram_total_gb_fallback()
+
+    v = _ram_fallback()
     if v is not None:
-        return RamInfo(total_gb=v, source="systeminfo")
+        return RamInfo(total_gb=v, source="fallback")
+
     return RamInfo(total_gb=None, source="unknown")
 
 
 def select_model_by_ram_gb(ram_gb: float) -> str:
-    # Conservative mappings tuned for local CPU/RAM pressure.
-    # You can adjust the models later without touching the rest of the logic.
-    #
-    # Expected Ollama models present in your setup:
-    # - smollm2:135m (default currently)
-    # - phi:latest (not always present, but supported)
-    # - tinyllama (fallback)
+    """
+    Mapeia RAM total → modelo Ollama recomendado.
+    Conservador (deixa margem para OS + backend).
+
+    RAM     Modelo              Params  VRAM/RAM estimado
+    ----    ------              ------  -----------------
+    < 4GB   tinyllama           1.1B    ~800MB
+    < 6GB   qwen2:0.5b          0.5B    ~450MB
+    < 8GB   phi3:mini           3.8B    ~2.5GB
+    < 12GB  llama3.2:3b         3.2B    ~2.5GB
+    < 16GB  mistral:7b          7B      ~5GB
+    < 24GB  mistral:7b          7B      ~5GB
+    < 32GB  llama3.1:8b         8B      ~6GB
+    >= 32GB mistral:7b          7B      escolha segura para CPU
+    """
     if ram_gb < 4:
         return "tinyllama"
     if ram_gb < 6:
-        return "smollm2:135m"
+        return "qwen2:0.5b"
     if ram_gb < 8:
-        return "phi:latest"
+        return "phi3:mini"
     if ram_gb < 12:
-        return "smollm2:135m"
-    return "phi:latest"
+        return "llama3.2:3b"
+    if ram_gb < 32:
+        return "mistral:7b"
+    # 32GB+ — mistral:7b é a escolha segura para CPU sem GPU
+    # Se quiser mais qualidade e tiver GPU: "llama3.1:8b" ou "mistral:7b-instruct"
+    return "mistral:7b"
 
 
-def resolve_model_from_config(cfg) -> str:
+def resolve_model(cfg=None) -> str:
     """
-    Resolve final model to use.
-    Priority:
-      1) JARVIS_MODEL override (manual)
-      2) cfg.model_selection: if "auto" then RAM-based
-      3) fallback to cfg.model (current default)
+    Resolve o modelo final a usar.
+    Prioridade:
+      1. Variável de ambiente JARVIS_MODEL (override manual sempre vence)
+      2. Se cfg.model está definido e não é padrão genérico, usa
+      3. Detecção automática por RAM
     """
     manual = os.getenv("JARVIS_MODEL", "").strip()
     if manual:
+        log.info("[MODEL] Override manual: %s", manual)
         return manual
-
-    strategy = getattr(cfg, "model_selection", "auto")
-    if strategy != "auto":
-        # keep existing config choice
-        return getattr(cfg, "model", "smollm2:135m")
 
     ram = get_total_ram_gb()
     if ram.total_gb is None:
-        return getattr(cfg, "model", "smollm2:135m")
+        log.warning("[MODEL] Não foi possível detectar RAM. Usando qwen2:0.5b como fallback.")
+        fallback = getattr(cfg, "model", "qwen2:0.5b") if cfg else "qwen2:0.5b"
+        return fallback
 
-    return select_model_by_ram_gb(ram.total_gb)
+    chosen = select_model_by_ram_gb(ram.total_gb)
+    log.info("[MODEL] RAM detectada: %.1fGB (via %s) → modelo: %s", ram.total_gb, ram.source, chosen)
+    return chosen

@@ -224,8 +224,11 @@ body.alert #jt{text-shadow:0 0 8px rgba(255,42,74,0.9),0 0 25px rgba(255,42,74,0
 <div id="spark"><svg class="spksvg" width="16" height="16" viewBox="0 0 20 20"><defs><filter id="sf"><feGaussianBlur stdDeviation="1.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><path d="M10 0L11.9 8.1L20 10L11.9 11.9L10 20L8.1 11.9L0 10L8.1 8.1Z" fill="rgba(255,255,255,0.52)" filter="url(#sf)"/></svg></div>
 <script>
 const _h = window.location.hostname || 'localhost';
-const WS_URL  = `ws://${_h}:8000/ws/jarvis`;
 const API_URL = `http://${_h}:8000`;
+// session_id persiste entre recarregamentos via localStorage
+let _sessionId = localStorage.getItem('jarvis_session') || '';
+function _wsUrl(){return`ws://${_h}:8000/ws/jarvis${_sessionId?'?session_id='+_sessionId:''}`;}
+const WS_URL = _wsUrl(); // mantido para compatibilidade
 const cvStars=document.getElementById('c-stars'),cxS=cvStars.getContext('2d');
 const cvRings=document.getElementById('c-rings'),cxR=cvRings.getContext('2d');
 const cvOrb=document.getElementById('c-orb'),cxO=cvOrb.getContext('2d');
@@ -428,7 +431,7 @@ function sendMessage(msg){
   fetch(`${API_URL}/chat/stream`,{
     method:'POST',signal:ctrl.signal,
     headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({message:msg,session_id:'frontend'})
+    body:JSON.stringify({message:msg,session_id:_sessionId||'jarvis'})
   }).then(async r=>{
     const reader=r.body.getReader(),dec=new TextDecoder();
     let buf='';
@@ -453,12 +456,17 @@ function sendMessage(msg){
 let ws=null,wsRetry=0;
 function connectWS(){
   try{
-    ws=new WebSocket(WS_URL);
+    ws=new WebSocket(_wsUrl());
     ws.onopen=()=>{document.getElementById('stws').textContent='WS: ONLINE';wsRetry=0;};
     ws.onmessage=(ev)=>{
       try{
         const m=JSON.parse(ev.data);
         if(m.type==='ping'){ws.send(JSON.stringify({type:'pong'}));return;}
+        // Salva session_id recebido do backend no localStorage
+        if(m.session_id&&m.session_id!==_sessionId){
+          _sessionId=m.session_id;
+          localStorage.setItem('jarvis_session',_sessionId);
+        }
         if(m.status==='speaking'){setSpeaking(true);if(m.message)showResponse(m.message);}
         if(m.status==='thinking'){document.getElementById('stlive').textContent='STATUS: PROCESSANDO...';}
         if(m.status==='idle'){if(!currentStream)setSpeaking(false);}
@@ -543,7 +551,7 @@ async function sendVoiceCommand(audioBlob){
   try{
     const fd=new FormData();
     fd.append('audio',audioBlob,'command.wav');
-    fd.append('session_id','voice_v2');
+    fd.append('session_id',_sessionId||'voice');
     const r=await fetch(`${API_URL}/voice/command`,{method:'POST',body:fd});
     if(!r.ok){showResponse('❌ Erro de voz: '+r.status);document.getElementById('hint').textContent='[ ✗ ERRO ]';return;}
     const d=await r.json();
