@@ -1079,7 +1079,36 @@ const _h = window.location.hostname || 'localhost';
 const API_URL = `http://${_h}:8000`;
 // session_id persiste entre recarregamentos via localStorage
 let _sessionId = localStorage.getItem('jarvis_session') || '';
-function _wsUrl(){return`ws://${_h}:8000/ws/jarvis${_sessionId?'?session_id='+_sessionId:''}`;}
+
+// ── TOKEN DE AUTENTICAÇÃO JARVIS ──────────────────────────────────────────────
+// Salva token se vier na URL (?auth=TOKEN) — ex: link gerado por generate_token.bat
+(()=>{
+  const usp=new URLSearchParams(window.location.search);
+  const urlTok=usp.get('auth');
+  if(urlTok&&urlTok.length===64){
+    localStorage.setItem('jarvis_token',urlTok);
+    // Limpa o token da URL (não fica visível no histórico)
+    const clean=window.location.pathname+(usp.toString().replace(/&?auth=[^&]*/,'').replace(/^\?$/,'')?'?'+usp:'');
+    window.history.replaceState({},'',clean);
+  }
+})();
+const _jarvisToken = ()=>localStorage.getItem('jarvis_token')||'';
+// Cabeçalhos padrão para todas as requisições (inclui Bearer token se existir)
+function _authHeaders(extra){
+  const h={'Content-Type':'application/json',...(extra||{})};
+  const tok=_jarvisToken();
+  if(tok)h['Authorization']='Bearer '+tok;
+  return h;
+}
+// ──────────────────────────────────────────────────────────────────────────────
+
+function _wsUrl(){
+  const tok=_jarvisToken();
+  const params=[];
+  if(_sessionId)params.push('session_id='+_sessionId);
+  if(tok)params.push('auth='+tok);
+  return`ws://${_h}:8000/ws/jarvis${params.length?'?'+params.join('&'):''}`;
+}
 const WS_URL = _wsUrl(); // mantido para compatibilidade
 const cvStars=document.getElementById('c-stars'),cxS=cvStars.getContext('2d');
 const cvRings=document.getElementById('c-rings'),cxR=cvRings.getContext('2d');
@@ -1475,6 +1504,8 @@ function connectWS(){
         if(m.status==='idle'){if(!currentStream)setSpeaking(false);}
         if(m.status==='error'){setSpeaking(false);addEvent('err','WS ERRO: '+(m.message||'desconhecido'));}
         if(m.type==='token'&&m.content){appendResponse(m.content);}
+        // ── Alerta de segurança do Guardian ──────────────────────────────────
+        if(m.type==='security_alert'){_onSecurityAlert(m);}
       }catch(e){}
     };
     ws.onclose=()=>{
@@ -1498,6 +1529,29 @@ async function pollHealth(){
   }catch(e){}
 }
 setInterval(pollHealth,8000);pollHealth();
+// ── SECURITY ALERT HANDLER ────────────────────────────────────────────────────
+const _THREAT_COLORS={critical:'rgba(255,42,74,0.9)',high:'rgba(255,140,0,0.88)',medium:'rgba(255,209,102,0.85)',low:'rgba(0,229,255,0.7)'};
+function _onSecurityAlert(m){
+  const lvl=m.level||'high';
+  const color=_THREAT_COLORS[lvl]||_THREAT_COLORS.high;
+  const typeLabel=(m.threat||'THREAT').replace(/_/g,' ').toUpperCase();
+  // Toast de alerta
+  showToast(`AMEAÇA [${lvl.toUpperCase()}] ${typeLabel}`,'error');
+  // Adicionar no feed de eventos
+  addEvent('err',`[SECURITY/${lvl.toUpperCase()}] ${typeLabel} — IP: ${m.ip||'?'}`);
+  // Se for crítico: ativar modo alerta visual
+  if(lvl==='critical'||lvl==='high'){
+    document.body.classList.add('alert');
+    clearTimeout(window._alertTimer);
+    window._alertTimer=setTimeout(()=>document.body.classList.remove('alert'),8000);
+  }
+  // Atualizar indicador de segurança no painel de settings se existir
+  const ss=document.getElementById('sSecScore');
+  if(ss&&(lvl==='critical'||lvl==='high')){
+    ss.textContent=`ALERTA — ${typeLabel}`;
+    ss.style.color=color;
+  }
+}
 // ── COMMAND SYSTEM ──
 const cmdInput=document.getElementById('cmdinput'),cmdText=document.getElementById('cmdtext');
 const CMDS={

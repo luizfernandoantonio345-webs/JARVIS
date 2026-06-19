@@ -1,4 +1,4 @@
-"""JARVIS Backend — FastAPI v8.0"""
+"""JARVIS Backend — FastAPI v9.0"""
 import asyncio
 import logging
 import os
@@ -40,6 +40,19 @@ from config import get_config
 from schemas.ws_messages import idle_msg, speaking_msg, thinking_msg
 
 _cfg = get_config()
+
+# ── Guardian / Security ────────────────────────────────────────────────────────
+_guardian = None
+_JARVIS_SECRET = os.getenv('JARVIS_SECRET_KEY', '')
+if _JARVIS_SECRET:
+    try:
+        from security.guardian import init_guardian
+        _guardian = init_guardian(_JARVIS_SECRET)
+        log.info('[SECURITY] Guardian: ATIVO (tokens HMAC-SHA256 + detecção de ameaças)')
+    except Exception as _ge:
+        log.warning('[SECURITY] Guardian não carregado: %s', _ge)
+else:
+    log.info('[SECURITY] JARVIS_SECRET_KEY não definida — Guardian desativado (modo aberto)')
 
 # ── CORS ───────────────────────────────────────────────────────────────────────
 _raw_origins = _cfg.cors_origins.strip()
@@ -107,7 +120,49 @@ try:
 except Exception as e:
     log.warning('[SECURITY] RateLimiter não carregado: %s', e)
 
-# ── Optional Bearer-token auth ─────────────────────────────────────────────────
+# ── Guardian security middleware ───────────────────────────────────────────────
+# Roda quando JARVIS_SECRET_KEY está definida — valida token Bearer em todas as rotas
+# (exceto /health, /ping, /sw.js, /manifest.json, /static/)
+if _guardian:
+    @app.middleware("http")
+    async def _guardian_middleware(request: Request, call_next):
+        ip = request.client.host if request.client else "unknown"
+        path = request.url.path
+        method = request.method
+
+        # Leitura do body (limitada a 8KB para payload scan)
+        body = ""
+        if method in ("POST", "PUT", "PATCH"):
+            try:
+                raw = await request.body()
+                body = raw[:8192].decode("utf-8", errors="replace")
+            except Exception:
+                pass
+
+        token = ""
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:].strip()
+        if not token:
+            token = request.query_params.get("auth", "")
+
+        user_agent = request.headers.get("User-Agent", "")
+
+        allowed, status_code, detail = _guardian.check_request(
+            ip=ip, path=path, method=method,
+            body=body, user_agent=user_agent, token=token,
+        )
+
+        if not allowed:
+            return JSONResponse(
+                {"error": "Acesso negado", "detail": detail},
+                status_code=status_code,
+                headers={"X-JARVIS-Blocked": "true"},
+            )
+
+        return await call_next(request)
+
+# ── Optional Bearer-token auth (legado — substituído pelo Guardian quando JARVIS_SECRET_KEY definida) ──
 _API_KEY = _cfg.api_key.strip()
 
 if _API_KEY:
@@ -210,6 +265,8 @@ def _mount_routers():
         # ── JARVIS v8.0: Generation + Task queue ───────────────────────────
         ('routes.generate',     '/generate',      False),  # Code/docs/diagrams/tests generation
         ('routes.tasks',        '/tasks',         False),  # Background task queue
+        # ── JARVIS v9.0: Security dashboard ───────────────────────────────────
+        ('routes.security',     '/security',      False),  # Auth tokens + threat dashboard
     ]
     for module, prefix, required in cfg_map:
         try:
@@ -250,6 +307,13 @@ async def startup():
     log.info('CORS  : %s', CORS_ORIGINS)
 
     _mount_routers()
+
+    # Registrar callback do Guardian para broadcast de alertas via WebSocket
+    if _guardian:
+        async def _broadcast_security_alert(payload: dict):
+            await manager.broadcast(payload)
+        _guardian.register_alert_callback(_broadcast_security_alert)
+        log.info('[SECURITY] Alertas de ameaça conectados ao WebSocket.')
 
     asyncio.create_task(_init_voice())
     asyncio.create_task(_prewarm_ollama())
