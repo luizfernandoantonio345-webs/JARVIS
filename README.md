@@ -1,285 +1,279 @@
 <div align="center">
 
-# JARVIS — Just A Rather Very Intelligent System
+# J.A.R.V.I.S.
 
-**Assistente de IA pessoal, autônomo e offline-first**
+**Just A Rather Very Intelligent System**
 
-[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
-[![Ollama](https://img.shields.io/badge/Ollama-Local%20LLM-black?style=flat-square)](https://ollama.ai)
-[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+Personal AI assistant — 100% local, offline-first, no cloud required.
 
-> **Roda 100% no seu hardware. Sem nuvem obrigatória. Sem dados enviados a terceiros.**
+[![Python](https://img.shields.io/badge/Python-3.11-blue?logo=python)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi)](https://fastapi.tiangolo.com)
+[![Ollama](https://img.shields.io/badge/Ollama-local_LLM-black?logo=ollama)](https://ollama.com)
+[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
 </div>
 
 ---
 
-## Visão Geral
+## What is JARVIS?
 
-JARVIS é um assistente de IA pessoal de alto desempenho com arquitetura modular, projetado para rodar localmente com **Ollama** e LLMs open-source. Ele integra voz bidirecional (STT + TTS), memória semântica vetorial, autonomia proativa com controle de risco, monitoramento do sistema e uma interface web responsiva — tudo sem dependência de APIs externas pagas.
+JARVIS is a fully local AI assistant inspired by Iron Man's J.A.R.V.I.S. It runs entirely on your machine — no data leaves your computer, no subscriptions, no API keys required (unless you choose to enable them). It uses [Ollama](https://ollama.com) to run large language models locally and exposes a full API via FastAPI.
 
-### Capacidades
-
-| Capacidade | Detalhe |
-|---|---|
-| **Offline-first** | Modelos locais via Ollama (phi, mistral, llama3, tinyllama) |
-| **Voz bidirecional** | STT via faster-whisper + TTS via edge-tts (pt-BR-AntonioNeural) |
-| **Memória semântica** | ChromaDB + sentence-transformers para contexto persistente |
-| **Autonomia proativa** | Decision engine + safety gate — confirmação antes de ações críticas |
-| **Observability** | Prometheus metrics + stack Grafana integrada |
-| **Multi-LLM routing** | Roteamento por complexidade: Ollama local → Claude / OpenAI |
-| **Interface PWA** | SPA offline-capable com orb animado e chat em tempo real via WebSocket |
+**Highlights:**
+- Real-time chat via WebSocket with streaming tokens
+- 8 specialized AI agents (Dev, Architect, Debugger, Reviewer, Security, Planner, Executor, System)
+- Voice input (STT via faster-whisper) and output (TTS via edge-tts)
+- Wake word detection ("Hey JARVIS")
+- Semantic memory with RAG (ChromaDB + sentence-transformers)
+- Hardened security system (threat detection, IP blocking, token auth, audit log)
+- Modern SPA frontend (no framework — pure HTML/CSS/JS)
+- Auto model selection based on available RAM
 
 ---
 
-## Arquitetura
+## Requirements
 
-```
-jarvis/
-├── backend/                   # FastAPI — núcleo do sistema
-│   ├── main.py                # Entry point + WebSocket hub
-│   ├── config.py              # Configuração centralizada (pydantic-settings)
-│   ├── core/                  # Persona, logger, risk engine, event bus
-│   ├── routes/                # Endpoints HTTP & WebSocket
-│   ├── services/              # LLM service, session store
-│   ├── ai/                    # Cliente multi-LLM (Ollama / Claude / OpenAI)
-│   ├── voice/                 # Pipeline de voz v1 (STT + TTS)
-│   ├── voice_v2/              # Pipeline de voz v2 com headset detection
-│   ├── memory/                # Context augmentor + semantic engine
-│   ├── autonomy/              # Decision engine, activity tracker, safety gate
-│   ├── intents/               # Intent parser, executor, risk evaluator
-│   ├── experience/            # Engine de aprendizado por experiência
-│   ├── observability/         # Prometheus metrics + system metrics
-│   ├── research_runtime/      # Motor de pesquisa autônoma
-│   ├── runtime/               # Watchdog de processo
-│   ├── cybersecurity/         # Módulo de auditoria de segurança
-│   └── agents/                # Agentes especializados
-├── frontend/                  # Interface web (HTML + PWA)
-│   ├── index.html             # SPA principal — orb animado + chat
-│   ├── manifest.json          # PWA manifest
-│   └── service-worker.js      # Offline cache
-├── infra/                     # Infraestrutura
-│   ├── prometheus/            # Configuração de métricas
-│   ├── grafana/               # Datasources e dashboards
-│   └── caddy/                 # Reverse proxy com HTTPS automático
-├── scripts/                   # Scripts utilitários
-├── tests/                     # Suite de testes
-├── docker-compose.yml         # Stack completa em containers
-└── backend/.env.example       # Template de variáveis de ambiente
+| Requirement | Minimum | Recommended |
+|-------------|---------|-------------|
+| OS | Windows 10 | Windows 10/11 |
+| Python | 3.11 | 3.11 |
+| RAM | 4 GB | 16+ GB |
+| Storage | 3 GB | 10 GB |
+| [Ollama](https://ollama.com) | Latest | Latest |
+
+**Ollama models by RAM:**
+
+| Available RAM | Model | Quality |
+|--------------|-------|---------|
+| 4–6 GB | `qwen2:0.5b` | Basic |
+| 6–12 GB | `qwen2:1.5b` | Good |
+| 12–28 GB | `llama3.2:3b` | Great |
+| 32 GB+ | `mistral:7b` | Best |
+
+---
+
+## Quick Start
+
+### 1. Install Ollama
+Download and install from [ollama.com](https://ollama.com), then pull a model:
+```bash
+ollama pull qwen2:0.5b
 ```
 
----
-
-## Pré-requisitos
-
-| Dependência | Versão | Obrigatório |
-|---|---|---|
-| Python | 3.11+ | ✅ |
-| [Ollama](https://ollama.ai) | latest | ✅ |
-| Node.js | 18+ | Apenas para build do frontend |
-| Docker + Compose | v2+ | Apenas para deploy em container |
-| Microfone / Speakers | — | Apenas para uso com voz |
-
----
-
-## Instalação Rápida
-
-### 1 — Clone o repositório
-
+### 2. Setup Python environment
 ```bash
 git clone https://github.com/luizfernandoantonio345-webs/JARVIS.git
 cd JARVIS
+
+python -m venv venv311
+venv311\Scripts\pip install -r backend\requirements.txt
 ```
 
-### 2 — Ambiente Python
-
+### 3. Configure (optional)
 ```bash
-python -m venv .venv
-
-# Windows
-.venv\Scripts\activate
-
-# Linux / macOS
-source .venv/bin/activate
+copy .env.example .env
+# Edit .env if needed (default config works out of the box)
 ```
 
-### 3 — Dependências
-
+### 4. Start JARVIS
 ```bash
-pip install -r backend/requirements.txt
+start.bat
 ```
 
-### 4 — Configuração do ambiente
-
-```bash
-# Copie o template e edite com seus valores
-cp backend/.env.example .env
-```
-
-Variáveis mínimas para rodar:
-
-```env
-JARVIS_MODEL=phi:latest
-JARVIS_OLLAMA_URL=http://localhost:11434
-JARVIS_VOICE_ENABLED=true
-```
-
-> **Segurança:** nunca commite o arquivo `.env`. Ele está no `.gitignore`.
-
-### 5 — Baixe um modelo Ollama
-
-```bash
-ollama pull phi       # leve, rápido (recomendado para início)
-ollama pull mistral   # melhor qualidade
-ollama pull llama3    # mais capaz
-```
-
-### 6 — Inicie
-
-```bash
-# Windows — atalho de um clique
-start_jarvis.bat
-
-# Manual
-python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-Acesse: **http://localhost:8000**
+JARVIS will auto-detect your RAM, pick the best model, start Ollama, and open the interface at `http://localhost:8000`.
 
 ---
 
-## Deploy com Docker
+## Project Structure
+
+```
+JARVIS/
+├── backend/                  # FastAPI application
+│   ├── main.py               # Entry point, WebSocket, lifecycle
+│   ├── config.py             # Centralized config via Pydantic
+│   ├── agents/               # 8 specialized AI agents
+│   │   ├── base_agent.py
+│   │   ├── dev_agent.py
+│   │   ├── architect_agent.py
+│   │   ├── debugger_agent.py
+│   │   ├── reviewer_agent.py
+│   │   ├── security_agent.py
+│   │   ├── planner_agent.py
+│   │   └── executor_agent.py
+│   ├── routes/               # 11 HTTP routers
+│   │   ├── chat.py           # POST /chat, GET /chat/stream
+│   │   ├── agents.py         # GET /agents/, POST /agents/{role}/run
+│   │   ├── security.py       # /security/* (15+ endpoints)
+│   │   ├── health.py         # GET /health, /status, /health/deep
+│   │   ├── voice.py          # POST /voice/command
+│   │   ├── memory.py         # GET /memory/search
+│   │   ├── investigate.py    # POST /investigate/{type} (OSINT)
+│   │   ├── analyze.py        # POST /analyze/code
+│   │   ├── architect.py      # POST /architect
+│   │   ├── generate.py       # POST /generate/*
+│   │   └── tasks.py          # POST /tasks/run
+│   ├── security/             # Hardened security layer
+│   │   ├── auth_manager.py   # HMAC-SHA256 tokens, TTL, allowlist
+│   │   ├── threat_detector.py# 11 attack pattern types
+│   │   └── guardian.py       # Lockdown, scoring, device ban
+│   ├── services/             # Business logic
+│   │   ├── llm_service.py    # Ollama API + retry logic
+│   │   ├── rag_service.py    # ChromaDB RAG
+│   │   └── session_store.py  # SQLite conversation history
+│   ├── voice_v2/             # Voice pipeline
+│   │   ├── input.py          # STT via faster-whisper
+│   │   ├── output.py         # TTS via edge-tts (4 fallback backends)
+│   │   └── wake_word.py      # "Hey JARVIS" detection
+│   ├── memory/               # Persistent + semantic memory
+│   ├── middleware/           # Security headers, rate limiting, audit
+│   └── tests/                # 516 passing tests
+├── frontend/
+│   ├── index.html            # SPA structure
+│   ├── app.js                # All JavaScript (~3000 lines)
+│   └── style.css             # All CSS (~670 lines)
+├── .env.example              # Configuration template
+├── start.bat                 # One-click startup (Windows)
+├── stop_jarvis.bat           # Stop all JARVIS processes
+├── check_jarvis.py           # Pre-flight diagnostics
+└── docker-compose.yml        # Docker deployment
+```
+
+---
+
+## Configuration
+
+Copy `.env.example` to `.env` and adjust as needed. All variables are optional — the defaults work out of the box for local use.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `JARVIS_MODEL` | `qwen2:0.5b` | Ollama model (auto-selected by start.bat) |
+| `JARVIS_OLLAMA_URL` | `http://127.0.0.1:11434` | Ollama endpoint |
+| `JARVIS_VOICE_ENABLED` | `true` | Enable TTS voice output |
+| `JARVIS_TTS_VOICE` | `pt-BR-AntonioNeural` | Edge-TTS voice |
+| `JARVIS_LANG` | `pt-BR` | Interface language |
+| `JARVIS_SECRET_KEY` | *(empty)* | Token signing key (leave empty for local use) |
+| `JARVIS_API_KEY` | *(empty)* | Bearer auth (leave empty to disable) |
+| `JARVIS_SAFE_MODE` | `true` | Restrict high-risk shell operations |
+
+---
+
+## API Endpoints
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| WS | `/ws/jarvis?session_id=` | Real-time chat with streaming |
+| GET | `/health` | Health check + Ollama status |
+| GET | `/health/deep` | Deep check (Ollama, SQLite, disk, RAM) |
+| GET | `/status` | Uptime, model, voice status |
+| POST | `/chat` | Synchronous chat |
+| GET | `/agents/` | List available agents |
+| POST | `/agents/{role}/run` | Run a specific agent |
+| POST | `/voice/command` | STT → LLM → TTS pipeline |
+| POST | `/investigate/{type}` | OSINT (phone/ip/email/domain) |
+| POST | `/analyze/code` | Code analysis (25+ languages) |
+| POST | `/architect` | System architecture design |
+| POST | `/generate/code` | Code generation |
+| POST | `/tasks/run` | Async background task |
+| GET | `/security/guardian` | Security status + score |
+| GET | `/docs` | Swagger UI |
+
+---
+
+## Keyboard Shortcuts (Frontend)
+
+| Shortcut | Action |
+|----------|--------|
+| `Space` | Toggle voice input |
+| `1–4` | Show panels (code/map/data/protocols) |
+| `Esc` | Close all panels |
+| `Ctrl+K` | Focus chat input |
+| `Ctrl+L` | Clear response panel |
+| `Ctrl+R` | Reconnect WebSocket |
+| `Ctrl+/` | Show shortcuts help |
+| `F2` | OSINT investigation |
+| `F3` | Code analysis |
+| `F4` | Architecture design |
+| `F5` | Code generation |
+| `F6` | Summarize text |
+| `F7` | Generate tests |
+| `F8` | Mermaid diagram |
+| `F9` | Keyboard shortcuts modal |
+
+---
+
+## AI Agents
+
+JARVIS routes messages automatically to the most appropriate agent:
+
+| Agent | Role | Trigger keywords |
+|-------|------|-----------------|
+| `dev` | Write clean code | "código", "implementar", "code", "write" |
+| `architect` | System design + Mermaid diagrams | "arquitetura", "design", "architecture" |
+| `debugger` | Root cause analysis + fixes | "erro", "bug", "debug", "fix" |
+| `reviewer` | Structured code review | "revisar", "review", "feedback" |
+| `security` | OWASP / pentest analysis | "segurança", "vulnerability", "pentest" |
+| `planner` | Multi-step planning | "planejar", "plan", "steps" |
+| `executor` | Shell command execution | "execute", "run", "executar" |
+| `system` | CPU/RAM/disk monitoring | "sistema", "system", "monitor" |
+
+---
+
+## Security
+
+JARVIS includes a production-grade security layer:
+
+- **11 attack pattern detectors**: SQLi, XSS, Path Traversal, CMD Injection, LDAP, XXE, SSRF, SSTI, NoSQL, Log4Shell, Prototype Pollution
+- **Progressive auto-ban**: 5min → 1h → 24h → permanent
+- **Token TTL and revocation**: HMAC-SHA256 signed tokens with expiry
+- **IP allowlist** and **lockdown mode**
+- **Honeypot endpoints**: 20 trap paths
+- **Alert deduplication**: prevents spam
+- **Full audit log** with rotation
+
+---
+
+## Docker
 
 ```bash
-# Stack completa (JARVIS + Prometheus + Grafana + Caddy)
 docker-compose up -d
-
-# Verificar saúde
-curl http://localhost:8000/health
 ```
 
-| Serviço | URL padrão |
-|---|---|
-| JARVIS API + UI | http://localhost:8000 |
-| Docs interativos | http://localhost:8000/docs |
-| Prometheus | http://localhost:9090 |
-| Grafana | http://localhost:3001 |
+Requires Ollama running on the host. Edit `docker-compose.yml` to set `JARVIS_OLLAMA_URL` to your host IP.
 
 ---
 
-## API Reference
+## Diagnostics
 
-| Método | Rota | Descrição |
-|---|---|---|
-| `GET` | `/health` | Health check do sistema |
-| `POST` | `/api/v1/chat` | Chat via HTTP |
-| `WS` | `/ws` | WebSocket bidirecional |
-| `POST` | `/api/v1/voice/speak` | TTS — texto → áudio |
-| `POST` | `/api/v1/voice/transcribe` | STT — áudio → texto |
-| `GET` | `/api/v1/memory` | Consulta memória semântica |
-| `GET` | `/api/v1/autonomy/status` | Status da autonomia |
-| `GET` | `/metrics` | Métricas Prometheus |
-
-Documentação completa e interativa: **http://localhost:8000/docs**
-
----
-
-## Configuração de Voz
-
-```env
-JARVIS_VOICE_ENABLED=true
-JARVIS_WAKE_WORD=jarvis
-JARVIS_TTS_VOICE=pt-BR-AntonioNeural
-JARVIS_TTS_RATE=-12%
-JARVIS_VOICE_LANGUAGE=pt-BR
-JARVIS_STM_MODEL=small          # tiny | base | small | medium | large
-```
-
-Para listar dispositivos de áudio disponíveis:
+Run the pre-flight check before deploying:
 
 ```bash
-python test_audio_devices.py
+python check_jarvis.py
 ```
 
----
-
-## Módulo de Autonomia
-
-O JARVIS pode tomar iniciativas proativas com controle granular de risco:
-
-```env
-JARVIS_AUTONOMY_ENABLED=true
-JARVIS_AUTONOMY_SAFE_MODE=true          # confirmação obrigatória para ações críticas
-JARVIS_AUTONOMY_MAX_ACTIONS_PER_MINUTE=3
-JARVIS_IDLE_TIMEOUT_MINUTES=5
-```
-
-O **Safety Gate** classifica cada ação nos níveis `LOW → MEDIUM → HIGH → CRITICAL` e bloqueia automaticamente operações de alto impacto sem confirmação explícita do usuário.
+This verifies Python, dependencies, Ollama, SQLite, disk space, RAM, frontend files, and config.
 
 ---
 
-## Testes
+## Stack
 
-```bash
-# Instalar dependências de desenvolvimento
-pip install -r backend/requirements-dev.txt
-
-# Suite completa
-pytest tests/ -v
-
-# Testes por módulo
-pytest tests/test_chat.py -v
-pytest tests/test_voice.py -v
-```
+| Layer | Technology |
+|-------|-----------|
+| Backend | Python 3.11 + FastAPI 0.115 + Uvicorn |
+| LLM | Ollama (local, offline) |
+| Memory | SQLite (session history) + ChromaDB (semantic/RAG) |
+| TTS | edge-tts (pt-BR-AntonioNeural) + 4 fallback backends |
+| STT | faster-whisper (optional) |
+| Frontend | Pure HTML/CSS/JS SPA (no framework) |
+| Security | Custom HMAC-SHA256 auth + threat detection layer |
 
 ---
 
-## Segurança
+## License
 
-- **Nenhuma chave de API é commitada** — use sempre o arquivo `.env` (incluído no `.gitignore`)
-- **Dados de memória são locais** — bancos `.db` e vetores ChromaDB ficam apenas na sua máquina, nunca sobem ao repositório
-- **Safe Mode ativo por padrão** — ações autônomas de alto risco exigem confirmação explícita
-- **Rate limiting** integrado via `slowapi` para proteger todos os endpoints
-- Para reportar vulnerabilidades, abra uma **Issue** privada no repositório
-
----
-
-## Variáveis de Ambiente
-
-Todas as variáveis utilizam o prefixo `JARVIS_`. Veja o template completo em [`backend/.env.example`](backend/.env.example).
-
-| Variável | Padrão | Descrição |
-|---|---|---|
-| `JARVIS_MODEL` | `tinyllama:latest` | Modelo Ollama principal |
-| `JARVIS_OLLAMA_URL` | `http://localhost:11434` | URL do servidor Ollama |
-| `JARVIS_VOICE_ENABLED` | `true` | Habilitar módulo de voz |
-| `JARVIS_AUTONOMY_ENABLED` | `true` | Habilitar autonomia proativa |
-| `JARVIS_AUTONOMY_SAFE_MODE` | `true` | Exigir confirmação em ações críticas |
-| `JARVIS_ANTHROPIC_API_KEY` | *(vazio)* | Chave Claude — opcional |
-| `JARVIS_OPENAI_API_KEY` | *(vazio)* | Chave OpenAI — opcional |
-| `JARVIS_PORT` | `8000` | Porta do servidor backend |
-
----
-
-## Contribuindo
-
-1. Faça fork do repositório
-2. Crie sua branch: `git checkout -b feature/minha-feature`
-3. Commit com mensagem semântica: `git commit -m "feat: adiciona X"`
-4. Push: `git push origin feature/minha-feature`
-5. Abra um Pull Request descrevendo a mudança
-
----
-
-## Licença
-
-Distribuído sob a licença **MIT**. Veja [`LICENSE`](LICENSE) para detalhes.
+MIT — Personal project, free to use and modify.
 
 ---
 
 <div align="center">
-
-*"Qualquer tecnologia suficientemente avançada é indistinguível da magia." — Arthur C. Clarke*
-
+Made with dedication. Powered by local AI.
 </div>

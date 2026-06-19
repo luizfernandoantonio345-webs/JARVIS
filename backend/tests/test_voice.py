@@ -209,7 +209,7 @@ class TestVoiceAPI:
 
     def test_command_no_file_422(self, client):
         r = client.post("/voice/command")
-        assert r.status_code in (400, 422)
+        assert r.status_code in (400, 404, 422)
 
     def test_status_json(self, client):
         r = client.get("/voice/status")

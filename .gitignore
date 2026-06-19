@@ -2,9 +2,29 @@
 # JARVIS — .gitignore
 # =============================================================================
 
-# Diretórios legados / lixo (não enviar ao GitHub)
+# Legado / lixo
 _legacy/
 _lixo/
+
+# Escola / rede local (configs com credenciais reais)
+.env.escola
+start_jarvis_escola.bat
+start_jarvis_rede.bat
+setup_escola.bat
+setup_tailscale.bat
+
+# Scripts de deploy/autostart local
+install_autostart.bat
+install_autostart.ps1
+startup_final.ps1
+deploy_now.ps1
+generate_token.bat
+
+# Testes E2E raiz (legado)
+tests/
+
+# VSCode extension (em desenvolvimento separado)
+vscode-extension/
 
 # Python
 __pycache__/
