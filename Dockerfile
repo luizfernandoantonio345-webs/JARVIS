@@ -1,86 +1,35 @@
-# ==============================================================================
-# JARVIS v5.2 — Multi-stage Dockerfile for Production
-# ==============================================================================
-# Build stage: Install dependencies and run tests
-# Runtime stage: Minimal production image
-
-# ==============================================================================
-# Stage 1: Builder
-# ==============================================================================
-FROM python:3.11-slim as builder
-
-WORKDIR /build
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    git \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy requirements
-COPY backend/requirements.txt backend/requirements-dev.txt ./
-
-# Install Python dependencies
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir -r requirements-dev.txt
-
-# Copy application code
-COPY backend ./backend
-COPY tests ./tests
-
-# Run linting and tests
-RUN echo "Running linting..." && \
-    black --check backend/ || true && \
-    isort --check-only backend/ || true && \
-    flake8 backend/ --count --exit-zero || true
-
-RUN echo "Running tests..." && \
-    pytest tests/ -v --tb=short --cov=backend --cov-report=term || true
-
-# ==============================================================================
-# Stage 2: Runtime
-# ==============================================================================
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install runtime system dependencies only
+# Dependências do sistema (áudio, crypto)
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
     curl \
-    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Create non-root user for security
-RUN useradd -m -u 1000 jarvis
+# Dependências Python
+COPY backend/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy only production dependencies from builder
-COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
+# Código do backend
+COPY backend/ ./backend/
+COPY frontend/ ./frontend/
+COPY .env.example ./.env.example
 
-# Copy application code
-COPY backend ./backend
-COPY .env.example ./.env
+# Criar dirs de dados
+RUN mkdir -p backend/data/tts backend/data/chroma backend/logs backend/memory
 
-# Create logs directory
-RUN mkdir -p backend/logs && chown -R jarvis:jarvis /app
-
-# Switch to non-root user
-USER jarvis
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
-
-# Expose port
-EXPOSE 8000
-
-# Set environment variables
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONDONTWRITEBYTECODE=1
+# Variáveis de ambiente padrão (sobrescritas pelo docker-compose ou .env)
 ENV JARVIS_HOST=0.0.0.0
 ENV JARVIS_PORT=8000
+ENV JARVIS_LOG_LEVEL=INFO
+ENV PYTHONIOENCODING=utf-8
+ENV PYTHONUNBUFFERED=1
 
-# Default command
-CMD ["python", "-m", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -sf http://localhost:8000/ping || exit 1
+
+CMD ["python", "-m", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "info"]

@@ -1,157 +1,108 @@
-version: '3.9'
+# JARVIS v10.0 — Docker Compose
+# Uso: docker compose up -d
+#
+# Serviços:
+#   ollama  — LLM local (mistral:7b ou qualquer modelo)
+#   jarvis  — Backend FastAPI + Frontend SPA
+#
+# Acesso: http://localhost:8000 (ou http://IP-TAILSCALE:8000 de qualquer lugar)
 
 services:
-  # ===========================================================================
-  # JARVIS Backend API
-  # ===========================================================================
+
+  # ── Ollama — LLM local ─────────────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: jarvis-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_KEEP_ALIVE=60m
+      - OLLAMA_HOST=0.0.0.0
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # ── JARVIS Backend + Frontend ──────────────────────────────────────────────
   jarvis:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: jarvis-backend
+    restart: unless-stopped
     ports:
       - "8000:8000"
+    depends_on:
+      ollama:
+        condition: service_healthy
     environment:
+      # LLM — aponta para o container Ollama
       - JARVIS_OLLAMA_URL=http://ollama:11434
-      - JARVIS_OTEL_CONSOLE=false
-      - JARVIS_PORT=8000
+      - JARVIS_MODEL=${JARVIS_MODEL:-mistral:7b}
+      - JARVIS_FALLBACK_MODEL=${JARVIS_FALLBACK_MODEL:-llama3.2:3b}
+      - JARVIS_TIMEOUT=120
+
+      # Servidor
       - JARVIS_HOST=0.0.0.0
-      - JARVIS_DISABLE_VOICE=1
-      - JARVIS_LOG_LEVEL=INFO
+      - JARVIS_PORT=8000
+      - JARVIS_LOG_LEVEL=${JARVIS_LOG_LEVEL:-INFO}
+      - JARVIS_CORS_ORIGINS=*
+
+      # Segurança
+      - JARVIS_SECRET_KEY=${JARVIS_SECRET_KEY}
+      - JARVIS_SAFE_MODE=false
+
+      # Voz (TTS funciona sem microfone no servidor)
+      - JARVIS_VOICE_ENABLED=${JARVIS_VOICE_ENABLED:-true}
+      - JARVIS_TTS_VOICE=${JARVIS_TTS_VOICE:-en-GB-RyanNeural}
+      - JARVIS_HEADSET_MODE=false
+      - JARVIS_WAKE_WORD_ENABLED=false
+
+      # Performance
+      - KMP_DUPLICATE_LIB_OK=TRUE
+      - OMP_NUM_THREADS=4
+      - PYTHONIOENCODING=utf-8
       - PYTHONUNBUFFERED=1
     volumes:
-      - ./backend:/app/backend
-      - ./backend/logs:/app/backend/logs
-      - ./jobs:/app/jobs
-    depends_on:
-      - ollama
-      - redis
-    networks:
-      - jarvis-network
+      # Persistência de dados fora do container
+      - jarvis_data:/app/backend/data
+      - jarvis_logs:/app/backend/logs
+      - jarvis_memory:/app/backend/memory
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-sf", "http://localhost:8000/ping"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 5s
-    restart: unless-stopped
+      start_period: 60s
 
-  # ===========================================================================
-  # Ollama — Local LLM Service
-  # ===========================================================================
-  ollama:
+  # ── Ollama model puller (roda 1x e sai) ───────────────────────────────────
+  ollama-pull:
     image: ollama/ollama:latest
-    container_name: jarvis-ollama
-    ports:
-      - "11434:11434"
+    container_name: jarvis-model-pull
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: >
+      sh -c "
+        echo 'Baixando modelo ${JARVIS_MODEL:-mistral:7b}...' &&
+        ollama pull ${JARVIS_MODEL:-mistral:7b} &&
+        echo 'Modelo pronto!'
+      "
     environment:
-      - OLLAMA_HOST=0.0.0.0:11434
+      - OLLAMA_HOST=http://ollama:11434
     volumes:
-      - ollama-data:/root/.ollama
-    networks:
-      - jarvis-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    restart: unless-stopped
-
-  # ===========================================================================
-  # PostgreSQL — Optional: Future database backend
-  # ===========================================================================
-  # postgres:
-  #   image: postgres:15-alpine
-  #   container_name: jarvis-postgres
-  #   environment:
-  #     - POSTGRES_DB=jarvis
-  #     - POSTGRES_USER=jarvis
-  #     - POSTGRES_PASSWORD=jarvis_secure_password
-  #   ports:
-  #     - "5432:5432"
-  #   volumes:
-  #     - postgres-data:/var/lib/postgresql/data
-  #   networks:
-  #     - jarvis-network
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -U jarvis"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 5
-  #   restart: unless-stopped
-
-  # ===========================================================================
-  # Redis — Optional: Caching and session storage
-  # ===========================================================================
-  redis:
-    image: redis:7-alpine
-    container_name: jarvis-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-    networks:
-      - jarvis-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: jarvis-prometheus
-    command:
-      - --config.file=/etc/prometheus/prometheus.yml
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-    networks:
-      - jarvis-network
-    depends_on:
-      - jarvis
-    restart: unless-stopped
-
-  grafana:
-    image: grafana/grafana:latest
-    container_name: jarvis-grafana
-    ports:
-      - "3001:3000"
-    volumes:
-      - grafana-data:/var/lib/grafana
-      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
-    networks:
-      - jarvis-network
-    depends_on:
-      - prometheus
-    restart: unless-stopped
-
-  caddy:
-    image: caddy:2-alpine
-    container_name: jarvis-caddy
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data
-      - caddy-config:/config
-    networks:
-      - jarvis-network
-    depends_on:
-      - jarvis
-    restart: unless-stopped
+      - ollama_data:/root/.ollama
+    restart: "no"
+    profiles:
+      - setup
 
 volumes:
-  ollama-data:
-  # postgres-data:
-  redis-data:
-  grafana-data:
-  caddy-data:
-  caddy-config:
-
-networks:
-  jarvis-network:
-    driver: bridge
+  ollama_data:    # Modelos Ollama (~4-8GB por modelo)
+  jarvis_data:    # ChromaDB, SQLite, TTS files
+  jarvis_logs:    # Logs rotativos
+  jarvis_memory:  # Memória persistente
