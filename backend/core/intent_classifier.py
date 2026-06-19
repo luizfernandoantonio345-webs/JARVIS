@@ -216,3 +216,10 @@ def get_intent_classifier() -> IntentClassifier:
         _classifier = IntentClassifier()
     return _classifier
 
+
+def classify_intent(query: str) -> dict:
+    """Convenience function — classifies a query and returns a dict with intent info."""
+    clf = get_intent_classifier()
+    tier = clf.classify(query)
+    return {"intent": tier.value if hasattr(tier, "value") else str(tier), "query": query}
+

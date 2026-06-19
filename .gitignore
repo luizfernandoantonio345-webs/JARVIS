@@ -20,8 +20,8 @@ startup_final.ps1
 deploy_now.ps1
 generate_token.bat
 
-# Testes E2E raiz (legado)
-tests/
+# Testes E2E raiz (legado) — apenas o diretório raiz, não backend/tests/
+/tests/
 
 # VSCode extension (em desenvolvimento separado)
 vscode-extension/

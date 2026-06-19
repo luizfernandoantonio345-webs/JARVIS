@@ -136,3 +136,15 @@ class SafetyGate:
 
 
 safety_gate = SafetyGate()
+
+
+def check_safety(message: str) -> dict:
+    """Convenience function — quick synchronous risk check for a text message."""
+    _dangerous = ["bomb", "kill", "hack", "exploit", "malware", "ransom", "ddos", "rm -rf", "delete all"]
+    text = message.lower()
+    risk = "low"
+    for kw in _dangerous:
+        if kw in text:
+            risk = "high"
+            break
+    return {"allowed": risk == "low", "risk_level": risk, "message": message[:100]}

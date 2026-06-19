@@ -123,3 +123,44 @@ def message_count(session_id: str) -> int:
             conn.close()
     except Exception:
         return 0
+
+
+SYSTEM_PROMPT = "You are JARVIS, a personal AI assistant. Be helpful, concise, and professional."
+
+
+class SessionStore:
+    """Object-oriented wrapper around the module-level session functions."""
+
+    def get_history(self, session_id: str) -> List[Dict[str, str]]:
+        return get_history(session_id)
+
+    def get(self, session_id: str) -> List[Dict[str, str]]:
+        return get_history(session_id)
+
+    def add_message(self, session_id: str, role: str, content: str) -> None:
+        append_message(session_id, role, content)
+
+    def save(self, session_id: str, role: str, content: str) -> None:
+        append_message(session_id, role, content)
+
+    def append(self, session_id: str, role: str, content: str) -> None:
+        append_message(session_id, role, content)
+
+    def clear(self, session_id: str) -> None:
+        clear_session(session_id)
+
+    def delete(self, session_id: str) -> bool:
+        return delete_session(session_id)
+
+    def count(self, session_id: str) -> int:
+        return message_count(session_id)
+
+
+_store: SessionStore | None = None
+
+
+def get_session_store() -> SessionStore:
+    global _store
+    if _store is None:
+        _store = SessionStore()
+    return _store
