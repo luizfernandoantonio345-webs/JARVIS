@@ -2,9 +2,12 @@
 import logging
 import os
 import tempfile
+from pathlib import Path
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
+
+_TTS_DIR = Path(__file__).parent.parent / "data" / "tts"
 
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["Voice"])
@@ -87,6 +90,22 @@ async def tts_generate(text: str, voice: str | None = None):
     except Exception as e:
         log.error("[VOICE/TTS] Erro: %s", e)
         raise HTTPException(500, f"Erro TTS: {e}")
+
+
+@router.get("/audio/{filename}", summary="Serve arquivo TTS gerado pelo pipeline")
+async def serve_tts_audio(filename: str):
+    """
+    Serve arquivos MP3 gerados pelo pipeline de voz.
+    Permite que o frontend (incluindo mobile) reproduza a resposta em áudio.
+    """
+    if not filename.endswith(".mp3") or "/" in filename or "\\" in filename:
+        raise HTTPException(400, "Nome de arquivo inválido")
+
+    path = _TTS_DIR / filename
+    if not path.exists():
+        raise HTTPException(404, "Arquivo de áudio não encontrado ou expirado")
+
+    return FileResponse(str(path), media_type="audio/mpeg", filename=filename)
 
 
 @router.get("/status")

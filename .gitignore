@@ -63,6 +63,7 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
+.env.escola
 *.pem
 *.key
 *.p12

@@ -8,8 +8,12 @@ from __future__ import annotations
 
 from enum import Enum
 
-from backend.intents.risk_evaluator import evaluate_risk as _legacy_evaluate
-from backend.intents.schemas import Intent, RiskLevel
+try:
+    from intents.risk_evaluator import evaluate_risk as _legacy_evaluate
+    from intents.schemas import Intent, RiskLevel
+except ImportError:
+    from backend.intents.risk_evaluator import evaluate_risk as _legacy_evaluate
+    from backend.intents.schemas import Intent, RiskLevel
 
 
 class RiskDecision(str, Enum):

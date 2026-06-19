@@ -119,7 +119,7 @@ if errorlevel 1 (
 
 :: ── [8] Pre-aquecer modelo (elimina cold start) ───────────────────────────────
 echo [..] Pre-aquecendo mistral:7b em background...
-start "" /min cmd /c "curl -s --max-time 120 -X POST http://127.0.0.1:11434/api/generate -d \"{\"\"model\"\":\"\"mistral:7b\"\",\"\"prompt\"\":\"\"ready\"\",\"\"stream\"\":false,\"\"keep_alive\"\":\"\"60m\"\"}\" >nul 2>&1"
+start "" /min powershell -WindowStyle Hidden -Command "Invoke-RestMethod -Method POST -Uri 'http://127.0.0.1:11434/api/generate' -ContentType 'application/json' -Body '{\"model\":\"mistral:7b\",\"prompt\":\"ready\",\"stream\":false,\"keep_alive\":\"60m\"}' -TimeoutSec 120 | Out-Null" 2>nul
 
 :: ── [9] Abrir interface no browser ───────────────────────────────────────────
 timeout /t 2 /nobreak >nul

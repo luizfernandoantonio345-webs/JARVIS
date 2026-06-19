@@ -1576,7 +1576,8 @@ async function sendVoiceCommand(audioBlob){
     if(d.transcript){addConvEntry('user',d.transcript);addEvent('voice','STT: '+d.transcript.substring(0,60));}
     if(d.response){showResponse(d.response);addConvEntry('jarvis',d.response);addEvent('ok','VOZ RESP: '+d.response.substring(0,60));}
     else showResponse('Comando processado');
-    if(d.audio_path){await playVoiceResponse(d.audio_path);}
+    const audioSrc=d.audio_url||d.audio_path;
+    if(audioSrc){await playVoiceResponse(audioSrc);}
     document.getElementById('hint').textContent='[ SPACE: VOZ | ENTER: TEXTO ]';
   }catch(e){
     stopElapsed();console.error('Erro enviando áudio:',e);
@@ -1971,9 +1972,9 @@ async function indexCurrentProject(){
 // ── PWA: Service Worker Registration ─────────────────────────────────────────
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('/static/sw.js',{scope:'/'})
+    navigator.serviceWorker.register('/sw.js',{scope:'/'})
       .then(reg=>{
-        addEvent('ok','PWA: Service Worker registrado (v8.0)');
+        addEvent('ok','PWA: Service Worker registrado (v9.0)');
         reg.addEventListener('updatefound',()=>{
           addEvent('info','PWA: nova versão disponível');
         });

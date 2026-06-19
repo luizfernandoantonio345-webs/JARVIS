@@ -140,7 +140,29 @@ async def serve_frontend():
     index = os.path.join(FRONTEND_DIR, 'index.html')
     if os.path.exists(index):
         return FileResponse(index)
-    return {'message': 'JARVIS API v6.0'}
+    return {'message': 'JARVIS API v9.0'}
+
+
+@app.get('/sw.js', include_in_schema=False)
+async def serve_service_worker():
+    """Serve o service worker com escopo raiz para PWA funcionar corretamente."""
+    sw_path = os.path.join(FRONTEND_DIR, 'sw.js')
+    if os.path.exists(sw_path):
+        return FileResponse(
+            sw_path,
+            media_type='application/javascript',
+            headers={'Service-Worker-Allowed': '/'},
+        )
+    return JSONResponse({'error': 'sw.js not found'}, status_code=404)
+
+
+@app.get('/manifest.json', include_in_schema=False)
+async def serve_manifest():
+    """Serve o manifest PWA para instalação em mobile."""
+    m_path = os.path.join(FRONTEND_DIR, 'manifest.json')
+    if os.path.exists(m_path):
+        return FileResponse(m_path, media_type='application/manifest+json')
+    return JSONResponse({'error': 'manifest.json not found'}, status_code=404)
 
 
 # ── WebSocket connection manager ───────────────────────────────────────────────
@@ -553,6 +575,53 @@ async def capabilities():
             'Master Orchestrator', 'Dev Senior', 'Security/OSINT', 'Architect',
             'QA/Testing', 'DevOps/Cloud', 'AI/ML', 'Project Manager', 'Critic',
         ],
+    }
+
+
+# ── /network — informações para acesso mobile e remoto ────────────────────────
+@app.get('/network', tags=['System'])
+async def network_info():
+    """
+    Retorna IPs locais da máquina para acesso de celular/tablet na mesma rede.
+    Acesse http://<IP_LOCAL>:8000 no celular conectado ao mesmo Wi-Fi.
+    """
+    import socket
+    ips = {}
+
+    # IPs de todas as interfaces
+    try:
+        hostname = socket.gethostname()
+        ips['hostname'] = hostname
+        # IP principal (rota padrão)
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("8.8.8.8", 80))
+            ips['lan_ip'] = s.getsockname()[0]
+    except Exception:
+        ips['lan_ip'] = '127.0.0.1'
+
+    port = _cfg.port if hasattr(_cfg, 'port') else 8000
+    lan_ip = ips.get('lan_ip', '127.0.0.1')
+    tailscale_ip = os.getenv('JARVIS_TAILSCALE_IP', '')
+
+    access_urls = {
+        'localhost': f'http://localhost:{port}',
+        'lan': f'http://{lan_ip}:{port}',
+    }
+    if tailscale_ip:
+        access_urls['tailscale'] = f'http://{tailscale_ip}:{port}'
+
+    return {
+        'lan_ip': lan_ip,
+        'port': port,
+        'hostname': ips.get('hostname', ''),
+        'tailscale_ip': tailscale_ip or None,
+        'access_urls': access_urls,
+        'instructions': {
+            'same_wifi': f'No celular, abra: http://{lan_ip}:{port}',
+            'pwa_install': 'No browser mobile, clique em "Adicionar à tela inicial"',
+            'remote': 'Para acesso remoto, instale Tailscale (tailscale.com) — gratuito',
+        },
+        'websocket': f'ws://{lan_ip}:{port}/ws/jarvis',
     }
 
 
