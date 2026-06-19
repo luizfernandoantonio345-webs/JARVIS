@@ -174,8 +174,26 @@ def classify_complexity(messages: list[dict]) -> ComplexityLevel:
 
 # ── Provider calls ─────────────────────────────────────────────────────────────
 
-def _call_ollama(messages: list[dict]) -> str:
-    return get_ai_client().call(messages)
+def _call_ollama(messages: list[dict], timeout: int | None = None) -> str:
+    import time as _time
+    max_attempts = 3
+    last_exc: Exception | None = None
+    for attempt in range(max_attempts):
+        try:
+            client = get_ai_client()
+            if timeout is not None and hasattr(client, "call"):
+                return client.call(messages, timeout=timeout)
+            return client.call(messages)
+        except Exception as exc:
+            err_str = str(exc).lower()
+            # Do not retry on model-not-found or auth errors
+            if any(k in err_str for k in ("model not found", "no such model", "pull", "404")):
+                raise
+            last_exc = exc
+            if attempt < max_attempts - 1:
+                log.warning("[LLM] Ollama attempt %d/%d failed: %s — retrying in 1s", attempt + 1, max_attempts, exc)
+                _time.sleep(1)
+    raise last_exc
 
 
 def _call_openai(messages: list[dict]) -> str:
@@ -222,6 +240,7 @@ def call_llm(
     messages: list[dict],
     force_local: bool = False,
     force_api: bool = False,
+    timeout: int | None = None,
 ) -> str:
     """
     Route to the appropriate LLM backend.
@@ -315,7 +334,7 @@ def call_llm(
         pass
 
     if force_local:
-        result = _call_ollama(messages)
+        result = _call_ollama(messages, timeout=timeout)
         if _ck is not None:
             _cache_put(_ck, result)
         _store_semantic_interaction(original_messages, result)
@@ -353,7 +372,7 @@ def call_llm(
         if not _ANTHROPIC_KEY and not _OPENAI_KEY:
             log.debug("No API keys configured — using local model")
 
-    result = _call_ollama(messages)
+    result = _call_ollama(messages, timeout=timeout)
     _store_semantic_interaction(original_messages, result)
     return result
 

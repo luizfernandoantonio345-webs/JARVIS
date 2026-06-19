@@ -7,6 +7,9 @@ Conecta AuthManager + ThreatDetector e define a resposta automática:
   - Transmite alertas via WebSocket para o frontend
   - Mantém log de auditoria persistente
   - Expõe métricas de segurança para o dashboard
+  - Modo lockdown: rejeita tudo exceto /health
+  - Pontuação de segurança 0-100
+  - Ban por dispositivo (revoga token + bloqueia IP)
 """
 from __future__ import annotations
 
@@ -40,6 +43,8 @@ class JarvisGuardian:
         # Callbacks registrados pelo WebSocket broadcaster
         self._alert_callbacks: list[Callable] = []
         self._started_at = time.time()
+        self._lockdown = False  # Modo lockdown — rejeita tudo exceto /health
+        self._last_alert_time: dict[str, float] = {}  # dedup de alertas WS
         log.info("[GUARDIAN] Defesas do JARVIS ativas.")
 
     # ── WebSocket alertas ──────────────────────────────────────────────────────
@@ -51,6 +56,43 @@ class JarvisGuardian:
 
     def unregister_alert_callback(self, cb: Callable) -> None:
         self._alert_callbacks = [c for c in self._alert_callbacks if c != cb]
+
+    # ── Lockdown ──────────────────────────────────────────────────────────────
+
+    def enable_lockdown(self) -> None:
+        self._lockdown = True
+        log.critical("[GUARDIAN] LOCKDOWN ATIVADO — apenas /health permitido")
+
+    def disable_lockdown(self) -> None:
+        self._lockdown = False
+        log.warning("[GUARDIAN] Lockdown desativado.")
+
+    @property
+    def is_lockdown(self) -> bool:
+        return self._lockdown
+
+    # ── Segurança ─────────────────────────────────────────────────────────────
+
+    def security_score(self) -> int:
+        """Pontuação de segurança 0-100 (100 = sem ameaças)."""
+        stats = self.detector.stats()
+        critical = stats.get("critical", 0)
+        high = stats.get("high", 0)
+        medium = stats.get("medium", 0)
+        score = 100 - min(100, critical * 20 + high * 5 + medium * 2)
+        return max(0, score)
+
+    def ban_device(self, device_name: str, reason: str = "manual") -> bool:
+        """Revoga token E bloqueia IP associado ao dispositivo."""
+        tokens = self.auth.list_tokens()
+        for t in tokens:
+            if t["device_name"] == device_name:
+                self.auth.revoke_token(device_name, reason)
+                ip = t.get("ip_hint", "")
+                if ip:
+                    self.auth.block_ip(ip, f"Device banned: {device_name} — {reason}")
+                return True
+        return False
 
     # ── Middleware de requisição ───────────────────────────────────────────────
 
@@ -67,6 +109,14 @@ class JarvisGuardian:
         Ponto único de verificação de segurança.
         Retorna (permitido, http_status, mensagem).
         """
+        # 0. Lockdown mode
+        if self._lockdown and not self._is_public_path(path):
+            return False, 503, "Sistema em lockdown — apenas monitoramento disponível"
+
+        # 0b. Allowlist check (bypass all auth)
+        if self.auth.is_ip_allowlisted(ip):
+            return True, 200, "allowlisted"
+
         # 1. IP bloqueado?
         blocked, reason = self.auth.is_ip_blocked(ip)
         if blocked:
@@ -126,6 +176,11 @@ class JarvisGuardian:
 
     def _handle_threat(self, event: ThreatEvent) -> None:
         """Chamado pelo ThreatDetector quando detecta ameaça."""
+        key = f"{event.ip}:{event.threat_type}"
+        now = time.time()
+        if now - self._last_alert_time.get(key, 0) < 15.0:
+            return
+        self._last_alert_time[key] = now
         payload = {
             "type": "security_alert",
             "level": event.level,
@@ -150,12 +205,19 @@ class JarvisGuardian:
     def security_status(self) -> dict:
         """Dados completos para o endpoint /security/status."""
         return {
-            "status": "active",
+            "status": "lockdown" if self._lockdown else "active",
             "uptime_seconds": int(time.time() - self._started_at),
+            "security_score": self.security_score(),
+            "lockdown": self._lockdown,
             "threat_stats": self.detector.stats(),
             "tokens": self.auth.list_tokens(),
             "blocked_ips": self.auth.list_blocked_ips(),
+            "allowlisted_ips": self.auth.list_allowlisted_ips(),
             "recent_threats": self.detector.recent_events(limit=20),
+            "honeypot_triggers": sum(
+                1 for e in self.detector.events
+                if e.threat_type == "honeypot_triggered"
+            ),
         }
 
     # ── Helpers ───────────────────────────────────────────────────────────────

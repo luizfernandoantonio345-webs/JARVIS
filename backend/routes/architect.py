@@ -375,13 +375,15 @@ async def review_architecture(req: ArchitectReviewReq):
 
     pain_hint = "\n".join(f"- {p}" for p in req.pain_points) if req.pain_points else ""
     goals_hint = "\n".join(f"- {g}" for g in req.goals) if req.goals else ""
+    pain_section = f"Problemas atuais:\n{pain_hint}" if pain_hint else ""
+    goals_section = f"Objetivos:\n{goals_hint}" if goals_hint else ""
 
     system = f"""{_build_identity()}
 MODO: ARQUITETO DE SISTEMAS SÊNIOR fazendo revisão de arquitetura existente.
 Stack atual do Senhor: {req.current_stack}
 Time: {req.team_size} | Budget: {req.budget}
-{f'Problemas atuais:\n{pain_hint}' if pain_hint else ''}
-{f'Objetivos:\n{goals_hint}' if goals_hint else ''}
+{pain_section}
+{goals_section}
 
 Retorne JSON: {{"health_score": <0-100>, "critical_issues": [{{"issue": "<problema>", "impact": "high|medium|low", "fix": "<solução>"}}], "strengths": ["<ponto positivo>"], "migration_path": [{{"phase": 1, "action": "<ação>", "effort": "<estimativa horas>", "benefit": "<benefício>"}}], "recommended_changes": [{{"area": "<área>", "current": "<atual>", "recommended": "<recomendado>", "reason": "<por quê>"}}], "quick_wins": ["<melhoria rápida que pode fazer hoje>"], "verdict": "<parágrafo de avaliação geral>"}}
 Sem markdown, JSON válido."""

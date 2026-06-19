@@ -87,7 +87,7 @@ async def _request_id_timing(request: Request, call_next):
     elapsed_ms = round((time.monotonic() - t0) * 1000)
     response.headers["X-Request-ID"] = req_id
     response.headers["X-Response-Time"] = f"{elapsed_ms}ms"
-    response.headers["X-JARVIS-Version"] = "8.0"
+    response.headers["X-JARVIS-Version"] = "9.0"
     return response
 
 # ── Security Middleware Stack ──────────────────────────────────────────────────
@@ -248,7 +248,9 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
-# ── Router loader ──────────────────────────────────────────────────────────────
+# ── Router loader (executado no nível de módulo — rotas disponíveis imediatamente) ──
+# Chamado no nível de módulo para que as rotas estejam disponíveis desde o import
+# (TestClient e imports diretos funcionam sem precisar do evento startup)
 def _mount_routers():
     cfg_map = [
         # (module,              url_prefix,       required)
@@ -282,6 +284,9 @@ def _mount_routers():
             log.warning('[ROUTES] %s falhou: %s', module, e)
 
 
+# Registrar todas as rotas imediatamente ao importar o módulo
+_mount_routers()
+
 # ── Lifecycle ──────────────────────────────────────────────────────────────────
 @app.on_event('startup')
 async def startup():
@@ -306,8 +311,6 @@ async def startup():
     log.info('Auth  : %s', auth_status)
     log.info('CORS  : %s', CORS_ORIGINS)
 
-    _mount_routers()
-
     # Registrar callback do Guardian para broadcast de alertas via WebSocket
     if _guardian:
         async def _broadcast_security_alert(payload: dict):
@@ -317,6 +320,7 @@ async def startup():
 
     asyncio.create_task(_init_voice())
     asyncio.create_task(_prewarm_ollama())
+    asyncio.create_task(_check_model_health())
 
     await manager.broadcast(idle_msg('JARVIS online. Ready, Sir.'))
     log.info('JARVIS pronto.')
@@ -391,6 +395,21 @@ async def _prewarm_ollama():
         log.info('[PREWARM] Ollama pre-carregado')
     except Exception as e:
         log.warning('[PREWARM] %s', e)
+
+
+async def _check_model_health():
+    """Check if configured model is available in Ollama."""
+    await asyncio.sleep(3)
+    try:
+        from ai.client import get_ai_client
+        client = get_ai_client()
+        result = client.health_check()
+        if result.get("ok"):
+            log.info("[STARTUP] Modelo '%s' disponível", result.get("model", result.get("models", ["?"])[0] if result.get("models") else "?"))
+        else:
+            log.warning("[STARTUP] Ollama não disponível — modo offline")
+    except Exception as e:
+        log.warning("[STARTUP] Health check do modelo falhou: %s", e)
 
 
 # ── WebSocket endpoint ─────────────────────────────────────────────────────────
@@ -712,6 +731,21 @@ async def server_error_handler(request: Request, exc: Exception):
         content={
             'error': 'Internal Server Error',
             'message': 'Erro interno, Senhor. Verifique os logs.',
+            'request_id': req_id,
+        },
+    )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    req_id = request.headers.get("X-Request-ID", "unknown")
+    log.error('[UNHANDLED] %s %s — req_id=%s — %s: %s',
+              request.method, request.url.path, req_id, type(exc).__name__, exc)
+    return JSONResponse(
+        status_code=500,
+        content={
+            'error': str(exc),
+            'status': 500,
             'request_id': req_id,
         },
     )

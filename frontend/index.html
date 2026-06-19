@@ -757,7 +757,7 @@ body.incognito #incognitoLed{display:block}
 <div class="rail" id="r1"><div class="rico">●</div><div class="rico">▲</div><div class="rico">◈</div></div>
 <div class="rail" id="r2"><div class="rico">◈</div><div class="rico">●</div><div class="rico">■</div></div>
 <div class="rail" id="r3"><div class="rico">▲</div><div class="rico">◉</div><div class="rico">▼</div></div>
-<div id="stbar"><span class="seg" id="stlive">STATUS: AGUARDANDO</span><span class="seg" id="stws">WS: —</span><span class="seg" id="stuptime">UP: —</span><span id="stModelBadge">—</span></div>
+<div id="stbar"><span class="seg" id="stlive">STATUS: AGUARDANDO</span><span class="seg" id="stws">WS: —</span><span class="seg" id="stuptime">UP: —</span><span id="stModelBadge">—</span><span id="secAlertBadge" title="Alertas de segurança" onclick="addEvent('warn','Clicou no badge — '+_secAlertCount+' alertas')" style="display:none;background:rgba(255,42,74,0.75);color:#fff;font-size:clamp(4px,0.45vw,5.5px);padding:1px 4px;margin-left:4px;cursor:pointer;letter-spacing:1px;border-radius:2px">0</span></div>
 <div id="botrow"></div>
 <!-- RESPONSE PANEL -->
 <div id="respanel">
@@ -1473,12 +1473,24 @@ function sendMessage(msg){
   });
 }
 // ── WEBSOCKET ──
-let ws=null,wsRetry=0,_wsPingSent=0;
+let ws=null,wsRetry=0,_wsPingSent=0,_wsMaxRetry=12,_secAlertCount=0;
+function _wsBackoff(n){return Math.min(30000,500*Math.pow(2,n)+Math.random()*300);}
+function _wsSetStatus(state,color){
+  const el=document.getElementById('stws');
+  if(!el)return;
+  el.textContent='WS: '+state;
+  el.style.color=color||'';
+}
 function connectWS(){
+  if(wsRetry>_wsMaxRetry){
+    _wsSetStatus('ERRO','rgba(255,107,107,0.8)');
+    addEvent('err','WS: falhou após '+_wsMaxRetry+' tentativas — recarregue');
+    return;
+  }
   try{
     ws=new WebSocket(_wsUrl());
     ws.onopen=()=>{
-      document.getElementById('stws').textContent='WS: ONLINE';wsRetry=0;
+      _wsSetStatus('ONLINE','rgba(78,255,145,0.85)');wsRetry=0;
       addEvent('ok','WebSocket conectado');
       // Measure ping latency
       _wsPingSent=Date.now();
@@ -1508,14 +1520,21 @@ function connectWS(){
         if(m.type==='security_alert'){_onSecurityAlert(m);}
       }catch(e){}
     };
-    ws.onclose=()=>{
-      document.getElementById('stws').textContent='WS: OFF';
-      wsRetry++;addEvent('warn','WS desconectado — retry #'+wsRetry);
-      setTimeout(connectWS,Math.min(3000*wsRetry,15000));
+    ws.onclose=(ev)=>{
+      const clean=ev.wasClean;
+      _wsSetStatus('RECONECTANDO...','rgba(255,209,102,0.8)');
+      wsRetry++;
+      const delay=_wsBackoff(wsRetry);
+      addEvent('warn',`WS desconectado${clean?'':', inesperado'} — retry #${wsRetry} em ${Math.round(delay/1000)}s`);
+      setTimeout(connectWS,delay);
     };
-    ws.onerror=()=>{ws.close();};
-  }catch(e){setTimeout(connectWS,5000);}
+    ws.onerror=()=>{_wsSetStatus('ERRO','rgba(255,107,107,0.8)');ws.close();};
+  }catch(e){
+    _wsSetStatus('FALHA','rgba(255,107,107,0.7)');
+    setTimeout(connectWS,_wsBackoff(wsRetry));
+  }
 }
+function reconnectWS(){wsRetry=0;if(ws){try{ws.close();}catch(e){}}connectWS();}
 // ── HEALTH POLL ──
 async function pollHealth(){
   try{
@@ -1535,11 +1554,15 @@ function _onSecurityAlert(m){
   const lvl=m.level||'high';
   const color=_THREAT_COLORS[lvl]||_THREAT_COLORS.high;
   const typeLabel=(m.threat||'THREAT').replace(/_/g,' ').toUpperCase();
+  _secAlertCount++;
+  // Badge de contador de alertas
+  const badge=document.getElementById('secAlertBadge');
+  if(badge){badge.textContent=_secAlertCount;badge.style.display='inline-block';}
   // Toast de alerta
-  showToast(`AMEAÇA [${lvl.toUpperCase()}] ${typeLabel}`,'error');
+  showToast(`⚠ AMEAÇA [${lvl.toUpperCase()}] ${typeLabel} — ${m.ip||'?'}`,'error');
   // Adicionar no feed de eventos
-  addEvent('err',`[SECURITY/${lvl.toUpperCase()}] ${typeLabel} — IP: ${m.ip||'?'}`);
-  // Se for crítico: ativar modo alerta visual
+  addEvent('err',`[SECURITY/${lvl.toUpperCase()}] ${typeLabel} — IP: ${m.ip||'?'} — ${m.path||''}`);
+  // Se for crítico/alto: ativar modo alerta visual
   if(lvl==='critical'||lvl==='high'){
     document.body.classList.add('alert');
     clearTimeout(window._alertTimer);
@@ -1548,8 +1571,17 @@ function _onSecurityAlert(m){
   // Atualizar indicador de segurança no painel de settings se existir
   const ss=document.getElementById('sSecScore');
   if(ss&&(lvl==='critical'||lvl==='high')){
-    ss.textContent=`ALERTA — ${typeLabel}`;
+    ss.textContent=`ALERTA ${_secAlertCount}x — ${typeLabel}`;
     ss.style.color=color;
+  }
+  // Registrar no console de ameaças (se existir)
+  const tc=document.getElementById('threatConsole');
+  if(tc){
+    const row=document.createElement('div');
+    row.style.cssText=`padding:2px 4px;border-left:2px solid ${color};margin:1px 0;font-size:clamp(5px,0.55vw,6.5px)`;
+    row.textContent=`[${new Date().toLocaleTimeString()}] ${lvl.toUpperCase()} ${typeLabel} ${m.ip||''}`;
+    tc.prepend(row);
+    if(tc.children.length>50)tc.lastChild.remove();
   }
 }
 // ── COMMAND SYSTEM ──
@@ -1652,6 +1684,15 @@ async function playVoiceResponse(audioPath){
 }
 document.addEventListener('keydown',e=>{
   if(e.target===cmdText)return;
+  // Ctrl+K — foco no chat input
+  if(e.ctrlKey&&e.key==='k'){e.preventDefault();const ci=cmdText||document.querySelector('textarea,input[type=text]');if(ci){ci.focus();ci.scrollIntoView({behavior:'smooth'});}return}
+  // Ctrl+/ — atalhos de ajuda
+  if(e.ctrlKey&&e.key==='/'){e.preventDefault();showToast('ATALHOS: Espaço=voz 1-4=paineis Esc=fechar Ctrl+K=chat Ctrl+L=limpar Ctrl+R=reconectar WS','ok');return}
+  // Ctrl+L — limpar chat
+  if(e.ctrlKey&&e.key==='l'){e.preventDefault();clearResponse();addEvent('ok','Chat limpo');return}
+  // Ctrl+R — reconectar WebSocket (sem recarregar a página)
+  if(e.ctrlKey&&e.key==='r'&&!e.shiftKey){e.preventDefault();reconnectWS();addEvent('ok','Reconectando WS...');return}
+  if(e.target!==document.body&&e.target.tagName!=='BODY')return;
   if(e.key===' '){e.preventDefault();if(isRecording){stopRecording();}else{startRecording();showAll();}return}
   if(e.key==='Escape'){cmdInput.classList.remove('show');hideAll();setSpeaking(false);return}
   if(e.key==='a'||e.key==='A'){setAlert(!alertMode);return}
@@ -1804,13 +1845,22 @@ function toggleSettings(){
 async function fetchSettings(){
   // Fetch security score
   try{
-    const sec=await fetch(`${API_URL}/security/status`,{signal:AbortSignal.timeout(2000)}).then(r=>r.json());
-    const ss=document.getElementById('sSecScore');
-    if(ss){
-      ss.textContent=sec.security_score+' — '+sec.level;
-      ss.style.color=sec.level==='MAXIMUM'?'rgba(78,255,145,0.85)':sec.level==='PARTIAL'?'rgba(255,209,102,0.8)':'rgba(255,107,107,0.8)';
+    // Tenta /security/guardian (guardian score) ou fallback para /security/status (health score)
+    let sec=null;
+    try{sec=await fetch(`${API_URL}/security/guardian`,{signal:AbortSignal.timeout(2000)}).then(r=>r.ok?r.json():null);}catch(e2){}
+    if(!sec)try{sec=await fetch(`${API_URL}/security/status`,{signal:AbortSignal.timeout(2000)}).then(r=>r.json());}catch(e2){}
+    if(sec){
+      const ss=document.getElementById('sSecScore');
+      const score=sec.security_score!==undefined?sec.security_score:null;
+      const level=sec.level||sec.status||'—';
+      const lockdown=sec.lockdown?'🔒 LOCKDOWN':'';
+      if(ss){
+        ss.textContent=(score!==null?score+'/100 — ':'')+level+(lockdown?' '+lockdown:'');
+        const good=level==='MAXIMUM'||level==='active'||score>=80;
+        ss.style.color=good?'rgba(78,255,145,0.85)':score>=50?'rgba(255,209,102,0.8)':'rgba(255,107,107,0.8)';
+      }
+      if(score!==null)addEvent(score>=80?'ok':'warn',`SEGURANÇA: ${score}/100 ${lockdown}`);
     }
-    addEvent(sec.level==='MAXIMUM'?'ok':'warn','SEGURANÇA: '+sec.security_score+' ('+sec.level+')');
   }catch(e){}
   try{
     const d=await fetch(`${API_URL}/system/info`,{signal:AbortSignal.timeout(2500)}).then(r=>r.json());
@@ -2745,7 +2795,6 @@ setTimeout(()=>{
 
 // ── #1: ENTRADA — HISTÓRICO DE COMANDOS ──────────────────────────────────────
 const _cmdHistory=[]; let _cmdHistIdx=-1;
-const cmdText=document.getElementById('cmdtext');
 const charCounter=document.getElementById('charCounter');
 if(cmdText){
   cmdText.addEventListener('input',()=>{

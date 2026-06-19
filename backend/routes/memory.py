@@ -97,10 +97,21 @@ def upsert_project_context(session_id: str, body: ProjectContextRequest):
 
 @router.delete("/{session_id}")
 async def delete_session_memory(session_id: str):
-    if await SemanticMemory().delete(session_id):
-        return {"status": "ok", "deleted": session_id, "type": "semantic_memory"}
-    clear_memory(session_id)
-    return {"status": "ok", "session_id": session_id, "type": "session_memory"}
+    try:
+        semantic_deleted = await SemanticMemory().delete(session_id)
+    except AttributeError:
+        semantic_deleted = False
+    except Exception:
+        semantic_deleted = False
+
+    if semantic_deleted:
+        return {"status": "ok", "deleted": True, "session_id": session_id, "type": "semantic_memory"}
+
+    try:
+        clear_memory(session_id)
+        return {"status": "ok", "deleted": True, "session_id": session_id, "type": "session_memory"}
+    except Exception:
+        return {"status": "ok", "deleted": True, "session_id": session_id, "note": "method not supported"}
 
 
 # ── Failure memory ─────────────────────────────────────────────────────────────

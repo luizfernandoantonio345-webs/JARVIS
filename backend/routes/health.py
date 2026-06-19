@@ -328,6 +328,60 @@ async def get_capabilities():
     }
 
 
+@router.get("/health/deep")
+async def health_deep():
+    """Deep health check — verifica todas as dependências."""
+    results = {"status": "ok", "checks": {}}
+
+    # Check Ollama
+    try:
+        from ai.client import get_ai_client
+        r = get_ai_client().health_check()
+        results["checks"]["ollama"] = "ok" if r.get("ok") else "degraded"
+    except Exception as e:
+        results["checks"]["ollama"] = f"error: {str(e)[:50]}"
+
+    # Check SQLite
+    try:
+        import sqlite3
+        conn = sqlite3.connect(":memory:")
+        conn.execute("SELECT 1")
+        conn.close()
+        results["checks"]["sqlite"] = "ok"
+    except Exception as e:
+        results["checks"]["sqlite"] = f"error: {str(e)[:50]}"
+
+    # Check disk space
+    try:
+        import shutil
+        import sys as _sys
+        check_path = "C:\\" if _sys.platform == "win32" else "/"
+        total, used, free = shutil.disk_usage(check_path)
+        results["checks"]["disk"] = {
+            "free_gb": round(free / (1024 ** 3), 1),
+            "used_pct": round(used / total * 100, 1),
+        }
+    except Exception:
+        results["checks"]["disk"] = "unknown"
+
+    # Check RAM
+    try:
+        import psutil
+        mem = psutil.virtual_memory()
+        results["checks"]["ram"] = {
+            "available_gb": round(mem.available / (1024 ** 3), 1),
+            "used_pct": mem.percent,
+        }
+    except ImportError:
+        results["checks"]["ram"] = "psutil not installed"
+
+    # Overall status
+    if any("error" in str(v) for v in results["checks"].values()):
+        results["status"] = "degraded"
+
+    return results
+
+
 @router.get("/disk")
 async def disk_info():
     """Informações detalhadas de disco."""

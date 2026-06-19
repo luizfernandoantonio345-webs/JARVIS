@@ -118,6 +118,16 @@ class JarvisConfig(BaseSettings):
     turbo_mode_enabled:          bool  = Field(default=True)
     turbo_similarity_threshold:  float = Field(default=0.92)
 
+    # Session & rate management
+    max_sessions:         int  = Field(default=100)    # max concurrent sessions to keep in memory
+    audit_rotate_days:    int  = Field(default=30)     # audit log rotation period in days
+    rag_auto_index:       bool = Field(default=True)   # auto-index chat messages in RAG
+    rate_limit_chat:      int  = Field(default=30)     # requests/min for /chat endpoint
+    max_request_size_kb:  int  = Field(default=1024)   # max request body size in KB
+
+    # RAM override (auto-detected if not set)
+    total_ram_gb: float = Field(default=0.0)           # 0 = auto-detect; set via JARVIS_TOTAL_RAM_GB
+
 
 if _USE_PYDANTIC:
     JarvisConfig.model_config = SettingsConfigDict(

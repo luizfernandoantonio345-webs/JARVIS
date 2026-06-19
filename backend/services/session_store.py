@@ -92,3 +92,34 @@ def clear_session(session_id: str) -> None:
         conn.commit()
     finally:
         conn.close()
+
+
+def delete_session(session_id: str) -> bool:
+    """Remove all messages for a session from both in-memory cache and SQLite. Returns True on success."""
+    try:
+        _sessions.pop(session_id, None)
+        conn = _get_conn()
+        try:
+            conn.execute("DELETE FROM session_messages WHERE session_id = ?", (session_id,))
+            conn.commit()
+        finally:
+            conn.close()
+        return True
+    except Exception:
+        return False
+
+
+def message_count(session_id: str) -> int:
+    """Return the total number of messages persisted for a session."""
+    try:
+        conn = _get_conn()
+        try:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM session_messages WHERE session_id = ?",
+                (session_id,),
+            ).fetchone()
+            return row[0] if row else 0
+        finally:
+            conn.close()
+    except Exception:
+        return 0
