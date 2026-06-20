@@ -35,10 +35,19 @@ _available = None  # None = não testado, True/False = resultado
 
 
 def _is_available() -> bool:
-    """Verifica se ChromaDB e sentence-transformers estão disponíveis."""
+    """Verifica se ChromaDB e sentence-transformers estão disponíveis e há RAM suficiente."""
     global _available
     if _available is not None:
         return _available
+    try:
+        import psutil
+        avail_mb = psutil.virtual_memory().available / 1e6
+        if avail_mb < 400:
+            _available = False
+            log.info("[RAG] RAG desativado: RAM insuficiente (%.0fMB disponível, mínimo 400MB)", avail_mb)
+            return _available
+    except ImportError:
+        pass
     try:
         import chromadb  # noqa: F401
         from sentence_transformers import SentenceTransformer  # noqa: F401
