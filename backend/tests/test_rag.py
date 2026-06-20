@@ -13,6 +13,14 @@ def _rag_available() -> bool:
     try:
         import chromadb  # noqa
         from sentence_transformers import SentenceTransformer  # noqa
+        # Also check that we have enough RAM (sentence-transformers needs ~300MB)
+        try:
+            import psutil
+            avail_mb = psutil.virtual_memory().available / 1e6
+            if avail_mb < 400:
+                return False
+        except ImportError:
+            pass
         return True
     except ImportError:
         return False
@@ -20,7 +28,7 @@ def _rag_available() -> bool:
 
 skip_if_no_rag = pytest.mark.skipif(
     not _rag_available(),
-    reason="chromadb ou sentence-transformers não instalados"
+    reason="chromadb/sentence-transformers não instalados ou RAM insuficiente (<400MB)"
 )
 
 
