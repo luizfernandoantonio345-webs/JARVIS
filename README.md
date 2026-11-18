@@ -268,6 +268,23 @@ This verifies Python, dependencies, Ollama, SQLite, disk space, RAM, frontend fi
 
 ---
 
+## How this project was built
+
+This section exists because the answer matters more than it used to.
+
+**The implementation code in this repository was written by AI coding agents, working from my specifications.** What is mine is the architecture, the design decisions, the component specs, the acceptance criteria, and the validation of everything the agents produced. I direct the agents, review what comes back, write the tests that decide whether it is correct, and reject what does not meet the criteria.
+
+I state this plainly for two reasons. First, because anyone reading 44k lines of Python against a one-year professional track record deserves the accurate picture rather than a flattering one. Second, because specifying systems and directing coding agents is itself the skill I am building, and I would rather be judged on it honestly than on a claim I did not earn.
+
+The engineering judgment you can evaluate here is in the decisions, not the keystrokes:
+
+- **Cost-aware model routing** — `services/llm_service.py` scores the complexity of each request and routes it to a local model or an external API, so trivial prompts never hit a paid endpoint. Provider fallback chain with a circuit breaker and cooldown.
+- **Risk gate before execution** — `core/safety_gate.py` classifies every action before it runs. Reads pass through; state-changing actions require confirmation; **an unmapped action defaults to medium risk rather than allowed**. That default is the decision that makes the difference between automation you can leave running and automation you have to supervise.
+- **Relevance floor on retrieval** — the RAG layer enforces a minimum similarity threshold so weak matches are dropped instead of being injected into the prompt as bad context.
+- **Graceful degradation** — every optional module is imported behind a guard. A missing dependency disables one capability instead of taking down the service.
+
+---
+
 ## License
 
 MIT — Personal project, free to use and modify.
