@@ -105,21 +105,60 @@ JARVIS/
 | `JARVIS_SECRET_KEY` | — | Chave AES-256 (gerar com secrets.token_hex(32)) |
 | `JARVIS_API_KEY` | vazio | Bearer token auth (vazio = desabilitado) |
 | `JARVIS_SAFE_MODE` | `false` | Restringe ações de alto risco |
+| `JARVIS_SAFETY_LEVEL` | `trusted` | Portão do laço: off/trusted/strict |
+| `JARVIS_TTS_PROFILE` | `jarvis` | Voz: jarvis/jarvis_en/ultron/operacional/neutro |
+| `JARVIS_TTS_OUTPUT` | `browser` | Onde o áudio toca: browser/server |
+| `JARVIS_AGENT_MAX_ITERATIONS` | `25` | Teto de passos do laço |
+| `JARVIS_AGENT_WS_TIMEOUT` | `900` | Segundos até abortar a tarefa |
+| `JARVIS_ROUTER_LLM` | `true` | Classificação de rota via LLM |
 | `JARVIS_TOTAL_RAM_GB` | auto | Força RAM para seleção de modelo |
 
 ## Fluxo de uma mensagem de chat
 
+O WebSocket bifurca: pedido de trabalho vai para o laço com ferramentas,
+conversa segue pelo orquestrador de prompt. Quem decide é
+`core.agent_bridge.precisa_de_ferramentas()` — "bom dia" não custa 25 idas ao
+modelo, e um modelo pequeno com 9 schemas na frente de uma saudação se perde.
+
 ```
 WebSocket /ws/jarvis
-    → MasterOrchestrator.execute()
-        → Intent classification (keywords PT+EN)
-        → Roteamento para agente especializado (dev/architect/debugger/...)
-        → call_llm() com SYSTEM_PROMPT do agente
-        → Streaming de tokens de volta via on_token callback
-    → Fallback: ai.client.stream_chat() direto
-    → Fallback: services.chat_service.process_message()
-    → TTS via voice_v2.output.speak() em background
+    │
+    ├─ precisa_de_ferramentas(texto) == True  → LAÇO DE AGENTE
+    │   → PonteAgente.executar()         (core/agent_bridge.py)
+    │       → run_agent() numa thread    (core/agent_loop.py)
+    │           → memória inicial        (core/tools_memory.py)
+    │           → modelo escolhe ferramenta → agent_safety.avaliar()
+    │               → irreversível? confirm_handler → agent_confirm no socket
+    │               → senão executa e devolve o resultado ao modelo
+    │           → repete até concluir (teto de 25 iterações)
+    │       → eventos pela fila: thinking / tool_call / tool_result / done
+    │   → texto final enviado como token
+    │
+    └─ caso contrário                         → CONVERSA
+        → MasterOrchestrator.execute()
+            → SmartRouter (regex ancorada → LLM → keyword)
+            → agente especializado (dev/architect/debugger/...)
+            → call_llm() com SYSTEM_PROMPT do agente
+        → Fallback: ai.client.stream_chat() direto
+        → Fallback: services.chat_service.process_message()
+
+    → TTS: navegador (JARVIS_TTS_OUTPUT=browser, orb acompanha a fala)
+           ou servidor (=server)
 ```
+
+Enquanto o laço roda, o handler não está lendo o socket — e a confirmação que
+o laço espera chega por ele. Por isso `_rodar_agente()` sobe um ouvinte
+concorrente: sem ele, agente e servidor ficam parados um pelo outro.
+
+### Portão de segurança
+
+`JARVIS_SAFETY_LEVEL`: `off` | `trusted` (padrão) | `strict`.
+
+Em `trusted` o agente trabalha sem interrupção e só pede confirmação no que não
+tem desfazer — remoção recursiva, `git push --force`, `DROP DATABASE`, `mkfs`,
+`curl | sh`, `sudo` e companhia (lista completa em `core/agent_safety.py`).
+Sem ninguém para confirmar, a ação é recusada com texto que o modelo lê e
+relata, em vez de falhar em silêncio.
 
 ## Agentes registrados
 

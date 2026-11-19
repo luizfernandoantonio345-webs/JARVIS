@@ -665,3 +665,66 @@ body.incognito #incognitoLed{display:block}
 @media(max-width:480px){
   #muteBtn{right:clamp(54px,12vw,65px);width:44px;height:44px}
 }
+
+/* ── Confirmação de ação irreversível ──────────────────────────────────────
+   O único elemento da interface que interrompe. Fica no canto inferior, sem
+   escurecer o HUD: o orb continua à vista e o resto segue legível. O comando
+   aparece exatamente como vai rodar, selecionável, sem reformatação. */
+#agentConfirm{
+  position:fixed;left:50%;bottom:3vh;transform:translateX(-50%) translateY(1rem);
+  width:min(640px,92vw);z-index:9000;
+  background:var(--w-bg);backdrop-filter:blur(8px);
+  border:1px solid var(--cr);border-left-width:3px;
+  box-shadow:0 0 0 1px rgba(255,42,74,0.18),0 18px 48px rgba(0,0,0,0.55);
+  font-family:var(--f);opacity:0;pointer-events:none;
+  transition:opacity .18s ease,transform .18s ease;
+}
+#agentConfirm.on{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
+#agentConfirm.risco-high,#agentConfirm.risco-medium{border-color:var(--cg)}
+#agentConfirm .ac-topo{
+  display:flex;align-items:baseline;gap:.6em;
+  padding:.7em .9em .35em;font-size:clamp(8px,0.78vw,11px);
+  letter-spacing:.14em;color:var(--cr);
+}
+#agentConfirm.risco-high .ac-topo,#agentConfirm.risco-medium .ac-topo{color:var(--cg)}
+#agentConfirm .ac-risco{margin-left:auto;opacity:.75;letter-spacing:.08em}
+#agentConfirm .ac-cmd{
+  margin:.2em .9em .55em;padding:.6em .7em;
+  background:rgba(0,0,0,0.45);border:1px solid var(--w-border);
+  font-size:clamp(9px,0.85vw,12.5px);line-height:1.5;color:#e8f6ff;
+  white-space:pre-wrap;word-break:break-all;user-select:text;
+  max-height:22vh;overflow:auto;
+}
+#agentConfirm .ac-motivo{
+  padding:0 .9em .7em;font-size:clamp(8px,0.78vw,11.5px);
+  line-height:1.55;color:rgba(232,246,255,0.72);
+}
+#agentConfirm .ac-acoes{
+  display:flex;gap:.5em;padding:0 .9em .85em;align-items:center;
+}
+#agentConfirm button{
+  font-family:var(--f);font-size:clamp(8px,0.76vw,11px);letter-spacing:.1em;
+  padding:.55em 1.1em;cursor:pointer;background:transparent;
+  border:1px solid var(--w-border);color:rgba(232,246,255,0.8);
+  transition:border-color .15s,color .15s,background .15s;
+}
+#agentConfirm button:hover{border-color:var(--c);color:var(--c)}
+#agentConfirm button:focus-visible{outline:2px solid var(--c);outline-offset:2px}
+#agentConfirm .ac-sim:hover{border-color:var(--cr);color:var(--cr);background:rgba(255,42,74,0.08)}
+#agentConfirm.risco-high .ac-sim:hover,#agentConfirm.risco-medium .ac-sim:hover{
+  border-color:var(--cg);color:var(--cg);background:rgba(212,168,32,0.08)
+}
+#agentConfirm .ac-dica{
+  margin-left:auto;font-size:clamp(7px,0.66vw,9.5px);
+  color:rgba(232,246,255,0.38);letter-spacing:.06em;
+}
+#agentConfirm .ac-prazo{height:2px;background:rgba(255,255,255,0.07)}
+#agentConfirm .ac-prazo i{
+  display:block;height:100%;background:var(--cr);
+  transform-origin:left;transition:transform 1s linear;
+}
+#agentConfirm.risco-high .ac-prazo i,#agentConfirm.risco-medium .ac-prazo i{background:var(--cg)}
+@media (prefers-reduced-motion:reduce){
+  #agentConfirm{transition:none}
+  #agentConfirm .ac-prazo i{transition:none}
+}

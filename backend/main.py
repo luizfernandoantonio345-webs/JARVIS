@@ -449,6 +449,10 @@ async def websocket_endpoint(ws: WebSocket, session_id: str = ''):
 
         asyncio.create_task(_heartbeat())
 
+        # Uma ponte por conexão: a resposta de confirmação chega pelo mesmo
+        # socket que fez a pergunta.
+        ponte_ativa: dict = {}
+
         while True:
             data = await ws.receive_text()
 
@@ -458,8 +462,46 @@ async def websocket_endpoint(ws: WebSocket, session_id: str = ''):
                 await ws.send_json({'type': 'pong'})
                 continue
 
+            # Resposta de confirmação de ação irreversível: libera a thread do
+            # agente que está parada esperando e volta a ouvir.
+            try:
+                from core.agent_bridge import ler_resposta_confirmacao
+                resposta = ler_resposta_confirmacao(data)
+            except Exception:
+                resposta = None
+            if resposta is not None:
+                id_pedido, aprovado = resposta
+                ponte = ponte_ativa.get('ponte')
+                atendido = ponte.responder(id_pedido, aprovado) if ponte else False
+                await ws.send_json({'type': 'agent_confirm_ack',
+                                    'id': id_pedido,
+                                    'approved': aprovado,
+                                    'handled': atendido})
+                continue
+
             log.info('[WS] Input (%s): %s', session_id, data[:60])
             await ws.send_json(thinking_msg('Processing...'))
+
+            # Pedido de trabalho vai para o laço com ferramentas; conversa segue
+            # pelo caminho de sempre. Modelo pequeno com 9 schemas na frente de
+            # um "bom dia" se perde, e cada iteração é uma ida ao LLM.
+            usar_agente = False
+            try:
+                from core.agent_bridge import precisa_de_ferramentas
+                usar_agente = precisa_de_ferramentas(data)
+            except Exception as exc:
+                log.debug('[WS] detector de tarefa indisponível: %s', exc)
+
+            if usar_agente:
+                full = await _rodar_agente(ws, data, session_id, ponte_ativa)
+                if full is not None:
+                    await ws.send_json({'type': 'done', 'action': 'agent',
+                                        'full_response': full[:300]})
+                    if full:
+                        asyncio.create_task(_speak_bg(full))
+                    await manager.broadcast(speaking_msg(full[:200]))
+                    continue
+                # Laço indisponível: cai no caminho de conversa sem reclamar.
 
             tokens: List[str] = []
             last_flush = [time.time()]
@@ -537,6 +579,81 @@ async def websocket_endpoint(ws: WebSocket, session_id: str = ''):
     except Exception as e:
         log.error('[WS] Erro fatal: %s', e)
         manager.disconnect(ws)
+
+
+AGENT_WS_TIMEOUT = float(os.getenv('JARVIS_AGENT_WS_TIMEOUT', '900'))
+
+
+async def _rodar_agente(ws, objetivo: str, session_id: str, ponte_ativa: dict):
+    """
+    Executa o laço com ferramentas e devolve o texto final.
+
+    Devolve None quando o laço não está disponível — aí o chamador segue pelo
+    caminho de conversa, que é o comportamento antigo e sempre funciona.
+    """
+    try:
+        from core.agent_bridge import PonteAgente
+    except Exception as exc:
+        log.debug('[WS] laço de agente indisponível: %s', exc)
+        return None
+
+    from core.agent_bridge import ler_resposta_confirmacao
+
+    ponte = PonteAgente(enviar=ws.send_json)
+    ponte_ativa['ponte'] = ponte
+
+    # Enquanto o laço roda, o handler principal não está lendo o socket — e a
+    # confirmação que o laço espera chega justamente por ele. Sem este ouvinte
+    # concorrente os dois ficam parados um pelo outro: o agente esperando a
+    # autorização, o servidor esperando o agente.
+    async def _ouvir_durante_a_tarefa():
+        while True:
+            texto = await ws.receive_text()
+            if not texto.strip() or texto.strip() == '__ping__':
+                continue
+            resposta = ler_resposta_confirmacao(texto)
+            if resposta is not None:
+                id_pedido, aprovado = resposta
+                atendido = ponte.responder(id_pedido, aprovado)
+                await ws.send_json({'type': 'agent_confirm_ack',
+                                    'id': id_pedido,
+                                    'approved': aprovado,
+                                    'handled': atendido})
+            else:
+                # Mensagem nova no meio da tarefa: avisa em vez de engolir.
+                await ws.send_json({
+                    'type': 'agent_busy',
+                    'message': 'Estou no meio de uma tarefa, Sir. '
+                               'Me manda de novo quando eu terminar.'})
+
+    ouvinte = asyncio.create_task(_ouvir_durante_a_tarefa())
+    try:
+        resultado = await asyncio.wait_for(
+            ponte.executar(objetivo, session_id=session_id),
+            timeout=AGENT_WS_TIMEOUT,
+        )
+    except asyncio.TimeoutError:
+        log.warning('[WS] agente excedeu %.0fs', AGENT_WS_TIMEOUT)
+        return 'A tarefa passou do tempo limite, Sir. Posso retomar de onde parou.'
+    except Exception as exc:
+        log.error('[WS] agente falhou: %s', exc)
+        return None                      # cai na conversa, não na mensagem de erro
+    finally:
+        ouvinte.cancel()
+        ponte_ativa.pop('ponte', None)
+
+    texto = (resultado.final_text or '').strip()
+    if not texto:
+        texto = ('Terminei o que dava, Sir, mas não consegui formular a resposta. '
+                 f'Motivo: {resultado.stopped_reason}.')
+
+    # O texto final vai como token para o frontend tratar igual a qualquer
+    # resposta — o orb e o histórico não precisam saber que veio do laço.
+    try:
+        await ws.send_json({'type': 'token', 'content': texto})
+    except Exception:
+        pass
+    return texto
 
 
 async def _speak_bg(text: str):

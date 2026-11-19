@@ -452,6 +452,15 @@ function connectWS(){
         if(m.status==='idle'){if(!currentStream)setSpeaking(false);}
         if(m.status==='error'){setSpeaking(false);addEvent('err','WS ERRO: '+(m.message||'desconhecido'));}
         if(m.type==='token'&&m.content){appendResponse(m.content);}
+        // ── Laço de agente: atividade e confirmação ──────────────────────────
+        if(m.type==='agent_event'){_onAgentEvent(m);return;}
+        if(m.type==='agent_confirm'){_pedirConfirmacao(m);return;}
+        if(m.type==='agent_busy'){showToast(m.message||'Tarefa em andamento.','warn');addEvent('warn','MENSAGEM NÃO PROCESSADA — tarefa em andamento');return;}
+        if(m.type==='agent_confirm_timeout'){_fecharConfirmacao();addEvent('warn','CONFIRMAÇÃO EXPIROU — ação recusada');return;}
+        if(m.type==='agent_confirm_ack'){
+          if(!m.handled)addEvent('warn','CONFIRMAÇÃO JÁ EXPIRADA — ação recusada');
+          return;
+        }
         // ── Alerta de segurança do Guardian ──────────────────────────────────
         if(m.type==='security_alert'){_onSecurityAlert(m);}
       }catch(e){}
@@ -2966,3 +2975,129 @@ setTimeout(()=>{
   _checkAchievements();
   vibrateDevice([50,30,50]);
 },2500);
+
+// ── Laço de agente ──────────────────────────────────────────────────────────
+// O agente lê arquivo, roda comando e se corrige sozinho. Isso leva tempo e o
+// silêncio parece travamento: cada passo aparece no feed de eventos enquanto
+// acontece, e a resposta final chega como token, igual a qualquer outra.
+
+const _ROTULO_FERRAMENTA={
+  read_file:'LENDO',write_file:'ESCREVENDO',edit_file:'EDITANDO',
+  list_dir:'LISTANDO',search_code:'BUSCANDO',run_command:'EXECUTANDO',
+  web_search:'PESQUISANDO',fetch_url:'ABRINDO',ask_stronger_model:'CONSULTANDO',
+  recall:'LEMBRANDO',remember:'GRAVANDO',remember_preference:'GRAVANDO',
+  search_knowledge:'CONSULTANDO MEMÓRIA'
+};
+
+function _alvoDaChamada(args){
+  if(!args)return '';
+  return String(args.command||args.path||args.query||args.pattern||args.url||'').slice(0,90);
+}
+
+function _onAgentEvent(m){
+  if(m.event==='thinking'){
+    const t=(m.text||'').trim();
+    if(t)addEvent('ai','AGENTE: '+t.slice(0,120));
+    return;
+  }
+  if(m.event==='tool_call'){
+    const rotulo=_ROTULO_FERRAMENTA[m.name]||(m.name||'').toUpperCase();
+    const alvo=_alvoDaChamada(m.arguments);
+    addEvent('ai',rotulo+(alvo?' → '+alvo:''));
+    const live=document.getElementById('stlive');
+    if(live)live.textContent='STATUS: '+rotulo;
+    return;
+  }
+  if(m.event==='tool_result'){
+    if(m.error)addEvent('warn',(m.name||'?')+' FALHOU — o agente vai tentar outro caminho');
+    return;
+  }
+  if(m.event==='done'){
+    const n=m.iterations||0;
+    addEvent('ok',`AGENTE CONCLUIU — ${n} ${n===1?'passo':'passos'} (${m.reason||'completed'})`);
+    const live=document.getElementById('stlive');
+    if(live)live.textContent='STATUS: ONLINE';
+  }
+}
+
+// ── Confirmação de ação irreversível ───────────────────────────────────────
+// Nada de atalho de teclado para autorizar: aprovar exige clique deliberado.
+// Esc nega, porque negar é sempre o lado seguro de errar.
+
+let _confirmAtual=null,_confirmTimer=null;
+
+function _elConfirm(){
+  let el=document.getElementById('agentConfirm');
+  if(el)return el;
+  el=document.createElement('div');
+  el.id='agentConfirm';
+  el.setAttribute('role','alertdialog');
+  el.setAttribute('aria-live','assertive');
+  el.innerHTML=
+    '<div class="ac-topo"><span class="ac-titulo">AÇÃO IRREVERSÍVEL</span>'+
+    '<span class="ac-risco"></span></div>'+
+    '<div class="ac-cmd"></div>'+
+    '<div class="ac-motivo"></div>'+
+    '<div class="ac-acoes">'+
+      '<button type="button" class="ac-sim">AUTORIZAR</button>'+
+      '<button type="button" class="ac-nao">NEGAR</button>'+
+      '<span class="ac-dica">Esc nega</span>'+
+    '</div>'+
+    '<div class="ac-prazo"><i></i></div>';
+  document.body.appendChild(el);
+  el.querySelector('.ac-sim').addEventListener('click',()=>_responderConfirmacao(true));
+  el.querySelector('.ac-nao').addEventListener('click',()=>_responderConfirmacao(false));
+  return el;
+}
+
+function _pedirConfirmacao(m){
+  const el=_elConfirm();
+  _confirmAtual=m.id;
+  const risco=(m.risk||'high').toLowerCase();
+  el.classList.remove('risco-critical','risco-high','risco-medium');
+  el.classList.add('risco-'+risco);
+  el.querySelector('.ac-risco').textContent=risco.toUpperCase();
+  el.querySelector('.ac-cmd').textContent=m.preview||m.name||'';
+  el.querySelector('.ac-motivo').textContent=
+    (m.reason?m.reason.charAt(0).toUpperCase()+m.reason.slice(1):'Ação sem desfazer.')+
+    ' Nada acontece até você decidir.';
+  el.classList.add('on');
+  el.querySelector('.ac-nao').focus();
+
+  addEvent('warn','AGUARDANDO SUA AUTORIZAÇÃO — '+(m.preview||m.name||''));
+  try{window.JarvisTTS&&window.JarvisTTS.falar('Preciso da sua autorização, senhor.');}catch(e){}
+
+  // Barra de prazo: responde "quanto tempo eu tenho", não é decoração.
+  const prazo=Number(m.timeout_s)||120;
+  const barra=el.querySelector('.ac-prazo i');
+  barra.style.transition='none';barra.style.transform='scaleX(1)';
+  requestAnimationFrame(()=>{
+    barra.style.transition='transform '+prazo+'s linear';
+    barra.style.transform='scaleX(0)';
+  });
+  clearTimeout(_confirmTimer);
+  _confirmTimer=setTimeout(()=>_fecharConfirmacao(),prazo*1000+1500);
+}
+
+function _responderConfirmacao(aprovado){
+  if(!_confirmAtual)return;
+  const id=_confirmAtual;
+  try{
+    ws.send('__confirm__:'+id+':'+(aprovado?'yes':'no'));
+    addEvent(aprovado?'ok':'warn',(aprovado?'AUTORIZADO':'NEGADO')+' — '+id);
+  }catch(e){
+    addEvent('err','NÃO CONSEGUI RESPONDER — conexão caiu');
+  }
+  _fecharConfirmacao();
+}
+
+function _fecharConfirmacao(){
+  _confirmAtual=null;
+  clearTimeout(_confirmTimer);
+  const el=document.getElementById('agentConfirm');
+  if(el)el.classList.remove('on');
+}
+
+document.addEventListener('keydown',(e)=>{
+  if(e.key==='Escape'&&_confirmAtual)_responderConfirmacao(false);
+});
