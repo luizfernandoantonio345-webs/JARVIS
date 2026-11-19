@@ -39,6 +39,8 @@ import httpx
 from .tool_registry import all_tools, get_tool, schemas_for, truncate
 from . import tools_web      # noqa: F401  — registra as ferramentas de web
 from . import tools_memory   # noqa: F401  — registra as ferramentas de memória
+from . import agent_safety
+from .agent_safety import ConfirmHandler, PedidoConfirmacao
 
 log = logging.getLogger("jarvis.agent")
 
@@ -201,8 +203,46 @@ def _one_turn(messages: list[dict]) -> dict[str, Any]:
 
 # ── Execução de ferramenta ────────────────────────────────────────────────────
 
-def _execute(call: ToolCall) -> ToolCall:
+def _execute(call: ToolCall, *, confirm_handler: ConfirmHandler | None = None,
+             safety_level: str | None = None,
+             emit: Callable[[str, dict], None] | None = None) -> ToolCall:
     started = time.perf_counter()
+
+    # Portão de segurança antes de qualquer efeito colateral. O resultado de uma
+    # recusa volta como texto para o modelo, que entende e relata — bloquear em
+    # silêncio faria o agente insistir no mesmo comando até esgotar as iterações.
+    try:
+        veredicto = agent_safety.avaliar(call.name, call.arguments, nivel=safety_level)
+    except Exception as exc:  # o portão nunca derruba a tarefa
+        log.warning("[SAFETY] avaliação falhou (%s); seguindo", exc)
+        veredicto = None
+
+    if veredicto is not None and veredicto.precisa_confirmar:
+        pedido = veredicto.pedido or PedidoConfirmacao(
+            ferramenta=call.name, argumentos=call.arguments,
+            nivel_risco=veredicto.nivel_risco, motivo=veredicto.motivo)
+        if emit:
+            emit("confirm_required", {"name": call.name, "risk": pedido.nivel_risco,
+                                      "reason": pedido.motivo, "preview": pedido.preview})
+        aprovado = False
+        if confirm_handler is not None:
+            try:
+                aprovado = bool(confirm_handler(pedido))
+            except Exception as exc:
+                log.warning("[SAFETY] handler de confirmação falhou: %s", exc)
+                aprovado = False
+        if not aprovado:
+            call.result = (
+                f"BLOQUEADO: {call.name} não foi executado porque {pedido.motivo}. "
+                f"Risco {pedido.nivel_risco}. Comando/alvo: {pedido.preview}. "
+                "Peça a confirmação do usuário ou proponha uma alternativa reversível."
+            )
+            call.error = True
+            call.duration_ms = int((time.perf_counter() - started) * 1000)
+            log.warning("[SAFETY] %s bloqueado: %s", call.name, pedido.motivo)
+            return call
+        log.info("[SAFETY] %s aprovado pelo usuário (%s)", call.name, pedido.motivo)
+
     spec = get_tool(call.name)
     if spec is None:
         call.result = (
@@ -266,6 +306,8 @@ def run_agent(
     max_iterations: int = MAX_ITERATIONS,
     use_memory: bool = True,
     on_event: Callable[[str, dict], None] | None = None,
+    confirm_handler: ConfirmHandler | None = None,
+    safety_level: str | None = None,
 ) -> AgentResult:
     """
     Executa o agente até concluir o objetivo ou atingir o teto de iterações.
@@ -275,7 +317,12 @@ def run_agent(
     session_id    separa a memória por conversa; None usa a sessão global
     use_memory    desligue para rodar sem puxar nem gravar memória
     on_event      callback(tipo, dados) para acompanhar: 'thinking',
-                  'tool_call', 'tool_result', 'done'
+                  'tool_call', 'tool_result', 'confirm_required', 'done'
+    confirm_handler  callback(PedidoConfirmacao) -> bool, chamado antes de uma
+                  ação irreversível. Sem ele, a ação é recusada e o agente é
+                  avisado em texto
+    safety_level  'off', 'trusted' (padrão) ou 'strict'; None lê
+                  JARVIS_SAFETY_LEVEL
     """
     provider = _provider()
     messages: list[dict[str, Any]] = list(history or [])
@@ -327,7 +374,8 @@ def run_agent(
         tool_results = []
         for call, call_id in zip(turn["calls"], turn["ids"]):
             emit("tool_call", {"name": call.name, "arguments": call.arguments})
-            executed = _execute(call)
+            executed = _execute(call, confirm_handler=confirm_handler,
+                                safety_level=safety_level, emit=emit)
             result.tool_calls.append(executed)
             emit("tool_result", {"name": executed.name, "error": executed.error,
                                  "result": executed.result[:500]})

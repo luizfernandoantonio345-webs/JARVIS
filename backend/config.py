@@ -104,6 +104,8 @@ class JarvisConfig(BaseSettings):
     debug:                        bool  = Field(default=False)
     log_level:                    str   = Field(default="INFO")
     safe_mode:                    bool  = Field(default=True)
+    # off | trusted | strict — portão do laço de agente (ver core/agent_safety.py)
+    safety_level:                 str   = Field(default="trusted")
     operational_mode:             str   = Field(default="assistant")
     risk_tolerance:               str   = Field(default="medium")
     confirmation_timeout_seconds: int   = Field(default=30)
