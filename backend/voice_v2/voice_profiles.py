@@ -128,13 +128,18 @@ async def listar_vozes(force: bool = False) -> set[str]:
     return _vozes_disponiveis
 
 
-async def resolver_voz(p: PerfilVoz) -> str:
+async def resolver_voz(p: PerfilVoz | str | None) -> str:
     """
     Devolve o primeiro nome de voz do perfil que exista de fato.
+
+    Aceita o perfil ou o nome dele — todas as outras funções públicas daqui
+    recebem string, e a assimetria só rendia AttributeError em quem chamava.
 
     Se a lista não puder ser consultada, devolve a primeira escolha: ficar mudo
     por excesso de zelo é pior do que tentar.
     """
+    if not isinstance(p, PerfilVoz):
+        p = perfil(p)
     disponiveis = await listar_vozes()
     if not disponiveis:
         return p.voice

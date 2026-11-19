@@ -143,3 +143,19 @@ def test_modo_server_segue_para_a_geracao(monkeypatch):
 def test_texto_vazio_nao_fala():
     from voice_v2 import output
     assert asyncio.run(output.speak("   ")) is False
+
+def test_resolver_voz_aceita_nome_e_perfil():
+    """A assinatura so aceitava PerfilVoz; nome em string agora resolve igual."""
+    import asyncio
+    from voice_v2.voice_profiles import perfil, resolver_voz
+
+    por_objeto = asyncio.run(resolver_voz(perfil("jarvis")))
+    por_nome = asyncio.run(resolver_voz("jarvis"))
+    assert por_objeto == por_nome == perfil("jarvis").voice
+
+
+def test_resolver_voz_com_nome_invalido_cai_no_padrao():
+    import asyncio
+    from voice_v2.voice_profiles import PERFIL_PADRAO, PERFIS, resolver_voz
+
+    assert asyncio.run(resolver_voz("nao_existe")) == PERFIS[PERFIL_PADRAO].voice
