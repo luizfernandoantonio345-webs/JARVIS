@@ -9,9 +9,35 @@ import tempfile
 log = logging.getLogger(__name__)
 
 
+def _saida_configurada() -> str:
+    """
+    Onde a voz deve tocar: 'browser', 'server' ou 'both'.
+
+    O padrão é 'browser' porque é o único caminho em que o orb consegue
+    analisar o áudio e acompanhar as palavras. Em 'server' o som sai pelo
+    alto-falante da máquina e o orb volta a pulsar sem relação com a fala.
+    """
+    try:
+        from config import get_config
+        return (get_config().tts_output or "browser").strip().lower()
+    except Exception:
+        return "browser"
+
+
 async def speak(text: str) -> bool:
-    """Gera e reproduz áudio TTS. Retorna True se sucesso."""
+    """
+    Gera e reproduz áudio TTS no servidor. Retorna True se reproduziu.
+
+    Respeita tts_output: em modo 'browser' esta função não toca nada, porque
+    quem fala é o navegador. Sem essa porta, backend e frontend falavam os
+    dois e o usuário ouvia em dobro.
+    """
     if not text or not text.strip():
+        return False
+
+    saida = _saida_configurada()
+    if saida == "browser":
+        log.debug("[TTS] tts_output=browser — reprodução no servidor ignorada")
         return False
 
     path = await generate_tts_file(text)
