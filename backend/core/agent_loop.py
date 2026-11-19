@@ -37,7 +37,8 @@ from typing import Any, Callable
 import httpx
 
 from .tool_registry import all_tools, get_tool, schemas_for, truncate
-from . import tools_web  # noqa: F401  — importar registra as ferramentas de web
+from . import tools_web      # noqa: F401  — registra as ferramentas de web
+from . import tools_memory   # noqa: F401  — registra as ferramentas de memória
 
 log = logging.getLogger("jarvis.agent")
 
@@ -65,7 +66,19 @@ Como trabalhar:
    parâmetro ou endpoint. Se precisar de raciocínio além do seu alcance, use
    ask_stronger_model com uma pergunta completa.
 
-5. SEJA HONESTO sobre o que não deu certo. Se tentou três caminhos e nenhum
+5. USE A MEMÓRIA. Você conversa com a mesma pessoa há tempo, não com um
+   estranho a cada vez.
+   - recall antes de perguntar algo que talvez já tenha sido dito, e sempre que
+     ele mencionar algo como se você já soubesse ("aquele projeto", "como
+     combinamos").
+   - remember quando algo for decidido ou quando ele contar algo que vai
+     importar depois. Grave o fato em uma ou duas frases, não a conversa.
+   - remember_preference quando ele corrigir seu comportamento. "responde mais
+     curto", "não me explica o básico", "prefere Postgres a Mongo" — isso é
+     como ele quer trabalhar, e você deve lembrar sem ele repetir.
+   - search_knowledge para consultar documentação e código já indexados.
+
+6. SEJA HONESTO sobre o que não deu certo. Se tentou três caminhos e nenhum
    funcionou, diga isso e explique o que descobriu. Não entregue algo quebrado
    dizendo que está pronto.
 
@@ -249,7 +262,9 @@ def run_agent(
     goal: str,
     *,
     history: list[dict] | None = None,
+    session_id: str | None = None,
     max_iterations: int = MAX_ITERATIONS,
+    use_memory: bool = True,
     on_event: Callable[[str, dict], None] | None = None,
 ) -> AgentResult:
     """
@@ -257,11 +272,26 @@ def run_agent(
 
     goal          o que precisa ser feito, em linguagem natural
     history       mensagens anteriores, para continuar uma conversa
+    session_id    separa a memória por conversa; None usa a sessão global
+    use_memory    desligue para rodar sem puxar nem gravar memória
     on_event      callback(tipo, dados) para acompanhar: 'thinking',
                   'tool_call', 'tool_result', 'done'
     """
     provider = _provider()
     messages: list[dict[str, Any]] = list(history or [])
+
+    # Memória antes de começar: o que já se sabe sobre este usuário e este
+    # trabalho entra no contexto, para o agente não recomeçar do zero.
+    if use_memory:
+        tools_memory.definir_sessao(session_id)
+        try:
+            contexto = tools_memory.contexto_inicial(goal, session_id)
+            if contexto:
+                messages.append({"role": "user", "content": contexto})
+                log.info("[AGENT] contexto de memória injetado (%d chars)", len(contexto))
+        except Exception as exc:  # memória nunca derruba a tarefa
+            log.warning("[AGENT] memória indisponível: %s", exc)
+
     messages.append({"role": "user", "content": goal})
 
     result = AgentResult(stopped_reason="completed")

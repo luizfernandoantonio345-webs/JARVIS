@@ -124,7 +124,7 @@ def _load_extra_tool_modules() -> None:
     if _extras_loaded:
         return
     _extras_loaded = True
-    for module in ("tools_web",):
+    for module in ("tools_web", "tools_memory"):
         try:
             __import__(f"{__package__}.{module}", fromlist=["*"])
         except Exception as exc:  # uma ferramenta opcional não derruba o resto
