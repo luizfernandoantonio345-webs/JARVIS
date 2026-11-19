@@ -120,7 +120,13 @@ const ckt=[[-0.31,-0.19,0.13,-0.19],[0.13,-0.19,0.13,0.07],[-0.19,0.13,0.23,0.13
 function drawOrb(){
   cxO.clearRect(0,0,W,H);
   const m=getMic();
-  tal=m>0.01?m:(speaking?0.16+Math.sin(t*18)*0.22:0);
+  // Prioridade: microfone (usuario falando) > voz real do JARVIS > nada.
+  // A senoide falsa que ficava aqui pulsava em ritmo fixo, sem relacao com
+  // as palavras, porque o TTS tocava no backend e o navegador nunca via o
+  // audio. Agora tts-voice.js toca no navegador e devolve o nivel real.
+  const ttsLvl=(window.JarvisTTS&&window.JarvisTTS.estaFalando())
+    ?window.JarvisTTS.nivelTTS():0;
+  tal=m>0.01?m:(ttsLvl>0.004?ttsLvl:(speaking?0.16+Math.sin(t*18)*0.22:0));
   al+=(tal-al)*0.082;
   const pulse=0.5+0.5*Math.sin(t*1.78);
   const OR=R*(1+pulse*0.022+al*0.32);
@@ -434,7 +440,14 @@ function connectWS(){
           document.getElementById('convSession').textContent='SESSÃO: '+_sessionId.substring(0,12)+'…';
           document.getElementById('sSessionVal').textContent=_sessionId.substring(0,20);
         }
-        if(m.status==='speaking'){setSpeaking(true);if(m.message){showResponse(m.message);addConvEntry('jarvis',m.message);}addEvent('voice','TTS: FALANDO');}
+        if(m.status==='speaking'){setSpeaking(true);
+          if(m.message){showResponse(m.message);addConvEntry('jarvis',m.message);
+            // Toca no NAVEGADOR para o orb poder analisar a voz. Se o backend
+            // tambem estiver falando (JARVIS_VOICE_ENABLED=true), desligue um
+            // dos dois para nao ouvir em dobro.
+            window.JarvisTTS&&window.JarvisTTS.falar(m.message);
+          }
+          addEvent('voice','TTS: FALANDO');}
         if(m.status==='thinking'){document.getElementById('stlive').textContent='STATUS: PROCESSANDO...';addEvent('ai','PROCESSANDO...');}
         if(m.status==='idle'){if(!currentStream)setSpeaking(false);}
         if(m.status==='error'){setSpeaking(false);addEvent('err','WS ERRO: '+(m.message||'desconhecido'));}
