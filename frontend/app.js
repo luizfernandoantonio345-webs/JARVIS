@@ -3012,6 +3012,20 @@ function _onAgentEvent(m){
     if(m.error)addEvent('warn',(m.name||'?')+' FALHOU — o agente vai tentar outro caminho');
     return;
   }
+  if(m.event==='escalating'){
+    const motivos={repeticao:'repetindo a mesma chamada',erros:'erros em sequência',
+                   vazio:'sem resposta',teto:'muitas iterações'};
+    addEvent('warn','TRAVOU ('+(motivos[m.reason]||m.reason)+') — PEDINDO AJUDA A UM MODELO MAIOR');
+    const live=document.getElementById('stlive');
+    if(live)live.textContent='STATUS: CONSULTANDO MODELO MAIOR';
+    return;
+  }
+  if(m.event==='escalated'){
+    addEvent('ok',m.mode==='handover'
+      ? 'MODELO MAIOR ASSUMIU A TAREFA'
+      : 'ORIENTAÇÃO RECEBIDA — RETOMANDO SOZINHO');
+    return;
+  }
   if(m.event==='done'){
     const n=m.iterations||0;
     addEvent('ok',`AGENTE CONCLUIU — ${n} ${n===1?'passo':'passos'} (${m.reason||'completed'})`);

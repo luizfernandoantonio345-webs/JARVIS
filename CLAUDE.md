@@ -111,6 +111,10 @@ JARVIS/
 | `JARVIS_AGENT_MAX_ITERATIONS` | `25` | Teto de passos do laço |
 | `JARVIS_AGENT_WS_TIMEOUT` | `900` | Segundos até abortar a tarefa |
 | `JARVIS_ROUTER_LLM` | `true` | Classificação de rota via LLM |
+| `JARVIS_ESCALATE` | `auto` | Escalada: off/advice/auto |
+| `JARVIS_ESCALATE_PROVIDER` | auto | `claude` ou `openai` |
+| `JARVIS_ANTHROPIC_API_KEY` | vazio | Liga a escalada para Claude |
+| `JARVIS_OPENAI_API_KEY` | vazio | Liga a escalada para OpenAI |
 | `JARVIS_TOTAL_RAM_GB` | auto | Força RAM para seleção de modelo |
 
 ## Fluxo de uma mensagem de chat
@@ -130,6 +134,8 @@ WebSocket /ws/jarvis
     │           → modelo escolhe ferramenta → agent_safety.avaliar()
     │               → irreversível? confirm_handler → agent_confirm no socket
     │               → senão executa e devolve o resultado ao modelo
+    │           → impasse? escalation.pedir_conselho() → retoma local
+    │                        2º impasse → assumir_tarefa() → encerra
     │           → repete até concluir (teto de 25 iterações)
     │       → eventos pela fila: thinking / tool_call / tool_result / done
     │   → texto final enviado como token
@@ -149,6 +155,29 @@ WebSocket /ws/jarvis
 Enquanto o laço roda, o handler não está lendo o socket — e a confirmação que
 o laço espera chega por ele. Por isso `_rodar_agente()` sobe um ouvinte
 concorrente: sem ele, agente e servidor ficam parados um pelo outro.
+
+### Escalada para modelo forte
+
+`JARVIS_ESCALATE`: `off` | `advice` | `auto` (padrão), com
+`JARVIS_ANTHROPIC_API_KEY` ou `JARVIS_OPENAI_API_KEY`. Sem chave fica
+desligada e o laço segue só com o modelo local.
+
+A ferramenta `ask_stronger_model` já existia, mas depender do modelo pequeno
+para *decidir* usá-la não funciona: um 7B que entrou em loop não percebe que
+entrou em loop — repete a mesma chamada com convicção. Quem percebe é o laço,
+por três sinais observáveis de fora (`core/escalation.py`):
+
+| Sinal | Quando dispara |
+|---|---|
+| `repeticao` | mesma ferramenta com os mesmos argumentos de novo |
+| `erros` | três resultados de erro seguidos |
+| `vazio` | dois turnos sem texto e sem ferramenta |
+| `teto` | bateu o limite de iterações sem entregar nada |
+
+Primeiro impasse pede orientação e devolve ao modelo local, que continua
+trabalhando — custa uma chamada e costuma destravar. Segundo impasse entrega a
+tarefa: o modelo forte responde e o laço encerra. No `teto` vai direto para a
+entrega, porque ali não há laço para continuar.
 
 ### Portão de segurança
 

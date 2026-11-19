@@ -40,6 +40,7 @@ from .tool_registry import all_tools, get_tool, schemas_for, truncate
 from . import tools_web      # noqa: F401  — registra as ferramentas de web
 from . import tools_memory   # noqa: F401  — registra as ferramentas de memória
 from . import agent_safety
+from . import escalation as esc
 from .agent_safety import ConfirmHandler, PedidoConfirmacao
 
 log = logging.getLogger("jarvis.agent")
@@ -308,6 +309,7 @@ def run_agent(
     on_event: Callable[[str, dict], None] | None = None,
     confirm_handler: ConfirmHandler | None = None,
     safety_level: str | None = None,
+    escalate: bool | None = None,
 ) -> AgentResult:
     """
     Executa o agente até concluir o objetivo ou atingir o teto de iterações.
@@ -323,6 +325,8 @@ def run_agent(
                   avisado em texto
     safety_level  'off', 'trusted' (padrão) ou 'strict'; None lê
                   JARVIS_SAFETY_LEVEL
+    escalate      None lê JARVIS_ESCALATE e a presença de chave; False desliga
+                  a escalada para modelo forte
     """
     provider = _provider()
     messages: list[dict[str, Any]] = list(history or [])
@@ -344,6 +348,50 @@ def run_agent(
     result = AgentResult(stopped_reason="completed")
     emit = on_event or (lambda *_: None)
 
+    detector = esc.DetectorDeImpasse()
+    escaladas = 0
+    permitir_escalada = esc.habilitada() if escalate is None else bool(escalate)
+
+    def _escalar(impasse: esc.Impasse, *, apenas_entrega: bool = False) -> str | None:
+        """
+        Pede socorro ao modelo forte.
+
+        Devolve o texto final quando ele assume a tarefa; None quando só
+        aconselhou (o laço continua) ou quando não deu para consultar.
+
+        apenas_entrega salta o conselho: no teto de iterações não há laço para
+        continuar, então conselho ali não serviria para nada.
+        """
+        nonlocal escaladas
+        if not permitir_escalada or escaladas >= esc.MAX_ESCALADAS:
+            return None
+        escaladas += 1
+        tentativas = esc.resumir_tentativas(result.tool_calls)
+        emit("escalating", {"reason": impasse.tipo, "detail": impasse.detalhe,
+                            "attempt": escaladas})
+        log.info("[AGENT] impasse (%s) — escalando, tentativa %d", impasse, escaladas)
+
+        if escaladas == 1 and not apenas_entrega:
+            conselho = esc.pedir_conselho(
+                goal, tentativas, impasse,
+                ferramentas=", ".join(t.name for t in all_tools()))
+            if conselho:
+                messages.append({
+                    "role": "user",
+                    "content": ("Orientação de um modelo mais capaz sobre como "
+                                f"seguir daqui:\n\n{conselho}"),
+                })
+                detector.esquecer()   # o passado já serviu de prova
+                emit("escalated", {"mode": "advice"})
+                return None
+
+        if esc.politica() == "auto":
+            resposta = esc.assumir_tarefa(goal, tentativas)
+            if resposta:
+                emit("escalated", {"mode": "handover"})
+                return resposta
+        return None
+
     for iteration in range(1, max_iterations + 1):
         result.iterations = iteration
         messages = _compact(messages, goal)
@@ -361,8 +409,26 @@ def run_agent(
 
         # Sem chamada de ferramenta = o modelo terminou.
         if not turn["calls"]:
-            result.final_text = turn["text"]
-            result.stopped_reason = "completed"
+            if (turn["text"] or "").strip():
+                result.final_text = turn["text"]
+                result.stopped_reason = "completed"
+                break
+            # Turno morto: nem texto nem ferramenta. Encerrar aqui devolveria
+            # resposta vazia ao usuário — primeiro cutuca, depois escala.
+            impasse = detector.registrar_turno_vazio()
+            if impasse is None:
+                messages.append({"role": "user", "content":
+                    "Você não respondeu nada. Use uma ferramenta para avançar "
+                    "ou escreva a resposta final."})
+                continue
+            texto = _escalar(impasse)
+            if texto:
+                result.final_text = texto
+                result.stopped_reason = "escalated"
+                break
+            result.final_text = ("Não consegui formular uma resposta para isso, Sir. "
+                                 "Tente reformular o pedido.")
+            result.stopped_reason = "empty_turns"
             break
 
         # Registra a vez do assistente no formato do provedor.
@@ -372,6 +438,7 @@ def run_agent(
             messages.append(turn["raw"])
 
         tool_results = []
+        impasse_detectado: esc.Impasse | None = None
         for call, call_id in zip(turn["calls"], turn["ids"]):
             emit("tool_call", {"name": call.name, "arguments": call.arguments})
             executed = _execute(call, confirm_handler=confirm_handler,
@@ -379,6 +446,8 @@ def run_agent(
             result.tool_calls.append(executed)
             emit("tool_result", {"name": executed.name, "error": executed.error,
                                  "result": executed.result[:500]})
+            impasse_detectado = detector.registrar_chamada(
+                executed.name, executed.arguments, executed.error) or impasse_detectado
 
             if provider == "anthropic":
                 tool_results.append({
@@ -396,13 +465,30 @@ def run_agent(
 
         if provider == "anthropic" and tool_results:
             messages.append({"role": "user", "content": tool_results})
+
+        # O modelo pequeno que entrou em loop não percebe que entrou em loop:
+        # quem precisa perceber é o laço.
+        if impasse_detectado is not None:
+            texto = _escalar(impasse_detectado)
+            if texto:
+                result.final_text = texto
+                result.stopped_reason = "escalated"
+                break
     else:
-        result.stopped_reason = "max_iterations"
-        result.final_text = (
-            f"Parei em {max_iterations} iterações sem concluir. "
-            f"Executei {len(result.tool_calls)} chamadas de ferramenta. "
-            "Diga se quer que eu continue de onde parei."
-        )
+        # Teto batido sem entregar nada: vale uma última tentativa antes de
+        # devolver "parei em 25 iterações" para o usuário.
+        texto = _escalar(esc.Impasse("teto", f"{max_iterations} iterações sem concluir"),
+                         apenas_entrega=True)
+        if texto:
+            result.final_text = texto
+            result.stopped_reason = "escalated"
+        else:
+            result.stopped_reason = "max_iterations"
+            result.final_text = (
+                f"Parei em {max_iterations} iterações sem concluir. "
+                f"Executei {len(result.tool_calls)} chamadas de ferramenta. "
+                "Diga se quer que eu continue de onde parei."
+            )
 
     result.messages = messages
     emit("done", {"reason": result.stopped_reason, "iterations": result.iterations,
