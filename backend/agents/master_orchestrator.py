@@ -175,7 +175,52 @@ _FILE_ACTION_MAP = [
 class MasterOrchestrator:
     """Roteador com wiring real de actions — sem código inline."""
 
+    @property
+    def _router(self):
+        """
+        SmartRouter criado sob demanda e reaproveitado.
+
+        Preguiçoso de propósito: o roteador importa o llm_service, e carregar
+        isso no import do orquestrador criaria ciclo.
+        """
+        existente = getattr(self, "_smart_router", None)
+        if existente is not None:
+            return existente
+        try:
+            from core.router import SmartRouter
+            import os
+            self._smart_router = SmartRouter(
+                _RULES,
+                use_llm=os.getenv("JARVIS_ROUTER_LLM", "true").lower() != "false",
+            )
+        except Exception as exc:  # sem roteador novo, segue o antigo
+            log.warning("[ORCH] SmartRouter indisponível, usando palavra-chave: %s", exc)
+            self._smart_router = None
+        return self._smart_router
+
     def route(self, message: str) -> str:
+        """
+        Decide o agente pelo SENTIDO da mensagem, não por substring.
+
+        Camadas: padrão ancorado → modelo local → palavra-chave → chat.
+        Devolve só o nome, como antes. Use route_decision() para ver por quê.
+        """
+        roteador = self._router
+        if roteador is not None:
+            return roteador.route(message).agent
+        return self._route_by_keyword(message)
+
+    def route_decision(self, message: str):
+        """Decisão completa: agente, confiança, método e motivo."""
+        roteador = self._router
+        if roteador is not None:
+            return roteador.route(message)
+        from core.router import RouteDecision
+        return RouteDecision(self._route_by_keyword(message), 0.45, "keyword", "fallback")
+
+    @staticmethod
+    def _route_by_keyword(message: str) -> str:
+        """Comportamento original, mantido como rede de segurança."""
         msg = message.lower()
         for agent, keywords in _RULES.items():
             if any(k in msg for k in keywords):
