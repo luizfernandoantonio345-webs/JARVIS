@@ -3012,6 +3012,17 @@ function _onAgentEvent(m){
     if(m.error)addEvent('warn',(m.name||'?')+' FALHOU — o agente vai tentar outro caminho');
     return;
   }
+  if(m.event==='verification_required'){
+    addEvent('warn','DISSE PRONTO SEM CONFERIR — EXIGINDO VERIFICAÇÃO: '+
+      (m.pending||[]).join(', '));
+    const live=document.getElementById('stlive');
+    if(live)live.textContent='STATUS: VERIFICANDO O PRÓPRIO TRABALHO';
+    return;
+  }
+  if(m.event==='unverified'){
+    addEvent('err','ENTREGOU SEM CONFERIR: '+(m.pending||[]).join(', '));
+    return;
+  }
   if(m.event==='escalating'){
     const motivos={repeticao:'repetindo a mesma chamada',erros:'erros em sequência',
                    vazio:'sem resposta',teto:'muitas iterações'};

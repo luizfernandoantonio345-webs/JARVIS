@@ -134,6 +134,8 @@ WebSocket /ws/jarvis
     │           → modelo escolhe ferramenta → agent_safety.avaliar()
     │               → irreversível? confirm_handler → agent_confirm no socket
     │               → senão executa e devolve o resultado ao modelo
+    │           → tentou encerrar? verification.tudo_conferido()
+    │                        não conferiu → cobra e continua (máx. 2x)
     │           → impasse? escalation.pedir_conselho() → retoma local
     │                        2º impasse → assumir_tarefa() → encerra
     │           → repete até concluir (teto de 25 iterações)
@@ -155,6 +157,27 @@ WebSocket /ws/jarvis
 Enquanto o laço roda, o handler não está lendo o socket — e a confirmação que
 o laço espera chega por ele. Por isso `_rodar_agente()` sobe um ouvinte
 concorrente: sem ele, agente e servidor ficam parados um pelo outro.
+
+### Porteiro de verificação
+
+O `SYSTEM_PROMPT` já manda conferir antes de encerrar. Modelo grande obedece;
+7B escreve o arquivo, diz "pronto, Sir" e encerra. Repetir a instrução com mais
+ênfase não resolve — prompt não é garantia de comportamento.
+
+Então a cobrança é mecânica (`core/verification.py`). O laço registra o que foi
+alterado e o que foi conferido; quando o modelo tenta encerrar com alteração
+pendente, o encerramento é barrado e volta a lista exata do que falta provar.
+
+- Conferência válida = `run_command` com cara de teste/checagem **e**
+  `exit_code: 0` (pytest, npm test, ruff, mypy, node --check, py_compile,
+  curl localhost…). `echo pronto` não conta, e teste que falhou não limpa.
+- Leitura não gera pendência; comando que só olha (`ls`, `cat`, `git status`)
+  também não.
+- Limite de 2 cobranças. Depois aceita e avisa no texto final — insistir viraria
+  loop, e "alterei e não consegui conferir" é mais útil que o agente girando.
+
+`AgentResult.verified`: `True` conferido, `False` alterou sem conferir, `None`
+nada que precisasse de prova.
 
 ### Escalada para modelo forte
 

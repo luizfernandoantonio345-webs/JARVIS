@@ -41,6 +41,7 @@ from . import tools_web      # noqa: F401  — registra as ferramentas de web
 from . import tools_memory   # noqa: F401  — registra as ferramentas de memória
 from . import agent_safety
 from . import escalation as esc
+from . import verification as vfy
 from .agent_safety import ConfirmHandler, PedidoConfirmacao
 
 log = logging.getLogger("jarvis.agent")
@@ -106,6 +107,9 @@ class AgentResult:
     tool_calls: list[ToolCall] = field(default_factory=list)
     iterations: int = 0
     stopped_reason: str = "completed"
+    # True = alteração conferida; False = alterou e não conferiu;
+    # None = nada que precisasse de prova.
+    verified: bool | None = None
     messages: list[dict[str, Any]] = field(default_factory=list)
 
     @property
@@ -204,6 +208,28 @@ def _one_turn(messages: list[dict]) -> dict[str, Any]:
 
 # ── Execução de ferramenta ────────────────────────────────────────────────────
 
+def _dica_de_argumentos(spec, recebidos: dict[str, Any]) -> str:
+    """Diz quais argumentos a ferramenta aceita e quais faltaram."""
+    try:
+        props = (spec.parameters or {}).get("properties", {}) or {}
+        obrigatorios = set((spec.parameters or {}).get("required", []) or [])
+    except Exception:
+        return ""
+    if not props:
+        return ""
+    aceitos = ", ".join(
+        f"{nome}{' (obrigatório)' if nome in obrigatorios else ''}"
+        for nome in props)
+    partes = [f"Aceita: {aceitos}."]
+    sobrando = [k for k in recebidos if k not in props]
+    if sobrando:
+        partes.append(f"Não existe: {', '.join(sobrando)}.")
+    faltando = [k for k in obrigatorios if k not in recebidos]
+    if faltando:
+        partes.append(f"Faltou: {', '.join(faltando)}.")
+    return " ".join(partes)
+
+
 def _execute(call: ToolCall, *, confirm_handler: ConfirmHandler | None = None,
              safety_level: str | None = None,
              emit: Callable[[str, dict], None] | None = None) -> ToolCall:
@@ -256,7 +282,10 @@ def _execute(call: ToolCall, *, confirm_handler: ConfirmHandler | None = None,
             call.result = str(spec.handler(**call.arguments))
             call.error = call.result.startswith("ERRO")
         except TypeError as exc:
-            call.result = f"ERRO: argumentos inválidos para {call.name}: {exc}"
+            # Modelo pequeno erra nome de parâmetro com frequência, e um
+            # TypeError cru não diz qual era o nome certo. O schema diz.
+            call.result = (f"ERRO: argumentos inválidos para {call.name}: {exc}. "
+                           + _dica_de_argumentos(spec, call.arguments))
             call.error = True
         except PermissionError as exc:
             call.result = f"ERRO: {exc}"
@@ -349,6 +378,7 @@ def run_agent(
     emit = on_event or (lambda *_: None)
 
     detector = esc.DetectorDeImpasse()
+    rastreador = vfy.RastreadorDeVerificacao()
     escaladas = 0
     permitir_escalada = esc.habilitada() if escalate is None else bool(escalate)
 
@@ -410,8 +440,25 @@ def run_agent(
         # Sem chamada de ferramenta = o modelo terminou.
         if not turn["calls"]:
             if (turn["text"] or "").strip():
+                # "Pronto, Sir" sem ter conferido não é pronto. O prompt já
+                # manda verificar e o modelo pequeno ignora, então a cobrança
+                # é mecânica — e tem limite, para não virar loop.
+                if not rastreador.tudo_conferido() and rastreador.pode_cobrar():
+                    pendentes = rastreador.pendentes
+                    log.info("[AGENT] encerramento barrado: %s não conferido",
+                             ", ".join(pendentes))
+                    emit("verification_required", {"pending": pendentes,
+                                                   "attempt": rastreador.cobrancas + 1})
+                    messages.append({"role": "user", "content": rastreador.cobrar()})
+                    continue
                 result.final_text = turn["text"]
                 result.stopped_reason = "completed"
+                if not rastreador.tudo_conferido():
+                    result.verified = False
+                    result.final_text += rastreador.aviso_final()
+                    emit("unverified", {"pending": rastreador.pendentes})
+                elif rastreador.houve_alteracao:
+                    result.verified = True
                 break
             # Turno morto: nem texto nem ferramenta. Encerrar aqui devolveria
             # resposta vazia ao usuário — primeiro cutuca, depois escala.
@@ -448,6 +495,10 @@ def run_agent(
                                  "result": executed.result[:500]})
             impasse_detectado = detector.registrar_chamada(
                 executed.name, executed.arguments, executed.error) or impasse_detectado
+            spec = get_tool(executed.name)
+            rastreador.registrar(executed.name, executed.arguments, executed.result,
+                                 executed.error,
+                                 read_only=bool(spec and spec.read_only))
 
             if provider == "anthropic":
                 tool_results.append({
